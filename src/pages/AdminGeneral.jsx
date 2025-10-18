@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Box, Grid, Card, CardBody, CardHeader, Heading, Text, Button,
+  Box, Card, CardBody, CardHeader, Heading, Text, Button,
   Input, Select, VStack, HStack, Badge, useToast, Modal, ModalOverlay,
   ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   useDisclosure, FormControl, FormLabel, Textarea, Flex,
@@ -9,7 +9,7 @@ import {
   Divider, Tabs, TabList, TabPanels, Tab, TabPanel, Avatar, Tag, TagLabel
 } from '@chakra-ui/react';
 import {
-  FiUsers, FiCalendar, FiFileText, FiSettings, FiDownload, FiUpload,
+  FiUsers, FiCalendar, FiFileText, FiSettings, FiDownload,
   FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck, FiX, FiRefreshCw,
   FiMessageSquare, FiFlag, FiPlus, FiBell, FiMail, FiGlobe, FiSend, FiActivity
 } from 'react-icons/fi';
@@ -664,10 +664,13 @@ export default function AdminGeneral() {
 
   // Recompute admin stats when retroReports changes
   useEffect(() => {
-    setAdminData(prev => ({
-      ...prev,
-      activeReports: retroReports.filter(r => r.status === 'open' || r.status === 'in_progress').length
-    }));
+    setAdminData(prev => {
+      if (!prev) return prev; // attend l'init avant de recalculer
+      return {
+        ...prev,
+        activeReports: retroReports.filter(r => r.status === 'open' || r.status === 'in_progress').length
+      };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retroReports]);
 
@@ -675,7 +678,7 @@ export default function AdminGeneral() {
     // Charger les retro reports à l'ouverture
     const fetchReports = async () => {
       try {
-        const base = import.meta.env.VITE_API_URL;
+        const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
         const res = await fetch(`${base}/api/retro-reports`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -699,7 +702,7 @@ export default function AdminGeneral() {
       return;
     }
     try {
-      const base = import.meta.env.VITE_API_URL;
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const fd = new FormData();
       fd.append('title', reportFormData.title);
       fd.append('description', reportFormData.description);
@@ -746,13 +749,10 @@ export default function AdminGeneral() {
 
   const handleStatusChange = async (reportId, newStatus) => {
     try {
-      const base = import.meta.env.VITE_API_URL;
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${base}/api/retro-reports/${reportId}/status`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+        headers: { 'Content-Type': 'application/json','Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({ status: newStatus })
       });
       if (!res.ok) throw new Error('status failed');
@@ -768,11 +768,8 @@ export default function AdminGeneral() {
   const handleDeleteReport = async (reportId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce RétroReport ?')) return;
     try {
-      const base = import.meta.env.VITE_API_URL;
-      const res = await fetch(`${base}/api/retro-reports/${reportId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${base}/api/retro-reports/${reportId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
       if (!res.ok) throw new Error('delete failed');
       setRetroReports(prev => prev.filter(r => r.id !== reportId));
       toast({ title: 'RétroReport supprimé', description: 'Le ticket a été supprimé avec succès', status: 'success', duration: 3000 });
@@ -793,13 +790,10 @@ export default function AdminGeneral() {
       return;
     }
     try {
-      const base = import.meta.env.VITE_API_URL;
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const res = await fetch(`${base}/api/retro-reports/${selectedReport.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+        headers: { 'Content-Type': 'application/json','Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({
           title: editFormData.title,
           description: editFormData.description,
