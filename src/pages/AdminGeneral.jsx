@@ -238,10 +238,10 @@ function ChangelogManagement() {
   const [changelogEntries, setChangelogEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newEntry, setNewEntry] = useState({ 
-    version: '', type: 'feature', title: '', description: '', author: '' 
+  const [newEntry, setNewEntry] = useState({
+    version: '', type: 'feature', title: '', description: '', author: ''
   });
-  
+
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   // Charger le changelog depuis l'API
@@ -337,11 +337,11 @@ function ChangelogManagement() {
 
   const handleAddEntry = async () => {
     if (!newEntry.version || !newEntry.title || !newEntry.description) {
-      toast({ 
-        title: 'Erreur', 
-        description: 'Veuillez remplir tous les champs obligatoires', 
-        status: 'error', 
-        duration: 3000 
+      toast({
+        title: 'Erreur',
+        description: 'Veuillez remplir tous les champs obligatoires',
+        status: 'error',
+        duration: 3000
       });
       return;
     }
@@ -361,11 +361,11 @@ function ChangelogManagement() {
     // Sauvegarder automatiquement
     await saveChangelog(updatedEntries);
 
-    toast({ 
-      title: 'Succès', 
-      description: 'Entrée changelog ajoutée et publiée', 
-      status: 'success', 
-      duration: 3000 
+    toast({
+      title: 'Succès',
+      description: 'Entrée changelog ajoutée et publiée',
+      status: 'success',
+      duration: 3000
     });
   };
 
@@ -903,17 +903,19 @@ export default function AdminGeneral() {
                     </VStack>
                   </Alert>
                 ) : (
-                  retroReports.map(report => (
-                    <RetroReportCard 
-                      key={report.id} 
-                      report={report} 
-                      onUpdate={handleEditReport} 
-                      onComment={(r) => { setSelectedReport(r); onCommentOpen(); }} 
-                      onStatusChange={handleStatusChange} 
-                      onDelete={handleDeleteReport} 
-                    />
-                  ))
-                }
+                  <>
+                    {retroReports.map((report) => (
+                      <RetroReportCard
+                        key={report.id}
+                        report={report}
+                        onUpdate={handleEditReport}
+                        onComment={(r) => { setSelectedReport(r); onCommentOpen(); }}
+                        onStatusChange={handleStatusChange}
+                        onDelete={handleDeleteReport}
+                      />
+                    ))}
+                  </>
+                )}
               </VStack>
             </VStack>
           </TabPanel>
