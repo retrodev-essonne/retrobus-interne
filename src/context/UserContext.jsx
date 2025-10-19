@@ -11,29 +11,19 @@ export function UserProvider({ children }) {
   });
   const [mustChangePassword, setMustChangePassword] = useState(false);
 
+  // NEW: état de contrôle session
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const isAuthenticated = !!token;
+
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token);
-    } else {
-      localStorage.removeItem('token');
-    }
+    if (token) localStorage.setItem('token', token);
+    else localStorage.removeItem('token');
   }, [token]);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('user');
-    }
+    if (user) localStorage.setItem('user', JSON.stringify(user));
+    else localStorage.removeItem('user');
   }, [user]);
-
-  const isAuthenticated = !!token;
-  const username = user?.username || '';
-  const prenom = user?.prenom || '';
-  const nom = user?.nom || '';
-  const roles = user?.roles || [];
-  const isAdmin = roles.includes('ADMIN');
-  const matricule = user?.username || '';
 
   const logout = () => {
     setToken('');
@@ -42,68 +32,72 @@ export function UserProvider({ children }) {
     localStorage.removeItem('user');
   };
 
-  const login = async (username, password) => {
-    const base = import.meta.env.VITE_API_URL;
-    if (!base) throw new Error('API non configurée (VITE_API_URL manquante)');
-    
-    const endpoint = /^\d{4}-\d{3}$/.test(username) ? '/auth/member-login' : '/auth/login';
-    
-    const res = await fetch(`${base}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        [endpoint.includes('member') ? 'matricule' : 'username']: username, 
-        password 
-      })
-    });
-    
-    if (!res.ok) {
-      let msg = 'Échec de connexion';
-      try {
-        const j = await res.json();
-        if (j.error) msg = j.error;
-      } catch {}
-      throw new Error(msg);
+  // NEW: revalidation stricte auprès du serveur
+  const ensureSession = async () => {
+    if (!token) {
+      setUser(null);
+      setSessionChecked(true);
+      return false;
     }
-    
-    const data = await res.json();
-    
-    // Vérifier si changement de mot de passe obligatoire
-    if (data.user?.mustChangePassword) {
-      setMustChangePassword(true);
-    }
-    
-    return data;
-  };
-
-  const handlePasswordChanged = () => {
-    setMustChangePassword(false);
-    // Rafraîchir les données utilisateur
-    if (token) {
-      fetchUserData();
-    }
-  };
-
-  // Fonction pour récupérer les données utilisateur
-  const fetchUserData = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      const userData = await response.json();
-      setUser(userData);
-      setMustChangePassword(userData.mustChangePassword || false);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // Si l’API expose un état (disabled/active/status), couper immédiatement
+      const disabled = data?.disabled === true || data?.active === false || data?.status === 'DISABLED';
+      if (disabled) {
+        logout();
+        setSessionChecked(true);
+        return false;
+      }
+
+      setUser(data);
+      setMustChangePassword(!!data.mustChangePassword);
+      setSessionChecked(true);
+      return true;
+    } catch (e) {
+      // 401 / erreur => on coupe
+      logout();
+      setSessionChecked(true);
+      return false;
     }
   };
 
-  // Effet pour récupérer les données utilisateur au chargement
+  // Revalidation au chargement
   useEffect(() => {
-    if (token) {
-      fetchUserData();
-    }
+    // On ne bloque pas le démarrage si pas de token
+    ensureSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Revalidation quand le token change
+  useEffect(() => {
+    if (token) ensureSession();
+    else setSessionChecked(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Revalidation: à chaque regain de focus et périodiquement
+  useEffect(() => {
+    const onFocus = () => ensureSession();
+    window.addEventListener('focus', onFocus);
+    const id = setInterval(() => ensureSession(), 5 * 60 * 1000); // toutes les 5 min
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const username = user?.username || '';
+  const prenom = user?.prenom || '';
+  const nom = user?.nom || '';
+  const roles = user?.roles || [];
+  const isAdmin = roles.includes('ADMIN');
+  const matricule = user?.username || '';
 
   const value = useMemo(
     () => ({
@@ -118,28 +112,28 @@ export function UserProvider({ children }) {
       roles,
       isAdmin,
       matricule,
-      logout
+      logout,
+      // NEW: exposer le statut de session et l’action
+      sessionChecked,
+      ensureSession,
     }),
-    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, matricule]
+    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, matricule, sessionChecked]
   );
 
   return (
     <UserContext.Provider value={value}>
       {children}
-      
-      {/* Modal de changement de mot de passe obligatoire */}
       <ForcePasswordChange
         isOpen={mustChangePassword}
-        onPasswordChanged={handlePasswordChanged}
+        onPasswordChanged={() => {
+          setMustChangePassword(false);
+          if (token) ensureSession();
+        }}
       />
     </UserContext.Provider>
   );
 }
 
 export function useUser() {
-  const context = useContext(UserContext);
-  if (!context) {
-    throw new Error("useUser must be used within a UserProvider");
-  }
-  return context;
+  return useContext(UserContext);
 }
