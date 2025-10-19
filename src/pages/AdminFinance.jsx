@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import {
-  Grid, VStack, HStack, Badge, useToast, Modal, ModalOverlay,
+  Grid, VStack, HStack, Badge, useToast, useColorModeValue, Modal, ModalOverlay,
   ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   useDisclosure, FormControl, FormLabel, Textarea, 
   Alert, AlertIcon, InputGroup, InputLeftElement, 
   ButtonGroup, IconButton, Menu, MenuButton, MenuList, MenuItem,
   Spinner, Tabs, TabList, TabPanels, Tab, TabPanel,
-  Switch, Table, Thead, Tbody, Tr, Th, Td, Text, Button, Input, Select
+  Switch, Table, Thead, Tbody, Tr, Th, Td, Text, Button, Input, Select,
+  Card, CardHeader, CardBody, Icon, Heading
 } from "@chakra-ui/react";
 import {
   FiDollarSign, FiTrendingUp, FiTrendingDown, FiPlus, FiMinus,
@@ -250,15 +251,22 @@ export default function AdminFinance() {
       setBankBalanceData({ balance: data.balance });
     } catch (error) {
       console.error('❌ Erreur chargement solde bancaire:', error);
+      // Fallback to 0 so UI is stable even if endpoint is missing
+      setBankBalance(0);
+      setBankBalanceData({ balance: 0 });
     }
   };
 
   const loadScheduledOperations = async () => {
     try {
-      const data = await financeAPI.getScheduledOperations();
-      setScheduledOperations(data.operations || []);
+      // Rename to the actual API method implemented in src/api/finance.js
+      const data = await financeAPI.getScheduledExpenses();
+      // Accept different shapes: array, { operations }, { items }, { expenses }
+      const ops = Array.isArray(data) ? data : (data?.operations || data?.items || data?.expenses || []);
+      setScheduledOperations(Array.isArray(ops) ? ops : []);
     } catch (error) {
       console.error('❌ Erreur chargement opérations programmées:', error);
+      setScheduledOperations([]); // graceful fallback
     }
   };
 
@@ -402,9 +410,11 @@ export default function AdminFinance() {
         return;
       }
 
-      const newOperation = await financeAPI.createScheduledOperation(operationFormData);
-      setScheduledOperations(prev => [...prev, newOperation]);
-      
+      // Rename to the actual API method implemented in src/api/finance.js
+      const created = await financeAPI.createScheduledExpense(operationFormData);
+      // Accept { operation } or direct object
+      setScheduledOperations(prev => [...prev, created?.operation || created]);
+
       setOperationFormData({
         type: 'depense',
         description: '',
@@ -415,9 +425,9 @@ export default function AdminFinance() {
         isScheduled: true,
         notes: ''
       });
-      
+
       onScheduledOperationClose();
-      
+
       toast({
         title: "Succès",
         description: "Opération programmée créée avec succès",
@@ -429,9 +439,9 @@ export default function AdminFinance() {
       console.error('❌ Erreur création opération programmée:', error);
       toast({
         title: "Erreur",
-        description: `Impossible de créer l'opération programmée: ${error.message}`,
+        description: `Impossible de créer l'opération: ${error.message}`,
         status: "error",
-        duration: 5000,
+        duration: 4000,
         isClosable: true,
       });
     }
