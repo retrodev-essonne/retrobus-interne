@@ -9,11 +9,10 @@ const is404 = (err) => {
 
 const delay = (ms = 250) => new Promise(res => setTimeout(res, ms));
 
-// In-memory mock store (dev only)
 let mockStore = {
   bankBalance: 0,
-  transactions: [],
-  scheduled: [],
+  transactions: [],   // { id, type, amount, description, category, date, eventId? }
+  scheduled: [],      // { id, type, description, amount, dueDate, category, recurring, notes, eventId? }
   categories: [
     { id: 'adhesions', name: 'Adhésions', type: 'recette' },
     { id: 'evenements', name: 'Événements', type: 'recette' },
@@ -28,9 +27,8 @@ let mockStore = {
 
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
-// API pour la gestion financière
 export const financeAPI = {
-  // Statistiques
+  // Statistiques globales
   getStats: async () => {
     if (MOCK) {
       await delay();
@@ -60,12 +58,11 @@ export const financeAPI = {
           revenueGrowth: 0,
         };
       }
-      console.error('Erreur récupération stats finance:', error);
       throw error;
     }
   },
 
-  // Solde bancaire
+  // Solde
   getBankBalance: async () => {
     if (MOCK) {
       await delay();
@@ -79,7 +76,6 @@ export const financeAPI = {
         console.warn('Finance API: bank-balance endpoint missing (404) – using balance: 0');
         return { balance: 0 };
       }
-      console.error('Erreur récupération solde bancaire:', error);
       throw error;
     }
   },
@@ -104,26 +100,28 @@ export const financeAPI = {
           formatted: new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(balance || 0))
         };
       }
-      console.error('Erreur mise à jour solde bancaire:', error);
       throw error;
     }
   },
 
-  // Opérations programmées
-  getScheduledExpenses: async () => {
+  // Opérations programmées (liables à eventId)
+  getScheduledExpenses: async (filters = {}) => {
+    const { eventId } = filters;
     if (MOCK) {
       await delay();
-      return { operations: mockStore.scheduled };
+      const items = eventId ? mockStore.scheduled.filter(op => op.eventId === eventId) : mockStore.scheduled;
+      return { operations: items };
     }
     try {
-      const response = await apiClient.get('/finance/scheduled-expenses');
+      const qs = new URLSearchParams();
+      if (eventId) qs.append('eventId', eventId);
+      const response = await apiClient.get(`/finance/scheduled-expenses?${qs}`);
       return response.data;
     } catch (error) {
       if (is404(error)) {
         console.warn('Finance API: scheduled-expenses endpoint missing (404) – using empty list');
         return { operations: [] };
       }
-      console.error('Erreur récupération dépenses programmées:', error);
       throw error;
     }
   },
@@ -143,7 +141,6 @@ export const financeAPI = {
         console.warn('Finance API: create scheduled-expense missing (404) – simulating');
         return { id: uid(), ...expenseData };
       }
-      console.error('Erreur création dépense programmée:', error);
       throw error;
     }
   },
@@ -154,13 +151,8 @@ export const financeAPI = {
       mockStore.scheduled = mockStore.scheduled.map(op => op.id === id ? { ...op, ...data } : op);
       return mockStore.scheduled.find(op => op.id === id);
     }
-    try {
-      const response = await apiClient.put(`/finance/scheduled-expenses/${id}`, data);
-      return response.data;
-    } catch (error) {
-      console.error('Erreur mise à jour dépense programmée:', error);
-      throw error;
-    }
+    const response = await apiClient.put(`/finance/scheduled-expenses/${id}`, data);
+    return response.data;
   },
 
   deleteScheduledExpense: async (id) => {
@@ -169,13 +161,8 @@ export const financeAPI = {
       mockStore.scheduled = mockStore.scheduled.filter(op => op.id !== id);
       return { ok: true };
     }
-    try {
-      const response = await apiClient.delete(`/finance/scheduled-expenses/${id}`);
-      return response.data;
-    } catch (error) {
-      console.error('Erreur suppression dépense programmée:', error);
-      throw error;
-    }
+    const response = await apiClient.delete(`/finance/scheduled-expenses/${id}`);
+    return response.data;
   },
 
   executeScheduledExpense: async (id) => {
@@ -189,33 +176,31 @@ export const financeAPI = {
         amount: op.amount,
         description: op.description,
         category: op.category,
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        eventId: op.eventId || null
       };
       mockStore.transactions.unshift(tx);
-      // Si non récurrente, on la retire
       if (!op.recurring || op.recurring === 'none') {
         mockStore.scheduled = mockStore.scheduled.filter(x => x.id !== id);
       }
       return { ok: true, transaction: tx };
     }
-    try {
-      const response = await apiClient.post(`/finance/scheduled-expenses/${id}/execute`);
-      return response.data;
-    } catch (error) {
-      console.error('Erreur exécution dépense programmée:', error);
-      throw error;
-    }
+    const response = await apiClient.post(`/finance/scheduled-expenses/${id}/execute`);
+    return response.data;
   },
 
-  // Transactions
+  // Transactions (support eventId)
   getTransactions: async (filters = {}) => {
     if (MOCK) {
       await delay();
       const page = Number(filters.page || 1);
       const limit = Number(filters.limit || 20);
+      const eventId = filters.eventId || null;
+      let list = mockStore.transactions;
+      if (eventId) list = list.filter(tx => tx.eventId === eventId);
       const start = (page - 1) * limit;
-      const slice = mockStore.transactions.slice(start, start + limit);
-      return { transactions: slice, total: mockStore.transactions.length };
+      const slice = list.slice(start, start + limit);
+      return { transactions: slice, total: list.length };
     }
     try {
       const params = new URLSearchParams();
@@ -231,7 +216,6 @@ export const financeAPI = {
         console.warn('Finance API: transactions endpoint missing (404) – using empty list');
         return { transactions: [], total: 0 };
       }
-      console.error('Erreur récupération transactions:', error);
       throw error;
     }
   },
@@ -241,7 +225,6 @@ export const financeAPI = {
       await delay();
       const created = { id: uid(), ...transactionData };
       mockStore.transactions.unshift(created);
-      // Ajuster solde mock
       mockStore.bankBalance += (transactionData.type === 'recette' ? 1 : -1) * (Number(transactionData.amount || 0));
       return created;
     }
@@ -253,7 +236,6 @@ export const financeAPI = {
         console.warn('Finance API: create transaction missing – simulating');
         return { id: uid(), ...transactionData };
       }
-      console.error('Erreur création transaction:', error);
       throw error;
     }
   },
@@ -264,13 +246,8 @@ export const financeAPI = {
       mockStore.transactions = mockStore.transactions.map(tx => tx.id === id ? { ...tx, ...data } : tx);
       return mockStore.transactions.find(tx => tx.id === id);
     }
-    try {
-      const response = await apiClient.put(`/finance/transactions/${id}`, data);
-      return response.data;
-    } catch (error) {
-      console.error('Erreur mise à jour transaction:', error);
-      throw error;
-    }
+    const response = await apiClient.put(`/finance/transactions/${id}`, data);
+    return response.data;
   },
 
   deleteTransaction: async (id) => {
@@ -279,13 +256,8 @@ export const financeAPI = {
       mockStore.transactions = mockStore.transactions.filter(tx => tx.id !== id);
       return { ok: true };
     }
-    try {
-      const response = await apiClient.delete(`/finance/transactions/${id}`);
-      return response.data;
-    } catch (error) {
-      console.error('Erreur suppression transaction:', error);
-      throw error;
-    }
+    const response = await apiClient.delete(`/finance/transactions/${id}`);
+    return response.data;
   },
 
   // Adhésions
@@ -302,7 +274,6 @@ export const financeAPI = {
         console.warn('Finance API: sync memberships missing – simulating');
         return { synchronized: 0, ok: true };
       }
-      console.error('Erreur sync adhésions:', error);
       throw error;
     }
   },
@@ -317,26 +288,23 @@ export const financeAPI = {
       const response = await apiClient.get('/finance/categories');
       return response.data;
     } catch (error) {
-      console.warn('Finance API: categories endpoint missing or error – using defaults', error);
       return { categories: mockStore.categories };
     }
   },
 
   // Breakdown par catégorie
-  getCategoryBreakdown: async (period = 'month') => {
+  getCategoryBreakdown: async (period = 'month', eventId) => {
     if (MOCK) {
       await delay();
+      // simple stub; prod endpoint peut supporter eventId en query
       return { period, breakdown: [], total: 0 };
     }
+    const params = eventId ? { params: { period, eventId } } : { params: { period } };
     try {
-      const response = await apiClient.get('/finance/category-breakdown', { params: { period } });
+      const response = await apiClient.get('/finance/category-breakdown', params);
       return response.data;
     } catch (error) {
-      if (is404(error)) {
-        console.warn('Finance API: category-breakdown endpoint missing (404) – using empty breakdown');
-        return { period, breakdown: [], total: 0 };
-      }
-      console.error('Erreur breakdown catégories:', error);
+      if (is404(error)) return { period, breakdown: [], total: 0 };
       throw error;
     }
   },
@@ -355,9 +323,17 @@ export const financeAPI = {
       });
       return response.data;
     } catch (error) {
-      console.warn('Finance API: export fallback to simulated CSV');
       const csvContent = 'Date,Type,Description,Montant\n2024-01-15,Recette,Adhésion Test,60.00\n';
       return new Blob([csvContent], { type: 'text/csv' });
     }
+  },
+
+  // Résumé finances pour un événement
+  getEventFinanceSummary: async (eventId) => {
+    const { transactions } = await financeAPI.getTransactions({ eventId, page: 1, limit: 1000 });
+    const revenue = transactions.filter(t => t.type === 'recette').reduce((s, t) => s + (t.amount || 0), 0);
+    const expenses = transactions.filter(t => t.type === 'depense').reduce((s, t) => s + (t.amount || 0), 0);
+    const profit = revenue - expenses;
+    return { revenue, expenses, profit, count: transactions.length };
   }
 };

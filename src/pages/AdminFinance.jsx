@@ -19,6 +19,7 @@ import {
 } from "react-icons/fi";
 import { useUser } from '../context/UserContext';
 import { financeAPI } from '../api/finance';
+import { eventsAPI } from '../api/events.js';
 import PageLayout from '../components/Layout/PageLayout';
 import StatsGrid from '../components/Layout/StatsGrid';
 import ModernCard from '../components/Layout/ModernCard';
@@ -154,13 +155,15 @@ export default function AdminFinance() {
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [bankBalance, setBankBalance] = useState(0);
   const [scheduledOperations, setScheduledOperations] = useState([]);
+  const [events, setEvents] = useState([]);
   
   const [formData, setFormData] = useState({
     type: 'recette',
     amount: 0,
     description: '',
     category: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    eventId: '' // <-- lien éventuel
   });
   
   const [bankBalanceData, setBankBalanceData] = useState({
@@ -175,13 +178,15 @@ export default function AdminFinance() {
     category: '',
     recurring: 'none',
     isScheduled: true,
-    notes: ''
+    notes: '',
+    eventId: '' // <-- lien éventuel
   });
   
   const [categories, setCategories] = useState([]);
   const [filters, setFilters] = useState({
     page: 1,
-    limit: 20
+    limit: 20,
+    eventId: ''
   });
 
   const [editingOperationId, setEditingOperationId] = useState(null);
@@ -194,6 +199,18 @@ export default function AdminFinance() {
 
   useEffect(() => {
     loadInitialData();
+  }, []);
+
+  // Charger événements au démarrage
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await eventsAPI.getAll();
+        setEvents(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setEvents([]);
+      }
+    })();
   }, []);
 
   const loadInitialData = async () => {
@@ -344,7 +361,8 @@ export default function AdminFinance() {
         amount: 0,
         description: '',
         category: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        eventId: '' // <-- lien éventuel
       });
 
       onClose();
@@ -636,6 +654,19 @@ export default function AdminFinance() {
                           Actualiser
                         </Button>
                       </ButtonGroup>
+                      <HStack>
+                        <Select
+                          size="sm"
+                          maxW="280px"
+                          placeholder="Tous les événements"
+                          value={filters.eventId}
+                          onChange={(e) => setFilters(prev => ({ ...prev, eventId: e.target.value }))}>
+                          {events.map(ev => (
+                            <option key={ev.id} value={ev.id}>{ev.title}</option>
+                          ))}
+                        </Select>
+                        <Button size="sm" variant="outline" onClick={loadTransactions}>Filtrer</Button>
+                      </HStack>
                     </HStack>
 
                     {transactionsLoading ? (
@@ -686,10 +717,14 @@ export default function AdminFinance() {
                                   <Text fontSize="sm" fontWeight="500">
                                     {transaction.description}
                                   </Text>
+                                  {transaction.eventId && (
+                                    <Badge colorScheme="purple" mt={1}>
+                                      {events.find(e => e.id === transaction.eventId)?.title || `Événement #${transaction.eventId}`}
+                                    </Badge>
+                                  )}
                                   {transaction.member && (
                                     <Text fontSize="xs" color="gray.500">
-                                      {transaction.member.firstName} {transaction.member.lastName} 
-                                      ({transaction.member.memberNumber})
+                                      {transaction.member.firstName} {transaction.member.lastName} ({transaction.member.memberNumber})
                                     </Text>
                                   )}
                                 </VStack>
@@ -1003,6 +1038,16 @@ export default function AdminFinance() {
                   onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
                 />
               </FormControl>
+
+              <FormControl>
+                <FormLabel>Associer à un événement (optionnel)</FormLabel>
+                <Select
+                  value={formData.eventId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, eventId: e.target.value }))}
+                  placeholder="Aucun">
+                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                </Select>
+              </FormControl>
             </VStack>
           </ModalBody>
           <ModalFooter>
@@ -1152,6 +1197,16 @@ export default function AdminFinance() {
                   placeholder="Notes additionnelles sur cette opération..."
                   size="sm"
                 />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Associer à un événement (optionnel)</FormLabel>
+                <Select
+                  value={operationFormData.eventId}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, eventId: e.target.value }))}
+                  placeholder="Aucun">
+                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                </Select>
               </FormControl>
             </VStack>
           </ModalBody>

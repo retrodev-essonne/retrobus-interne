@@ -194,6 +194,27 @@ export default function EventsManagement() {
     }
   };
 
+  // Transactions
+  const [txForm, setTxForm] = useState({ type: "recette", description: "", amount: 0, category: "" });
+  const [txLoading, setTxLoading] = useState(false);
+  const [eventTransactions, setEventTransactions] = useState([]);
+
+  const addEventTransaction = async () => {
+    if (!selectedEvent) return;
+    setTxLoading(true);
+    try {
+      // Mock: ajout local immédiat
+      const newTx = { id: Date.now(), ...txForm, date: new Date() };
+      setEventTransactions(prev => [...prev, newTx]);
+      setTxForm({ type: "recette", description: "", amount: 0, category: "" });
+      toast({ status: "success", title: "Transaction ajoutée" });
+    } catch {
+      toast({ status: "error", title: "Erreur d'ajout de transaction" });
+    } finally {
+      setTxLoading(false);
+    }
+  };
+
   return (
     <Container maxW="7xl" py={6}>
       {/* Header + stats */}
@@ -515,6 +536,94 @@ export default function EventsManagement() {
                       <CardBody>
                         <Text fontSize="sm" color="gray.600">La synchronisation sera ajoutée ultérieurement.</Text>
                         <Box mt={3}><Code fontSize="xs">org: {ha.org || "-"}</Code> — <Code fontSize="xs">event: {ha.event || "-"}</Code></Box>
+                      </CardBody>
+                    </Card>
+                  </VStack>
+                </TabPanel>
+
+                {/* Transactions */}
+                <TabPanel>
+                  <VStack align="stretch" spacing={4}>
+                    <Heading size="md">Transactions liées à l’événement</Heading>
+
+                    {/* Formulaire rapide d'ajout */}
+                    <HStack>
+                      <Select
+                        maxW="160px"
+                        value={txForm.type}
+                        onChange={(e) => setTxForm(s => ({ ...s, type: e.target.value }))}>
+                        <option value="recette">Recette</option>
+                        <option value="depense">Dépense</option>
+                      </Select>
+                      <Input
+                        placeholder="Description"
+                        value={txForm.description}
+                        onChange={(e) => setTxForm(s => ({ ...s, description: e.target.value }))}
+                      />
+                      <NumberInput maxW="160px" value={txForm.amount} min={0} precision={2} step={1}
+                        onChange={(_, val) => setTxForm(s => ({ ...s, amount: Number.isFinite(val) ? val : 0 }))}>
+                        <NumberInputField placeholder="Montant" />
+                        <NumberInputStepper>
+                          <NumberIncrementStepper />
+                          <NumberDecrementStepper />
+                        </NumberInputStepper>
+                      </NumberInput>
+                      <Select
+                        maxW="220px"
+                        placeholder="Catégorie"
+                        value={txForm.category}
+                        onChange={(e) => setTxForm(s => ({ ...s, category: e.target.value }))}>
+                        {/* caté simples — optionnel: récupérer via financeAPI.getCategories */}
+                        <option value="evenements">Événements</option>
+                        <option value="carburant">Carburant</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="materiel">Matériel</option>
+                        <option value="autres">Autres</option>
+                      </Select>
+                      <Button leftIcon={<FiSave />} colorScheme="blue" onClick={addEventTransaction}>
+                        Ajouter
+                      </Button>
+                    </HStack>
+
+                    {/* Liste */}
+                    <Card>
+                      <CardBody p={0}>
+                        {txLoading ? (
+                          <Center py={8}><Spinner /></Center>
+                        ) : eventTransactions.length === 0 ? (
+                          <Center py={10}><Text color="gray.500">Aucune transaction liée</Text></Center>
+                        ) : (
+                          <Table size="sm" variant="simple">
+                            <Thead>
+                              <Tr>
+                                <Th>Date</Th>
+                                <Th>Type</Th>
+                                <Th>Description</Th>
+                                <Th>Catégorie</Th>
+                                <Th isNumeric>Montant</Th>
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {eventTransactions.map(tx => (
+                                <Tr key={tx.id}>
+                                  <Td>{tx.date ? new Date(tx.date).toLocaleDateString('fr-FR') : '-'}</Td>
+                                  <Td>
+                                    <Badge colorScheme={tx.type === 'recette' ? 'green' : 'red'}>
+                                      {tx.type === 'recette' ? 'Recette' : 'Dépense'}
+                                    </Badge>
+                                  </Td>
+                                  <Td>{tx.description}</Td>
+                                  <Td><Badge variant="subtle">{tx.category || '-'}</Badge></Td>
+                                  <Td isNumeric>
+                                    <Text fontWeight="bold" color={tx.type === 'recette' ? 'green.500' : 'red.500'}>
+                                      {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(tx.amount || 0)}
+                                    </Text>
+                                  </Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        )}
                       </CardBody>
                     </Card>
                   </VStack>
