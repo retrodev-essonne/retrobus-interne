@@ -184,6 +184,8 @@ export default function AdminFinance() {
     limit: 20
   });
 
+  const [editingOperationId, setEditingOperationId] = useState(null);
+
   const cardBg = useColorModeValue("white", "gray.800");
   const gradientBg = useColorModeValue(
     "linear(to-r, blue.500, purple.600)",
@@ -396,51 +398,86 @@ export default function AdminFinance() {
     }
   };
 
-  const handleScheduledOperationSubmit = async () => {
+  // Exécuter une opération programmée
+  const handleExecuteScheduledOperation = async (op) => {
     try {
-      if (!operationFormData.description || !operationFormData.amount) {
-        toast({
-          title: "Erreur",
-          description: "Veuillez remplir la description et le montant",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
-        return;
+      const res = await financeAPI.executeScheduledExpense(op.id);
+      if (res?.transaction) {
+        setTransactions(prev => [res.transaction, ...prev]);
       }
-
-      const created = await financeAPI.createScheduledExpense(operationFormData);
-      setScheduledOperations(prev => [...prev, created?.operation || created]);
-
-      setOperationFormData({
-        type: 'depense',
-        description: '',
-        amount: 0,
-        dueDate: '',
-        category: '',
-        recurring: 'none',
-        isScheduled: true,
-        notes: ''
-      });
-
-      onScheduledOperationClose();
-
+      // Si non récurrente, elle peut disparaître côté API mock
+      await loadScheduledOperations();
       toast({
-        title: "Succès",
-        description: "Opération programmée créée avec succès",
+        title: "Opération exécutée",
+        description: "La transaction a été créée.",
         status: "success",
         duration: 3000,
         isClosable: true,
       });
-    } catch (error) {
-      console.error('❌ Erreur création opération programmée:', error);
-      toast({
-        title: "Erreur",
-        description: `Impossible de créer l'opération: ${error.message}`,
-        status: "error",
-        duration: 4000,
-        isClosable: true,
+      // Mettre à jour stats/solde
+      loadFinanceData();
+      loadBankBalance();
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur", description: "Exécution impossible", status: "error" });
+    }
+  };
+
+  // Supprimer une opération programmée
+  const handleDeleteScheduledOperation = async (op) => {
+    try {
+      await financeAPI.deleteScheduledExpense(op.id);
+      setScheduledOperations(prev => prev.filter(o => o.id !== op.id));
+      toast({ title: "Supprimée", status: "success" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur", description: "Suppression impossible", status: "error" });
+    }
+  };
+
+  // Démarrer édition d’une opération programmée
+  const handleEditScheduledOperation = (op) => {
+    setEditingOperationId(op.id);
+    setOperationFormData({
+      type: op.type || 'depense',
+      description: op.description || '',
+      amount: op.amount || 0,
+      dueDate: op.dueDate || '',
+      category: op.category || '',
+      recurring: op.recurring || 'none',
+      isScheduled: true,
+      notes: op.notes || ''
+    });
+    onScheduledOperationOpen();
+  };
+
+  // Adapter la soumission en création/édition
+  const handleScheduledOperationSubmit = async () => {
+    try {
+      if (!operationFormData.description || !operationFormData.amount) {
+        toast({ title: "Erreur", description: "Veuillez remplir la description et le montant", status: "error" });
+        return;
+      }
+
+      if (editingOperationId) {
+        const updated = await financeAPI.updateScheduledExpense(editingOperationId, operationFormData);
+        setScheduledOperations(prev => prev.map(o => o.id === editingOperationId ? (updated?.operation || updated) : o));
+        toast({ title: "Modifiée", description: "Opération programmée mise à jour.", status: "success" });
+      } else {
+        const created = await financeAPI.createScheduledExpense(operationFormData);
+        setScheduledOperations(prev => [...prev, created?.operation || created]);
+        toast({ title: "Créée", description: "Opération programmée créée.", status: "success" });
+      }
+
+      setOperationFormData({
+        type: 'depense', description: '', amount: 0, dueDate: '', category: '',
+        recurring: 'none', isScheduled: true, notes: ''
       });
+      setEditingOperationId(null);
+      onScheduledOperationClose();
+    } catch (error) {
+      console.error('❌ Erreur opération programmée:', error);
+      toast({ title: "Erreur", description: `Impossible d'enregistrer: ${error.message}`, status: "error" });
     }
   };
 
@@ -681,9 +718,9 @@ export default function AdminFinance() {
                                   <MenuList>
                                     <MenuItem icon={<FiEye />}>Voir détails</MenuItem>
                                     <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500">
-                                      Supprimer
-                                    </MenuItem>
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteTransaction(transaction)}>
+    Supprimer
+  </MenuItem>
                                   </MenuList>
                                 </Menu>
                               </Td>
@@ -837,9 +874,15 @@ export default function AdminFinance() {
                                   size="sm"
                                 />
                                 <MenuList>
-                                  <MenuItem icon={<FiCheck />}>Exécuter maintenant</MenuItem>
-                                  <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
-                                  <MenuItem icon={<FiTrash2 />} color="red.500">Supprimer</MenuItem>
+                                  <MenuItem icon={<FiCheck />} onClick={() => handleExecuteScheduledOperation(operation)}>
+    Exécuter maintenant
+  </MenuItem>
+  <MenuItem icon={<FiEdit3 />} onClick={() => handleEditScheduledOperation(operation)}>
+    Modifier
+  </MenuItem>
+  <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteScheduledOperation(operation)}>
+    Supprimer
+  </MenuItem>
                                 </MenuList>
                               </Menu>
                             </Td>
@@ -882,7 +925,7 @@ export default function AdminFinance() {
                           <VStack align="start" spacing={0}>
                             <Text fontSize="sm" fontWeight="bold">{operation.description}</Text>
                             <Text fontSize="xs" color="gray.500">
-                              {new Date(operation.dueDate).toLocaleDateString('fr-FR')}
+                              {operation.dueDate ? new Date(operation.dueDate).toLocaleDateString('fr-FR') : 'Pas de date'}
                             </Text>
                           </VStack>
                           <Text fontWeight="bold" color="red.500">
@@ -1016,10 +1059,10 @@ export default function AdminFinance() {
       </Modal>
 
       {/* Modal pour programmer une opération */}
-      <Modal isOpen={isScheduledOperationOpen} onClose={onScheduledOperationClose} size="lg">
+      <Modal isOpen={isScheduledOperationOpen} onClose={() => { setEditingOperationId(null); onScheduledOperationClose(); }} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>📅 Programmer une opération financière</ModalHeader>
+          <ModalHeader>{editingOperationId ? "✏️ Modifier l'opération programmée" : "📅 Programmer une opération financière"}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
@@ -1048,10 +1091,10 @@ export default function AdminFinance() {
 
               <FormControl isRequired>
                 <FormLabel>Description</FormLabel>
-                <Input
+                <Textarea
                   value={operationFormData.description}
                   onChange={(e) => setOperationFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Ex: Cotisation assurance, Maintenance véhicule..."
+                  placeholder="Description de l'opération..."
                 />
               </FormControl>
 
@@ -1061,20 +1104,18 @@ export default function AdminFinance() {
                   value={operationFormData.amount}
                   onChange={(value) => setOperationFormData(prev => ({ ...prev, amount: value }))}
                   placeholder="0,00 €"
+                  size="lg"
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>Date prévue (optionnelle)</FormLabel>
+                <FormLabel>Date prévue</FormLabel>
                 <Input
                   type="date"
                   value={operationFormData.dueDate}
                   onChange={(e) => setOperationFormData(prev => ({ ...prev, dueDate: e.target.value }))}
                   placeholder="Laisser vide si pas de date précise"
                 />
-                <Text fontSize="xs" color="gray.500" mt={1}>
-                  Laissez vide pour une opération sans date d'échéance précise
-                </Text>
               </FormControl>
 
               <FormControl>
@@ -1119,7 +1160,7 @@ export default function AdminFinance() {
               Annuler
             </Button>
             <Button colorScheme="blue" onClick={handleScheduledOperationSubmit} leftIcon={<FiSave />}>
-              Programmer l'opération
+              {editingOperationId ? "Enregistrer" : "Programmer l'opération"}
             </Button>
           </ModalFooter>
         </ModalContent>
