@@ -7,7 +7,8 @@ import {
   ButtonGroup, IconButton, Menu, MenuButton, MenuList, MenuItem,
   Spinner, Tabs, TabList, TabPanels, Tab, TabPanel,
   Switch, Table, Thead, Tbody, Tr, Th, Td, Text, Button, Input, Select,
-  Card, CardHeader, CardBody, Icon, Heading
+  Card, CardHeader, CardBody, Icon, Heading,
+  SimpleGrid
 } from "@chakra-ui/react";
 import {
   FiDollarSign, FiTrendingUp, FiTrendingDown, FiPlus, FiMinus,
@@ -251,7 +252,6 @@ export default function AdminFinance() {
       setBankBalanceData({ balance: data.balance });
     } catch (error) {
       console.error('❌ Erreur chargement solde bancaire:', error);
-      // Fallback to 0 so UI is stable even if endpoint is missing
       setBankBalance(0);
       setBankBalanceData({ balance: 0 });
     }
@@ -259,14 +259,13 @@ export default function AdminFinance() {
 
   const loadScheduledOperations = async () => {
     try {
-      // Rename to the actual API method implemented in src/api/finance.js
       const data = await financeAPI.getScheduledExpenses();
-      // Accept different shapes: array, { operations }, { items }, { expenses }
       const ops = Array.isArray(data) ? data : (data?.operations || data?.items || data?.expenses || []);
       setScheduledOperations(Array.isArray(ops) ? ops : []);
     } catch (error) {
+      // With API fallback, we shouldn't get here on 404.
       console.error('❌ Erreur chargement opérations programmées:', error);
-      setScheduledOperations([]); // graceful fallback
+      setScheduledOperations([]);
     }
   };
 
@@ -410,9 +409,7 @@ export default function AdminFinance() {
         return;
       }
 
-      // Rename to the actual API method implemented in src/api/finance.js
       const created = await financeAPI.createScheduledExpense(operationFormData);
-      // Accept { operation } or direct object
       setScheduledOperations(prev => [...prev, created?.operation || created]);
 
       setOperationFormData({
