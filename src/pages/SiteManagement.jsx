@@ -994,13 +994,12 @@ export default function SiteManagement() {
         
         <Tabs variant="enclosed" colorScheme="blue">
           <TabList>
-            <Tab>📝 Changelog</Tab>
+            <Tab>📝 Changelog & Versions</Tab>
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
           </TabList>
 
           <TabPanels>
-            {/* Onglet Changelog existant */}
             <TabPanel>
               <Flex mb={6} align="center">
                 <Heading size="lg">Gestion du Site</Heading>
@@ -1026,7 +1025,9 @@ export default function SiteManagement() {
                             <HStack>
                               <Badge colorScheme="blue">v{changelog.version}</Badge>
                               <Text fontSize="sm" color="gray.600">
-                                {changelog.date ? new Date(changelog.date).toLocaleDateString('fr-FR') : 'Date inconnue'}
+                                {changelog.date
+                                  ? new Date(changelog.date).toLocaleDateString('fr-FR')
+                                  : 'Date inconnue'}
                               </Text>
                             </HStack>
                           </VStack>
@@ -1060,92 +1061,12 @@ export default function SiteManagement() {
                   ))
                 )}
               </VStack>
-
-              {/* Modal pour créer/éditer */}
-              <Modal isOpen={isOpen} onClose={onClose} size="xl">
-                <ModalOverlay />
-                <ModalContent>
-                  <ModalHeader>
-                    {selectedChangelog ? 'Modifier le changelog' : 'Nouveau changelog'}
-                  </ModalHeader>
-                  <ModalCloseButton />
-                  <ModalBody>
-                    <VStack spacing={4}>
-                      <FormControl isRequired>
-                        <FormLabel>Titre</FormLabel>
-                        <Input
-                          value={formData.title}
-                          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                          placeholder="Ex: Nouvelle version du site"
-                        />
-                      </FormControl>
-
-                      <FormControl isRequired>
-                        <FormLabel>Version</FormLabel>
-                        <Input
-                          value={formData.version}
-                          onChange={(e) => setFormData(prev => ({ ...prev, version: e.target.value }))}
-                          placeholder="Ex: 2.1.0"
-                        />
-                      </FormControl>
-
-                      <FormControl isRequired>
-                        <FormLabel>Date</FormLabel>
-                        <Input
-                          type="date"
-                          value={formData.date}
-                          onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                        />
-                      </FormControl>
-
-                      <FormControl>
-                        <FormLabel>Changements</FormLabel>
-                        <VStack spacing={2} align="stretch">
-                          {formData.changes.map((change, index) => (
-                            <HStack key={index}>
-                              <Input
-                                value={change}
-                                onChange={(e) => updateChange(index, e.target.value)}
-                                placeholder="Décrivez le changement..."
-                              />
-                              {formData.changes.length > 1 && (
-                                <IconButton
-                                  icon={<FaTrash />}
-                                  size="sm"
-                                  colorScheme="red"
-                                  variant="ghost"
-                                  onClick={() => removeChange(index)}
-                                  aria-label="Supprimer"
-                                />
-                              )}
-                            </HStack>
-                          ))}
-                          <Button size="sm" variant="ghost" onClick={addChange}>
-                            + Ajouter un changement
-                          </Button>
-                        </VStack>
-                      </FormControl>
-                    </VStack>
-                  </ModalBody>
-
-                  <ModalFooter>
-                    <Button variant="ghost" mr={3} onClick={onClose}>
-                      Annuler
-                    </Button>
-                    <Button colorScheme="blue" onClick={handleSave}>
-                      {selectedChangelog ? 'Mettre à jour' : 'Créer'}
-                    </Button>
-                  </ModalFooter>
-                </ModalContent>
-              </Modal>
             </TabPanel>
 
-            {/* Nouvel onglet Accès */}
             <TabPanel>
               <AccessManagement />
             </TabPanel>
 
-            {/* Onglet Configuration */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
                 <Text>Configuration générale du site (à développer)</Text>
@@ -1153,6 +1074,84 @@ export default function SiteManagement() {
             </TabPanel>
           </TabPanels>
         </Tabs>
+
+        {/* Modal placé hors des TabPanels pour éviter les ambiguïtés JSX */}
+        <Modal isOpen={isOpen} onClose={onClose} size="xl">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>
+              {selectedChangelog ? 'Modifier le changelog' : 'Nouveau changelog'}
+            </ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Titre</FormLabel>
+                  <Input
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Ex: Nouvelle version du site"
+                  />
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>Version</FormLabel>
+                  <Input
+                    value={formData.version}
+                    onChange={(e) => setFormData(prev => ({ ...prev, version: e.target.value }))}
+                    placeholder="Ex: 2.1.0"
+                  />
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>Date</FormLabel>
+                  <Input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Changements</FormLabel>
+                  <VStack spacing={2} align="stretch">
+                    {formData.changes.map((change, index) => (
+                      <HStack key={index}>
+                        <Input
+                          value={change}
+                          onChange={(e) => updateChange(index, e.target.value)}
+                          placeholder="Décrivez le changement..."
+                        />
+                        {formData.changes.length > 1 ? (
+                          <IconButton
+                            icon={<FaTrash />}
+                            size="sm"
+                            colorScheme="red"
+                            variant="ghost"
+                            onClick={() => removeChange(index)}
+                            aria-label="Supprimer"
+                          />
+                        ) : null}
+                      </HStack>
+                    ))}
+                    <Button size="sm" variant="ghost" onClick={addChange}>
+                      + Ajouter un changement
+                    </Button>
+                  </VStack>
+                </FormControl>
+              </VStack>
+            </ModalBody>
+
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose}>
+                Annuler
+              </Button>
+              <Button colorScheme="blue" onClick={handleSave}>
+                {selectedChangelog ? 'Mettre à jour' : 'Créer'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </VStack>
     </Container>
   );

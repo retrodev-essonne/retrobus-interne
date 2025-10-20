@@ -155,7 +155,7 @@ function RetroReportCard({ report, onUpdate, onComment, onStatusChange, onDelete
               </Badge>
             </HStack>
 
-            <Heading size="sm">#{report.id} - {report.title}</Heading>
+            <Heading size="sm">{report.title}</Heading>
 
             <Text fontSize="xs" color="gray.500">
               Créé par {report.createdBy} {createdAt ? `le ${createdAt.toLocaleDateString('fr-FR')}` : ''}
@@ -674,31 +674,29 @@ export default function AdminGeneral() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retroReports]);
 
+  // Charger les retro reports à l'ouverture
+  const fetchReports = async () => {
+    try {
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${base}/api/retro-reports`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!res.ok) throw new Error('load failed');
+      const data = await res.json();
+      setRetroReports(data.reports || []);
+    } catch (e) {
+      console.error('Erreur chargement rétroreports:', e);
+    }
+  };
+
   useEffect(() => {
     // Charger les retro reports à l'ouverture
-    const fetchReports = async () => {
-      try {
-        const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-        const res = await fetch(`${base}/api/retro-reports`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        if (!res.ok) throw new Error('load failed');
-        const data = await res.json();
-        setRetroReports(data.reports || []);
-      } catch (e) {
-        console.error('Erreur chargement rétroreports:', e);
-      }
-    };
     fetchReports();
   }, []);
 
   const handleReportSubmit = async () => {
     if (!reportFormData.title || !reportFormData.description) {
       toast({ title: 'Erreur', description: "Veuillez remplir le titre et la description", status: 'error', duration: 3000, isClosable: true });
-      return;
-    }
-    if (!reportScreenshots || reportScreenshots.length === 0) {
-      toast({ title: 'Captures requises', description: "Ajoutez au moins une capture d’écran", status: 'warning', duration: 3000, isClosable: true });
       return;
     }
     try {
@@ -709,7 +707,9 @@ export default function AdminGeneral() {
       fd.append('category', reportFormData.category || '');
       fd.append('priority', reportFormData.priority || 'medium');
       fd.append('type', reportFormData.type || 'bug');
-      reportScreenshots.forEach(f => fd.append('screenshots', f, f.name));
+      if (reportScreenshots && reportScreenshots.length > 0) {
+        reportScreenshots.forEach(f => fd.append('screenshots', f, f.name));
+      }
 
       const res = await fetch(`${base}/api/retro-reports`, {
         method: 'POST',
@@ -731,37 +731,120 @@ export default function AdminGeneral() {
     }
   };
 
-  const handleCommentSubmit = () => {
+  const handleCommentSubmit = async () => {
     if (!commentFormData.message) {
-      toast({ title: 'Erreur', description: 'Veuillez écrire un commentaire', status: 'error', duration: 3000, isClosable: true });
+      toast({
+        title: 'Erreur',
+        description: 'Veuillez écrire un commentaire',
+        status: 'error',
+        duration: 3000,
+        isClosable: true
+      });
       return;
     }
 
-    const newComment = { id: Date.now(), author: user?.name || 'Administrateur', message: commentFormData.message, createdAt: new Date().toISOString() };
+    try {
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const payload = {
+        message: commentFormData.message,
+        author: user?.name || 'Administrateur',
+        // On inclut le statut si l’utilisateur en a choisi un
+        status: commentFormData.status || undefined
+      };
 
-    setRetroReports(prev => prev.map(report => report.id === selectedReport.id ? ({ ...report, comments: [...(report.comments || []), newComment], status: commentFormData.status || report.status }) : report));
+      // Tentative 1: endpoint dédié aux commentaires
+      const res = await fetch(`${base}/api/retro-reports/${selectedReport.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(payload)
+      });
 
-    setCommentFormData({ message: '', status: '' });
-    onCommentClose();
+      if (!res.ok) {
+        // Fallback: certains back-ends préfèrent PATCH sur le ticket complet
+        const resAlt = await fetch(`${base}/api/retro-reports/${selectedReport.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            appendComment: { message: payload.message, author: payload.author },
+            // si un statut est fourni on le met à jour aussi
+            status: payload.status
+          })
+        });
+        if (!resAlt.ok) throw new Error('Impossible de persister le commentaire');
+      }
 
-    toast({ title: 'Succès', description: 'Commentaire ajouté avec succès', status: 'success', duration: 3000, isClosable: true });
+      // Re-sync depuis le serveur pour être sûr que ça persiste après refresh
+      await fetchReports();
+
+      setCommentFormData({ message: '', status: '' });
+      onCommentClose();
+      toast({
+        title: 'Succès',
+        description: 'Commentaire ajouté avec succès',
+        status: 'success',
+        duration: 3000,
+        isClosable: true
+      });
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: 'Erreur',
+        description: "Impossible d'ajouter le commentaire",
+        status: 'error',
+        duration: 3000
+      });
+    }
   };
 
   const handleStatusChange = async (reportId, newStatus) => {
     try {
       const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-      const res = await fetch(`${base}/api/retro-reports/${reportId}/status`, {
+      // Tentative 1: endpoint dédié au statut
+      let res = await fetch(`${base}/api/retro-reports/${reportId}/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json','Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify({ status: newStatus })
       });
-      if (!res.ok) throw new Error('status failed');
-      const data = await res.json();
-      setRetroReports(prev => prev.map(r => r.id === data.report.id ? data.report : r));
+
+      if (!res.ok) {
+        // Fallback: PATCH sur le ticket
+        res = await fetch(`${base}/api/retro-reports/${reportId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (!res.ok) throw new Error('status failed');
+      }
+
+      // Recharger la liste depuis le serveur
+      await fetchReports();
+
       const labels = { open: 'Ouvert', in_progress: 'En cours', resolved: 'Résolu', closed: 'Fermé' };
-      toast({ title: 'Statut mis à jour', description: `RétroReport marqué comme ${labels[newStatus]?.toLowerCase() || newStatus}`, status: 'success', duration: 3000 });
+      toast({
+        title: 'Statut mis à jour',
+        description: `RétroReport marqué comme ${labels[newStatus]?.toLowerCase() || newStatus}`,
+        status: 'success',
+        duration: 3000
+      });
     } catch (e) {
-      toast({ title: 'Erreur', description: 'Impossible de changer le statut', status: 'error', duration: 3000 });
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de changer le statut',
+        status: 'error',
+        duration: 3000
+      });
     }
   };
 
@@ -835,7 +918,6 @@ export default function AdminGeneral() {
       <Tabs variant="enclosed" mb={8}>
         <TabList>
           <Tab>🎫 RétroReports</Tab>
-          <Tab>📝 Changelog & Versions</Tab>
           <Tab>🌐 Gestion du Site</Tab>
         </TabList>
 
@@ -918,10 +1000,6 @@ export default function AdminGeneral() {
                 )}
               </VStack>
             </VStack>
-          </TabPanel>
-
-          <TabPanel>
-            <ChangelogManagement />
           </TabPanel>
 
           <TabPanel>
@@ -1173,10 +1251,10 @@ export default function AdminGeneral() {
                     value={editFormData.priority} 
                     onChange={(e) => setEditFormData(prev => ({ ...prev, priority: e.target.value }))}
                   >
-                    <option value="low">🟢 Faible</option>
-                    <option value="medium">🟡 Moyen</option>
-                    <option value="high">🟠 Élevé</option>
                     <option value="critical">🔴 Critique</option>
+                    <option value="high">🟠 Élevé</option>
+                    <option value="medium">🟡 Moyen</option>
+                    <option value="low">🟢 Faible</option>
                   </Select>
                 </FormControl>
               </SimpleGrid>
@@ -1186,6 +1264,7 @@ export default function AdminGeneral() {
                 <Input 
                   value={editFormData.category} 
                   onChange={(e) => setEditFormData(prev => ({ ...prev, category: e.target.value }))} 
+                  placeholder="Ex: Technique, Interface, Base de données..." 
                 />
               </FormControl>
             </VStack>

@@ -11,7 +11,7 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import {
   FiDollarSign, FiSettings, FiCalendar, FiUsers, FiPackage,
-  FiMail, FiGlobe, FiZap, FiInbox
+  FiMail, FiGlobe, FiZap, FiInbox, FiLifeBuoy // + added
 } from "react-icons/fi";
 import PageLayout from '../components/Layout/PageLayout';
 import ModernCard from '../components/Layout/ModernCard';
@@ -27,7 +27,8 @@ const cards = [
   },
   {
     title: "Gestion Administrative",
-    description: "RétroReports, tâches et suivi des incidents",
+    // was: "RétroReports, tâches et suivi des incidents"
+    description: "Adhésions, tâches et gestion générale",
     to: "/admin/administrative",
     icon: FiSettings,
     color: "orange"
@@ -67,11 +68,20 @@ const cards = [
     icon: FiGlobe,
     color: "pink"
   },
+  // Replace this:
+  // {
+  //   title: "Flashs Info",
+  //   description: "Annonces urgentes et alertes",
+  //   to: "/dashboard/flash-management",
+  //   icon: FiZap,
+  //   color: "cyan"
+  // },
+  // With RétroSupport (tickets):
   {
-    title: "Flashs Info",
-    description: "Annonces urgentes et alertes",
-    to: "/dashboard/flash-management",
-    icon: FiZap,
+    title: "RétroSupport",
+    description: "Tickets: incidents, bugs et améliorations",
+    to: "/admin/administrative",
+    icon: FiLifeBuoy,
     color: "cyan"
   },
   {
