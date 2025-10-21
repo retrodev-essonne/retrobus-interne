@@ -122,6 +122,32 @@ export const apiClient = {
     }
     
     return response.json();
+  },
+
+  // Nouveau: POST multipart/form-data (FormData) - ne pas fixer 'Content-Type'
+  postForm: async (url, formData, options = {}) => {
+    const token = localStorage.getItem('token');
+    // n’ajoute pas Content-Type pour laisser le navigateur définir la boundary
+    const headers = token ? { 'Authorization': `Bearer ${token}`, ...(options.headers || {}) } : (options.headers || {});
+
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      ...options,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return;
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
   }
 };
 

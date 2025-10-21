@@ -1,4 +1,5 @@
 import { apiClient } from './config.js';
+import { API_BASE_URL } from './config.js'; // ADD THIS IMPORT
 
 const MOCK = import.meta.env.VITE_FINANCE_MOCK === 'true';
 
@@ -13,6 +14,8 @@ let mockStore = {
   bankBalance: 0,
   transactions: [],   // { id, type, amount, description, category, date, eventId? }
   scheduled: [],      // { id, type, description, amount, dueDate, category, recurring, notes, eventId? }
+  // ADD: expense reports storage
+  expenseReports: [], // { id, date, description, amount, category, eventId?, fileName, fileUrl, status: 'OPEN'|'CLOSED'|'REIMBURSED', createdBy, closedAt?, reimbursedAt? }
   categories: [
     { id: 'adhesions', name: 'Adhésions', type: 'recette' },
     { id: 'evenements', name: 'Événements', type: 'recette' },
@@ -335,5 +338,269 @@ export const financeAPI = {
     const expenses = transactions.filter(t => t.type === 'depense').reduce((s, t) => s + (t.amount || 0), 0);
     const profit = revenue - expenses;
     return { revenue, expenses, profit, count: transactions.length };
-  }
+  },
+
+  // NOTES DE FRAIS (Expense Reports)
+  getExpenseReports: async (filters = {}) => {
+    const { eventId } = filters;
+    if (MOCK) {
+      await delay();
+      const list = eventId ? mockStore.expenseReports.filter(er => er.eventId === eventId) : mockStore.expenseReports;
+      return { reports: list };
+    }
+    try {
+      const qs = new URLSearchParams();
+      if (eventId) qs.append('eventId', eventId);
+      const res = await apiClient.get(`/finance/expense-reports?${qs}`);
+      // normalise si jamais l’API renvoie un autre nom
+      if (Array.isArray(res?.reports)) return res;
+      if (Array.isArray(res?.expenseReports)) return { reports: res.expenseReports };
+      if (Array.isArray(res?.items)) return { reports: res.items };
+      return { reports: [] };
+    } catch (error) {
+      if (is404(error)) return { reports: [] };
+      throw error;
+    }
+  },
+
+  createExpenseReport: async (payload) => {
+    // payload: { date, description, amount, category, eventId?, file: File, createdBy? }
+    if (MOCK) {
+      await delay();
+      const { file, ...rest } = payload || {};
+      const id = uid();
+      const fileName = file?.name || 'justif.pdf';
+      let fileUrl = '';
+      try {
+        // Create a blob URL to preview in mock
+        fileUrl = file ? URL.createObjectURL(file) : '';
+      } catch (_) {
+        fileUrl = '';
+      }
+      const created = {
+        id,
+        status: 'OPEN',
+        fileName,
+        fileUrl,
+        ...rest
+      };
+      mockStore.expenseReports.unshift(created);
+      return created;
+    }
+
+    // Real API: multipart upload
+    const token = localStorage.getItem('token');
+    const fd = new FormData();
+    fd.append('date', payload.date);
+    fd.append('description', payload.description);
+    fd.append('amount', String(payload.amount ?? 0));
+    if (payload.category) fd.append('category', payload.category);
+    if (payload.eventId) fd.append('eventId', payload.eventId);
+    if (payload.createdBy) fd.append('createdBy', payload.createdBy);
+    if (!payload.file) throw new Error('Le justificatif PDF est obligatoire');
+    fd.append('file', payload.file);
+
+    const res = await fetch(`${API_BASE_URL}/finance/expense-reports`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: fd
+    });
+    if (!res.ok) {
+      if (res.status === 404) {
+        console.warn('Finance API: create expense-report missing (404) – simulating locally');
+        return {
+          id: uid(),
+          status: 'OPEN',
+          fileName: payload.file?.name || 'justif.pdf',
+          fileUrl: '',
+          ...payload
+        };
+      }
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  updateExpenseReport: async (id, data) => {
+    if (MOCK) {
+      await delay();
+      mockStore.expenseReports = mockStore.expenseReports.map(er => er.id === id ? { ...er, ...data } : er);
+      return mockStore.expenseReports.find(er => er.id === id);
+    }
+    const response = await apiClient.put(`/finance/expense-reports/${id}`, data);
+    return response.data;
+  },
+
+  closeExpenseReport: async (id) => {
+    if (MOCK) {
+      await delay();
+      mockStore.expenseReports = mockStore.expenseReports.map(er => er.id === id ? { ...er, status: 'CLOSED', closedAt: new Date().toISOString() } : er);
+      return mockStore.expenseReports.find(er => er.id === id);
+    }
+    const response = await apiClient.post(`/finance/expense-reports/${id}/close`, {});
+    return response.data;
+  },
+
+  reimburseExpenseReport: async (id) => {
+    if (MOCK) {
+      await delay();
+      mockStore.expenseReports = mockStore.expenseReports.map(er => er.id === id ? { ...er, status: 'REIMBURSED', reimbursedAt: new Date().toISOString() } : er);
+      return mockStore.expenseReports.find(er => er.id === id);
+    }
+    const response = await apiClient.post(`/finance/expense-reports/${id}/reimburse`, {});
+    return response.data;
+  },
+
+  deleteExpenseReport: async (id) => {
+    if (MOCK) {
+      await delay();
+      mockStore.expenseReports = mockStore.expenseReports.filter(er => er.id !== id);
+      return { ok: true };
+    }
+    const response = await apiClient.delete(`/finance/expense-reports/${id}`);
+    return response.data;
+  },
+
+  // Notes de frais
+  getExpenseReports: async () => {
+    if (MOCK) {
+      await delay();
+      return { reports: mockStore.expenseReports };
+    }
+    try {
+      const res = await apiClient.get('/finance/expense-reports');
+      return res;
+    } catch (error) {
+      if (is404(error)) {
+        console.warn('Finance API: expense-reports missing (404) – empty list');
+        return { reports: [] };
+      }
+      throw error;
+    }
+  },
+
+  // getExpenseReports (forme stable)
+  getExpenseReports: async (filters = {}) => {
+    const { eventId } = filters;
+    if (MOCK) {
+      await delay();
+      const list = eventId ? mockStore.expenseReports.filter(er => er.eventId === eventId) : mockStore.expenseReports;
+      return { reports: list };
+    }
+    try {
+      const qs = new URLSearchParams();
+      if (eventId) qs.append('eventId', eventId);
+      const res = await apiClient.get(`/finance/expense-reports?${qs}`);
+      // normalise si jamais l’API renvoie un autre nom
+      if (Array.isArray(res?.reports)) return res;
+      if (Array.isArray(res?.expenseReports)) return { reports: res.expenseReports };
+      if (Array.isArray(res?.items)) return { reports: res.items };
+      return { reports: [] };
+    } catch (error) {
+      if (is404(error)) return { reports: [] };
+      throw error;
+    }
+  },
+
+  // createExpenseReport: gère planned=true sans fichier
+  createExpenseReport: async ({ date, description, amount, pdfFile, planned = false, status = 'open' }) => {
+    if (!planned) {
+      if (!pdfFile) throw new Error('Le justificatif PDF est obligatoire');
+      if (pdfFile.type !== 'application/pdf') throw new Error('Le justificatif doit être un fichier PDF');
+    }
+
+    if (MOCK) {
+      await delay();
+      const created = {
+        id: uid(),
+        date: date || new Date().toISOString().split('T')[0],
+        description: description || '',
+        amount: Number(amount || 0),
+        fileName: pdfFile ? pdfFile.name : undefined,
+        fileUrl: pdfFile ? `mock://pdf/${Date.now()}_${encodeURIComponent(pdfFile.name)}` : '',
+        status,
+        planned: !!planned,
+        createdBy: 'admin'
+      };
+      mockStore.expenseReports.unshift(created);
+      return { report: created };
+    }
+
+    try {
+      if (pdfFile) {
+        const fd = new FormData();
+        fd.append('date', date || new Date().toISOString().split('T')[0]);
+        fd.append('description', description || '');
+        fd.append('amount', String(amount || 0));
+        fd.append('status', status);
+        fd.append('planned', String(!!planned));
+        fd.append('file', pdfFile);
+        const res = await apiClient.postForm('/finance/expense-reports', fd);
+        return res;
+      } else {
+        const res = await apiClient.post('/finance/expense-reports', {
+          date: date || new Date().toISOString().split('T')[0],
+          description: description || '',
+          amount: Number(amount || 0),
+          status,
+          planned: true
+        });
+        return res;
+      }
+    } catch (error) {
+      if (is404(error)) {
+        const created = {
+          id: uid(),
+          date: date || new Date().toISOString().split('T')[0],
+          description: description || '',
+          amount: Number(amount || 0),
+          fileName: pdfFile ? pdfFile.name : undefined,
+          fileUrl: pdfFile ? '' : '',
+          status,
+          planned: !!planned,
+          createdBy: 'admin'
+        };
+        mockStore.expenseReports.unshift(created);
+        return { report: created };
+      }
+      throw error;
+    }
+  },
+
+  updateExpenseReportStatus: async (id, status) => {
+    const allowed = ['open', 'closed', 'reimbursed'];
+    if (!allowed.includes(status)) throw new Error('Statut invalide');
+    if (MOCK) {
+      await delay();
+      mockStore.expenseReports = mockStore.expenseReports.map(r => r.id === id ? { ...r, status } : r);
+      const report = mockStore.expenseReports.find(r => r.id === id);
+      return { report };
+    }
+    try {
+      const res = await apiClient.post(`/finance/expense-reports/${id}/status`, { status });
+      return res;
+    } catch (error) {
+      if (is404(error)) {
+        mockStore.expenseReports = mockStore.expenseReports.map(r => r.id === id ? { ...r, status } : r);
+        const report = mockStore.expenseReports.find(r => r.id === id);
+        return { report };
+      }
+      throw error;
+    }
+  },
+
+  deleteExpenseReport: async (id) => {
+    if (MOCK) {
+      await delay();
+      mockStore.expenseReports = mockStore.expenseReports.filter(r => r.id !== id);
+      return { ok: true };
+    }
+    try {
+      const res = await apiClient.delete(`/finance/expense-reports/${id}`);
+      return res;
+    } catch (error) {
+      if (is404(error)) return { ok: true };
+      throw error;
+    }
+  },
 };

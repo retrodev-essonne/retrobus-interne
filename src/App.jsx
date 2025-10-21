@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -27,6 +27,7 @@ import Retromail from "./pages/Retromail";
 import Newsletter from "./pages/Newsletter";
 import Members from "./pages/Members";
 import MembersManagement from "./pages/MembersManagement";
+import SupportSite from "./pages/SupportSite";
 
 export default function App() {
   const { isAuthenticated } = useUser();
@@ -52,9 +53,18 @@ export default function App() {
         
         {/* 🏦 Routes pour la gestion administrative et financière */}
         <Route path="/admin/finance" element={<ProtectedRoute><AdminFinance /></ProtectedRoute>} />
-        <Route path="/admin/administrative" element={<ProtectedRoute><AdminGeneral /></ProtectedRoute>} />
-        {/* Route legacy pour compatibilité - redirige vers finance */}
-        <Route path="/admin" element={<ProtectedRoute><AdminFinance /></ProtectedRoute>} />
+
+        {/* Nouvelle route officielle Administration */}
+        <Route path="/admin/administration" element={<ProtectedRoute><AdminGeneral /></ProtectedRoute>} />
+
+        {/* Ancien alias → redirection vers la nouvelle */}
+        <Route
+          path="/admin/administrative"
+          element={<ProtectedRoute><Navigate to="/admin/administration" replace /></ProtectedRoute>}
+        />
+        
+        {/* Nouvelle page Support du site */}
+        <Route path="/dashboard/support" element={<ProtectedRoute><SupportSite /></ProtectedRoute>} />
         
         {/* 🚗 Routes des véhicules */}
         <Route path="/dashboard/vehicules" element={<ProtectedRoute><Vehicules /></ProtectedRoute>} />

@@ -915,252 +915,56 @@ export default function AdminGeneral() {
 
       <AdminStats data={adminData} loading={false} />
 
-      <Tabs variant="enclosed" mb={8}>
-        <TabList>
-          <Tab>🎫 RétroReports</Tab>
-          <Tab>🌐 Gestion du Site</Tab>
-        </TabList>
+      {/* Remplacer l'ancien bloc <Tabs>...</Tabs> par ce bloc simple */}
+      <VStack spacing={6} align="stretch">
+        <HStack justify="space-between">
+          <VStack align="start" spacing={1}>
+            <Heading size="md">🌐 Gestion du Site Web</Heading>
+            <Text fontSize="sm" color="gray.600">Configuration et maintenance du site web public</Text>
+          </VStack>
+          <Button leftIcon={<FiGlobe />} colorScheme="blue">Accéder au site</Button>
+        </HStack>
 
-        <TabPanels>
-          <TabPanel>
-            <VStack spacing={6} align="stretch">
-              <HStack justify="space-between">
-                <VStack align="start" spacing={1}>
-                  <Heading size="md">🎫 RétroReports - Système de tickets</Heading>
-                  <Text fontSize="sm" color="gray.600">Signalement et suivi des incidents, bugs et demandes d'amélioration</Text>
-                </VStack>
-                <Button leftIcon={<FiPlus />} colorScheme="red" onClick={onReportOpen}>Nouveau RétroReport</Button>
-              </HStack>
-
-              <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
-                <Card bg={cardBg}>
-                  <CardBody>
-                    <Stat>
-                      <StatLabel fontSize="xs">Ouverts</StatLabel>
-                      <StatNumber color="red.500" fontSize="lg">
-                        {retroReports.filter(r => r.status === 'open').length}
-                      </StatNumber>
-                    </Stat>
-                  </CardBody>
-                </Card>
-                <Card bg={cardBg}>
-                  <CardBody>
-                    <Stat>
-                      <StatLabel fontSize="xs">En cours</StatLabel>
-                      <StatNumber color="orange.500" fontSize="lg">
-                        {retroReports.filter(r => r.status === 'in_progress').length}
-                      </StatNumber>
-                    </Stat>
-                  </CardBody>
-                </Card>
-                <Card bg={cardBg}>
-                  <CardBody>
-                    <Stat>
-                      <StatLabel fontSize="xs">Résolus</StatLabel>
-                      <StatNumber color="green.500" fontSize="lg">
-                        {retroReports.filter(r => r.status === 'resolved').length}
-                      </StatNumber>
-                    </Stat>
-                  </CardBody>
-                </Card>
-                <Card bg={cardBg}>
-                  <CardBody>
-                    <Stat>
-                      <StatLabel fontSize="xs">Total</StatLabel>
-                      <StatNumber color="blue.500" fontSize="lg">
-                        {retroReports.length}
-                      </StatNumber>
-                    </Stat>
-                  </CardBody>
-                </Card>
-              </SimpleGrid>
-
-              <VStack spacing={4} align="stretch">
-                {retroReports.length === 0 ? (
-                  <Alert status="info">
-                    <AlertIcon />
-                    <VStack align="start" spacing={1}>
-                      <Text fontWeight="bold" fontSize="sm">Aucun RétroReport</Text>
-                      <Text fontSize="xs">Créez votre premier ticket pour signaler un incident ou demander une amélioration.</Text>
-                    </VStack>
-                  </Alert>
-                ) : (
-                  <>
-                    {retroReports.map((report) => (
-                      <RetroReportCard
-                        key={report.id}
-                        report={report}
-                        onUpdate={handleEditReport}
-                        onComment={(r) => { setSelectedReport(r); onCommentOpen(); }}
-                        onStatusChange={handleStatusChange}
-                        onDelete={handleDeleteReport}
-                      />
-                    ))}
-                  </>
-                )}
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+          <Card bg={cardBg}>
+            <CardHeader>
+              <Heading size="sm">📄 Pages et contenu</Heading>
+            </CardHeader>
+            <CardBody>
+              <VStack spacing={3} align="stretch">
+                <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
+                  Modifier la page d'accueil
+                </Button>
+                <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
+                  Gérer les événements
+                </Button>
+                <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
+                  Mettre à jour "À propos"
+                </Button>
               </VStack>
-            </VStack>
-          </TabPanel>
+            </CardBody>
+          </Card>
 
-          <TabPanel>
-            <VStack spacing={6} align="stretch">
-              <HStack justify="space-between">
-                <VStack align="start" spacing={1}>
-                  <Heading size="md">🌐 Gestion du Site Web</Heading>
-                  <Text fontSize="sm" color="gray.600">Configuration et maintenance du site web public</Text>
-                </VStack>
-                <Button leftIcon={<FiGlobe />} colorScheme="blue">Accéder au site</Button>
-              </HStack>
-
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-                <Card bg={cardBg}>
-                  <CardHeader>
-                    <Heading size="sm">📄 Pages et contenu</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack spacing={3} align="stretch">
-                      <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
-                        Modifier la page d'accueil
-                      </Button>
-                      <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
-                        Gérer les événements
-                      </Button>
-                      <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
-                        Mettre à jour "À propos"
-                      </Button>
-                    </VStack>
-                  </CardBody>
-                </Card>
-
-                <Card bg={cardBg}>
-                  <CardHeader>
-                    <Heading size="sm">⚙️ Configuration</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack spacing={3} align="stretch">
-                      <Button leftIcon={<FiBell />} size="sm" variant="outline">
-                        Notifications Flash
-                      </Button>
-                      <Button leftIcon={<FiMail />} size="sm" variant="outline">
-                        Configuration Newsletter
-                      </Button>
-                      <Button leftIcon={<FiSettings />} size="sm" variant="outline">
-                        Paramètres généraux
-                      </Button>
-                    </VStack>
-                  </CardBody>
-                </Card>
-              </SimpleGrid>
-            </VStack>
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
-
-      {/* Modal pour créer un RétroReport */}
-      <Modal isOpen={isReportOpen} onClose={onReportClose} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>🎫 Nouveau RétroReport</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
-              <Alert status="info">
-                <AlertIcon />
-                <VStack align="start" spacing={1}>
-                  <Text fontWeight="bold" fontSize="sm">Système de tickets RétroReports</Text>
-                  <Text fontSize="xs">Signalisez les incidents, bugs, demandes d'amélioration ou tout problème nécessitant un suivi.</Text>
-                </VStack>
-              </Alert>
-
-              <FormControl isRequired>
-                <FormLabel>Titre du rapport</FormLabel>
-                <Input 
-                  value={reportFormData.title} 
-                  onChange={(e) => setReportFormData(prev => ({ ...prev, title: e.target.value }))} 
-                  placeholder="Ex: Problème de connexion, Page lente..." 
-                />
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel>Description détaillée</FormLabel>
-                <Textarea 
-                  value={reportFormData.description} 
-                  onChange={(e) => setReportFormData(prev => ({ ...prev, description: e.target.value }))} 
-                  placeholder="Décrivez le problème en détail, les étapes pour le reproduire..." 
-                  rows={4} 
-                />
-              </FormControl>
-
-              <SimpleGrid columns={2} spacing={4} w="full">
-                <FormControl>
-                  <FormLabel>Type</FormLabel>
-                  <Select 
-                    value={reportFormData.type} 
-                    onChange={(e) => setReportFormData(prev => ({ ...prev, type: e.target.value }))}
-                  >
-                    <option value="bug">🐛 Bug</option>
-                    <option value="feature">✨ Demande d'amélioration</option>
-                    <option value="performance">⚡ Performance</option>
-                    <option value="security">🔒 Sécurité</option>
-                    <option value="other">📋 Autre</option>
-                  </Select>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Priorité</FormLabel>
-                  <Select 
-                    value={reportFormData.priority} 
-                    onChange={(e) => setReportFormData(prev => ({ ...prev, priority: e.target.value }))}
-                  >
-                    <option value="low">🟢 Faible</option>
-                    <option value="medium">🟡 Moyen</option>
-                    <option value="high">🟠 Élevé</option>
-                    <option value="critical">🔴 Critique</option>
-                  </Select>
-                </FormControl>
-              </SimpleGrid>
-
-              <FormControl>
-                <FormLabel>Catégorie</FormLabel>
-                <Input 
-                  value={reportFormData.category} 
-                  onChange={(e) => setReportFormData(prev => ({ ...prev, category: e.target.value }))} 
-                  placeholder="Ex: Technique, Interface, Base de données..." 
-                />
-              </FormControl>
-
-              {/* Ajout du champ pour les captures d'écran */}
-              <FormControl isRequired>
-                <FormLabel>Captures d’écran (au moins une)</FormLabel>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    setReportScreenshots(files);
-                  }}
-                />
-                <Text fontSize="xs" color="gray.500">Formats images, 10 Mo max, jusqu’à 10 fichiers</Text>
-                {reportScreenshots?.length > 0 && (
-                  <VStack align="start" spacing={1} mt={2}>
-                    {reportScreenshots.map((f, i) => (
-                      <Text key={i} fontSize="xs" color="gray.600">• {f.name} ({Math.round(f.size/1024)} KB)</Text>
-                    ))}
-                  </VStack>
-                )}
-              </FormControl>
-            </VStack>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onReportClose}>Annuler</Button>
-            <Button colorScheme="red" onClick={handleReportSubmit} leftIcon={<FiFlag />}>
-              Créer le RétroReport
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          <Card bg={cardBg}>
+            <CardHeader>
+              <Heading size="sm">⚙️ Configuration</Heading>
+            </CardHeader>
+            <CardBody>
+              <VStack spacing={3} align="stretch">
+                <Button leftIcon={<FiBell />} size="sm" variant="outline">
+                  Notifications Flash
+                </Button>
+                <Button leftIcon={<FiMail />} size="sm" variant="outline">
+                  Configuration Newsletter
+                </Button>
+                <Button leftIcon={<FiSettings />} size="sm" variant="outline">
+                  Paramètres généraux
+                </Button>
+              </VStack>
+            </CardBody>
+          </Card>
+        </SimpleGrid>
+      </VStack>
 
       {/* Modal pour commenter un RétroReport */}
       <Modal isOpen={isCommentOpen} onClose={onCommentClose} size="md">

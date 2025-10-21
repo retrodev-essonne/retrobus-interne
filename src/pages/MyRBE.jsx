@@ -11,7 +11,7 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import {
   FiDollarSign, FiSettings, FiCalendar, FiUsers, FiPackage,
-  FiMail, FiGlobe, FiZap, FiInbox, FiLifeBuoy // + added
+  FiMail, FiGlobe, FiInbox, FiLifeBuoy
 } from "react-icons/fi";
 import PageLayout from '../components/Layout/PageLayout';
 import ModernCard from '../components/Layout/ModernCard';
@@ -27,9 +27,8 @@ const cards = [
   },
   {
     title: "Gestion Administrative",
-    // was: "RétroReports, tâches et suivi des incidents"
     description: "Adhésions, tâches et gestion générale",
-    to: "/admin/administrative",
+    to: "/admin/administration",
     icon: FiSettings,
     color: "orange"
   },
@@ -68,28 +67,19 @@ const cards = [
     icon: FiGlobe,
     color: "pink"
   },
-  // Replace this:
-  // {
-  //   title: "Flashs Info",
-  //   description: "Annonces urgentes et alertes",
-  //   to: "/dashboard/flash-management",
-  //   icon: FiZap,
-  //   color: "cyan"
-  // },
-  // With RétroSupport (tickets):
-  {
-    title: "RétroSupport",
-    description: "Tickets: incidents, bugs et améliorations",
-    to: "/admin/administrative",
-    icon: FiLifeBuoy,
-    color: "cyan"
-  },
   {
     title: "Retromail",
     description: "Messagerie interne de l'équipe",
     to: "/retromail",
     icon: FiInbox,
     color: "teal"
+  },
+  {
+    title: "RétroSupport",
+    description: "Tickets: incidents, bugs et améliorations",
+    to: "/dashboard/support",
+    icon: FiLifeBuoy,
+    color: "cyan"
   },
 ];
 
@@ -150,7 +140,7 @@ export default function MyRBE() {
                 <Button size="sm" variant="secondary" colorScheme="blue">
                   Guide complet
                 </Button>
-                <Button size="sm" variant="modern">
+                <Button size="sm" variant="modern" as={RouterLink} to="/dashboard/support">
                   Support technique
                 </Button>
               </HStack>

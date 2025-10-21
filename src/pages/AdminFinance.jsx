@@ -13,9 +13,8 @@ import {
 import {
   FiDollarSign, FiTrendingUp, FiTrendingDown, FiPlus, FiMinus,
   FiPieChart, FiBarChart, FiCalendar, FiCreditCard, FiDownload,
-  FiUpload, FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck,
-  FiX, FiRefreshCw, FiEye, FiFilter, FiSearch, FiUsers, FiSave,
-  FiClock, FiSettings, FiRepeat
+  FiUpload, FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck, FiX, 
+  FiRefreshCw, FiEye, FiUsers, FiSave, FiClock, FiSettings, FiRepeat
 } from "react-icons/fi";
 import { useUser } from '../context/UserContext';
 import { financeAPI } from '../api/finance';
@@ -133,9 +132,9 @@ const FinanceStats = ({ data, loading }) => {
   return <StatsGrid stats={stats} loading={loading} />;
 };
 
-// Composant principal mis à jour
+// Composant principal
 export default function AdminFinance() {
-  const { user } = useUser();
+  const { user, isAdmin, roles = [] } = useUser();
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { 
@@ -148,7 +147,13 @@ export default function AdminFinance() {
     onOpen: onScheduledOperationOpen, 
     onClose: onScheduledOperationClose 
   } = useDisclosure();
-  
+  const {
+    isOpen: isExpenseOpen, 
+    onOpen: onExpenseOpen, 
+    onClose: onExpenseClose
+  } = useDisclosure();
+
+  // États principaux
   const [transactions, setTransactions] = useState([]);
   const [financeData, setFinanceData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -156,20 +161,28 @@ export default function AdminFinance() {
   const [bankBalance, setBankBalance] = useState(0);
   const [scheduledOperations, setScheduledOperations] = useState([]);
   const [events, setEvents] = useState([]);
-  
+  const [expenseReports, setExpenseReports] = useState([]);
+  const [expenseLoading, setExpenseLoading] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [editingOperationId, setEditingOperationId] = useState(null);
+
+  // État du simulateur
+  const [simLines, setSimLines] = useState([]);
+
+  // États des formulaires
   const [formData, setFormData] = useState({
     type: 'recette',
     amount: 0,
     description: '',
     category: '',
     date: new Date().toISOString().split('T')[0],
-    eventId: '' // <-- lien éventuel
+    eventId: ''
   });
-  
+
   const [bankBalanceData, setBankBalanceData] = useState({
     balance: 0
   });
-  
+
   const [operationFormData, setOperationFormData] = useState({
     type: 'depense',
     description: '',
@@ -179,29 +192,38 @@ export default function AdminFinance() {
     recurring: 'none',
     isScheduled: true,
     notes: '',
-    eventId: '' // <-- lien éventuel
+    eventId: ''
   });
-  
-  const [categories, setCategories] = useState([]);
+
+  const [expenseFormData, setExpenseFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    amount: 0,
+    isForecast: false,
+  });
+  const [expensePdfFile, setExpensePdfFile] = useState(null);
+
   const [filters, setFilters] = useState({
     page: 1,
     limit: 20,
     eventId: ''
   });
 
-  const [editingOperationId, setEditingOperationId] = useState(null);
-
+  // Variables dérivées
   const cardBg = useColorModeValue("white", "gray.800");
-  const gradientBg = useColorModeValue(
-    "linear(to-r, blue.500, purple.600)",
-    "linear(to-r, blue.600, purple.700)"
-  );
+  const canManageExpenses = isAdmin || roles.includes('TREASURER') || roles.includes('PRESIDENT');
 
+  // Calculs du simulateur
+  const simRevenue = simLines.filter(l => l.type === 'recette').reduce((s, l) => s + Number(l.amount || 0), 0);
+  const simExpenses = simLines.filter(l => l.type === 'depense').reduce((s, l) => s + Number(l.amount || 0), 0);
+  const simImpact = simRevenue - simExpenses;
+  const projectedBalance = Number(bankBalance || 0) + simImpact;
+
+  // Effets
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  // Charger événements au démarrage
   useEffect(() => {
     (async () => {
       try {
@@ -213,29 +235,27 @@ export default function AdminFinance() {
     })();
   }, []);
 
+  // Fonctions de chargement
   const loadInitialData = async () => {
     await Promise.all([
       loadFinanceData(),
       loadTransactions(),
       loadCategories(),
       loadBankBalance(),
-      loadScheduledOperations()
+      loadScheduledOperations(),
+      loadExpenseReports(),
     ]);
   };
 
   const loadFinanceData = async () => {
     try {
       setLoading(true);
-      console.log('🏦 Chargement des données financières...');
-      
       const data = await financeAPI.getStats();
-      console.log('📊 Données financières reçues:', data);
-      
       setFinanceData(data);
       
       toast({
         title: "Données synchronisées",
-        description: "Statistiques financières mises à jour avec les données réelles",
+        description: "Statistiques financières mises à jour",
         status: "success",
         duration: 2000,
         isClosable: true,
@@ -250,7 +270,6 @@ export default function AdminFinance() {
         isClosable: true,
       });
       
-      // Données par défaut si l'API échoue
       setFinanceData({
         monthlyRevenue: "0,00 €",
         monthlyExpenses: "0,00 €",
@@ -282,7 +301,6 @@ export default function AdminFinance() {
       const ops = Array.isArray(data) ? data : (data?.operations || data?.items || data?.expenses || []);
       setScheduledOperations(Array.isArray(ops) ? ops : []);
     } catch (error) {
-      // With API fallback, we shouldn't get here on 404.
       console.error('❌ Erreur chargement opérations programmées:', error);
       setScheduledOperations([]);
     }
@@ -291,11 +309,7 @@ export default function AdminFinance() {
   const loadTransactions = async () => {
     try {
       setTransactionsLoading(true);
-      console.log('💳 Chargement des transactions...');
-      
       const data = await financeAPI.getTransactions(filters);
-      console.log('📋 Transactions reçues:', data);
-      
       setTransactions(data.transactions || []);
     } catch (error) {
       console.error('❌ Erreur chargement transactions:', error);
@@ -312,13 +326,24 @@ export default function AdminFinance() {
     }
   };
 
+  const loadExpenseReports = async () => {
+    try {
+      setExpenseLoading(true);
+      const data = await financeAPI.getExpenseReports();
+      setExpenseReports(data.reports || []);
+    } catch (e) {
+      setExpenseReports([]);
+    } finally {
+      setExpenseLoading(false);
+    }
+  };
+
   const loadCategories = async () => {
     try {
       const data = await financeAPI.getCategories();
       setCategories(data.categories || []);
     } catch (error) {
       console.error('❌ Erreur chargement catégories:', error);
-      // Catégories par défaut
       setCategories([
         { id: 'adhesions', name: 'Adhésions' },
         { id: 'evenements', name: 'Événements' },
@@ -332,6 +357,7 @@ export default function AdminFinance() {
     }
   };
 
+  // Handlers principales
   const handleSubmit = async () => {
     try {
       if (!formData.amount || !formData.description) {
@@ -345,14 +371,10 @@ export default function AdminFinance() {
         return;
       }
 
-      console.log('💾 Création d\'une nouvelle transaction:', formData);
-
       const newTransaction = await financeAPI.createTransaction({
         ...formData,
         created_by: user?.email || user?.username || 'admin'
       });
-
-      console.log('✅ Transaction créée:', newTransaction);
 
       setTransactions(prev => [newTransaction, ...prev]);
       
@@ -362,7 +384,7 @@ export default function AdminFinance() {
         description: '',
         category: '',
         date: new Date().toISOString().split('T')[0],
-        eventId: '' // <-- lien éventuel
+        eventId: ''
       });
 
       onClose();
@@ -402,7 +424,6 @@ export default function AdminFinance() {
         isClosable: true,
       });
       
-      // Recharger les données financières
       loadFinanceData();
     } catch (error) {
       console.error('❌ Erreur mise à jour solde:', error);
@@ -416,14 +437,49 @@ export default function AdminFinance() {
     }
   };
 
-  // Exécuter une opération programmée
+  const handleExpenseSubmit = async () => {
+    if (!expenseFormData.description || !expenseFormData.amount) {
+      toast({ title: "Erreur", description: "Description et montant requis", status: "error" });
+      return;
+    }
+
+    if (!expenseFormData.isForecast) {
+      if (!expensePdfFile) {
+        toast({ title: "PDF requis", description: "Veuillez joindre le justificatif PDF", status: "error" });
+        return;
+      }
+      if (expensePdfFile.type !== 'application/pdf') {
+        toast({ title: "Format invalide", description: "Le fichier doit être un PDF", status: "error" });
+        return;
+      }
+    }
+
+    try {
+      await financeAPI.createExpenseReport({
+        date: expenseFormData.date,
+        description: expenseFormData.description,
+        amount: expenseFormData.amount,
+        pdfFile: expensePdfFile || null,
+        planned: !!expenseFormData.isForecast,
+        status: 'open',
+      });
+      await loadExpenseReports();
+      setExpenseFormData({ date: new Date().toISOString().split('T')[0], description: '', amount: 0, isForecast: false });
+      setExpensePdfFile(null);
+      onExpenseClose();
+      toast({ title: "Note créée", status: "success" });
+    } catch (e) {
+      toast({ title: "Erreur", description: e.message || "Création impossible", status: "error" });
+    }
+  };
+
+  // Handlers opérations programmées
   const handleExecuteScheduledOperation = async (op) => {
     try {
       const res = await financeAPI.executeScheduledExpense(op.id);
       if (res?.transaction) {
         setTransactions(prev => [res.transaction, ...prev]);
       }
-      // Si non récurrente, elle peut disparaître côté API mock
       await loadScheduledOperations();
       toast({
         title: "Opération exécutée",
@@ -432,7 +488,6 @@ export default function AdminFinance() {
         duration: 3000,
         isClosable: true,
       });
-      // Mettre à jour stats/solde
       loadFinanceData();
       loadBankBalance();
     } catch (e) {
@@ -441,7 +496,6 @@ export default function AdminFinance() {
     }
   };
 
-  // Supprimer une opération programmée
   const handleDeleteScheduledOperation = async (op) => {
     try {
       await financeAPI.deleteScheduledExpense(op.id);
@@ -453,7 +507,6 @@ export default function AdminFinance() {
     }
   };
 
-  // Démarrer édition d’une opération programmée
   const handleEditScheduledOperation = (op) => {
     setEditingOperationId(op.id);
     setOperationFormData({
@@ -469,7 +522,6 @@ export default function AdminFinance() {
     onScheduledOperationOpen();
   };
 
-  // Adapter la soumission en création/édition
   const handleScheduledOperationSubmit = async () => {
     try {
       if (!operationFormData.description || !operationFormData.amount) {
@@ -499,13 +551,10 @@ export default function AdminFinance() {
     }
   };
 
+  // Handlers utilitaires
   const handleSyncMemberships = async () => {
     try {
-      console.log('🔄 Synchronisation des adhésions...');
-      
       const result = await financeAPI.syncMemberships();
-      console.log('✅ Synchronisation terminée:', result);
-      
       toast({
         title: "Synchronisation réussie",
         description: `${result.synchronized} adhésions synchronisées`,
@@ -513,7 +562,6 @@ export default function AdminFinance() {
         duration: 3000,
         isClosable: true,
       });
-      
       await loadInitialData();
     } catch (error) {
       console.error('❌ Erreur synchronisation:', error);
@@ -555,6 +603,87 @@ export default function AdminFinance() {
         duration: 3000,
         isClosable: true,
       });
+    }
+  };
+
+  const handleDeleteTransaction = async (transaction) => {
+    if (!window.confirm('Supprimer cette transaction ?')) return;
+    try {
+      await financeAPI.deleteTransaction(transaction.id);
+      setTransactions(prev => prev.filter(t => t.id !== transaction.id));
+      toast({ title: "Supprimée", status: "success" });
+      loadFinanceData();
+    } catch (e) {
+      toast({ title: "Erreur", description: "Suppression impossible", status: "error" });
+    }
+  };
+
+  const handleExpenseStatusChange = async (report, newStatus) => {
+    try {
+      await financeAPI.updateExpenseReportStatus(report.id, newStatus);
+      await loadExpenseReports();
+      const label = newStatus === 'closed' ? 'fermée' : newStatus === 'reimbursed' ? 'remboursée' : newStatus;
+      toast({ title: `Note ${label}`, status: "success" });
+    } catch (e) {
+      toast({ title: "Erreur", description: "Mise à jour du statut impossible", status: "error" });
+    }
+  };
+
+  const handleDeleteExpense = async (report) => {
+    if (!window.confirm('Supprimer cette note de frais ?')) return;
+    try {
+      await financeAPI.deleteExpenseReport(report.id);
+      await loadExpenseReports();
+      toast({ title: "Note supprimée", status: "success" });
+    } catch (e) {
+      toast({ title: "Erreur", description: "Suppression impossible", status: "error" });
+    }
+  };
+
+  // Handlers simulateur
+  const addSimLine = () => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    setSimLines(prev => [...prev, { id, type: 'depense', amount: 0, description: '', category: '', eventId: '' }]);
+  };
+
+  const updateSimLine = (id, patch) => {
+    setSimLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+  };
+
+  const removeSimLine = (id) => {
+    setSimLines(prev => prev.filter(l => l.id !== id));
+  };
+
+  const resetSim = () => setSimLines([]);
+
+  const applySimulation = async () => {
+    if (!simLines.length) return;
+    if (!canManageExpenses) {
+      toast({ title: "Accès requis", description: "Seul le trésorier, le président ou un admin peut créer des transactions", status: "warning" });
+      return;
+    }
+    try {
+      const effective = simLines.filter(l => Number(l.amount) > 0 && (l.type === 'recette' || l.type === 'depense'));
+      if (!effective.length) {
+        toast({ title: "Simulation vide", description: "Ajoutez des lignes valides (montant > 0)", status: "info" });
+        return;
+      }
+      await Promise.all(effective.map(l =>
+        financeAPI.createTransaction({
+          type: l.type,
+          amount: Number(l.amount),
+          description: l.description || '(Simulateur)',
+          category: l.category || '',
+          date: new Date().toISOString().split('T')[0],
+          eventId: l.eventId || ''
+        })
+      ));
+      resetSim();
+      await Promise.all([loadTransactions(), loadFinanceData(), loadBankBalance()]);
+      toast({ title: "Transactions créées", description: "Votre simulation a été appliquée", status: "success" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur", description: "Impossible d'appliquer la simulation", status: "error" });
     }
   };
 
@@ -623,6 +752,12 @@ export default function AdminFinance() {
               📅 Opérations programmées
             </Tab>
             <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
+              🧾 Notes de frais
+            </Tab>
+            <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
+              🧮 Simulateur
+            </Tab>
+            <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
               ⚙️ Configuration
             </Tab>
           </TabList>
@@ -660,7 +795,8 @@ export default function AdminFinance() {
                           maxW="280px"
                           placeholder="Tous les événements"
                           value={filters.eventId}
-                          onChange={(e) => setFilters(prev => ({ ...prev, eventId: e.target.value }))}>
+                          onChange={(e) => setFilters(prev => ({ ...prev, eventId: e.target.value }))}
+                        >
                           {events.map(ev => (
                             <option key={ev.id} value={ev.id}>{ev.title}</option>
                           ))}
@@ -754,8 +890,8 @@ export default function AdminFinance() {
                                     <MenuItem icon={<FiEye />}>Voir détails</MenuItem>
                                     <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
                                     <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteTransaction(transaction)}>
-    Supprimer
-  </MenuItem>
+                                      Supprimer
+                                    </MenuItem>
                                   </MenuList>
                                 </Menu>
                               </Td>
@@ -910,14 +1046,14 @@ export default function AdminFinance() {
                                 />
                                 <MenuList>
                                   <MenuItem icon={<FiCheck />} onClick={() => handleExecuteScheduledOperation(operation)}>
-    Exécuter maintenant
-  </MenuItem>
-  <MenuItem icon={<FiEdit3 />} onClick={() => handleEditScheduledOperation(operation)}>
-    Modifier
-  </MenuItem>
-  <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteScheduledOperation(operation)}>
-    Supprimer
-  </MenuItem>
+                                    Exécuter maintenant
+                                  </MenuItem>
+                                  <MenuItem icon={<FiEdit3 />} onClick={() => handleEditScheduledOperation(operation)}>
+                                    Modifier
+                                  </MenuItem>
+                                  <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteScheduledOperation(operation)}>
+                                    Supprimer
+                                  </MenuItem>
                                 </MenuList>
                               </Menu>
                             </Td>
@@ -925,6 +1061,265 @@ export default function AdminFinance() {
                         ))}
                       </Tbody>
                     </Table>
+                  )}
+                </CardBody>
+              </Card>
+            </TabPanel>
+
+            {/* Onglet Notes de frais */}
+            <TabPanel px={0}>
+              <Card bg={cardBg}>
+                <CardHeader>
+                  <HStack justify="space-between">
+                    <Heading size="md">🧾 Notes de frais</Heading>
+                    {canManageExpenses && (
+                      <Button leftIcon={<FiUpload />} colorScheme="blue" onClick={onExpenseOpen}>
+                        Nouvelle note de frais
+                      </Button>
+                    )}
+                  </HStack>
+                </CardHeader>
+                <CardBody>
+                  {expenseLoading ? (
+                    <VStack py={8}><Spinner /><Text>Chargement des notes...</Text></VStack>
+                  ) : expenseReports.length === 0 ? (
+                    <VStack py={8}>
+                      <Text color="gray.500">Aucune note de frais</Text>
+                      {canManageExpenses && (
+                        <Button size="sm" onClick={onExpenseOpen} leftIcon={<FiUpload />}>
+                          Ajouter une note de frais
+                        </Button>
+                      )}
+                    </VStack>
+                  ) : (
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th>Date</Th>
+                          <Th>Description</Th>
+                          <Th isNumeric>Montant</Th>
+                          <Th>Justificatif</Th>
+                          <Th>Statut</Th>
+                          <Th>Actions</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {expenseReports.map((r) => (
+                          <Tr key={r.id}>
+                            <Td>{new Date(r.date).toLocaleDateString('fr-FR')}</Td>
+                            <Td>
+                              <VStack align="start" spacing={0}>
+                                <Text fontSize="sm" fontWeight="500">{r.description}</Text>
+                                {r.createdBy && <Text fontSize="xs" color="gray.500">Par {r.createdBy}</Text>}
+                              </VStack>
+                            </Td>
+                            <Td isNumeric>
+                              <Text fontWeight="bold">
+                                {Number(r.amount || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </Td>
+                            <Td>
+                              {r.fileUrl ? (
+                                <Button as="a" href={r.fileUrl} target="_blank" rel="noreferrer" size="xs" variant="outline">
+                                  Voir PDF
+                                </Button>
+                              ) : (
+                                <Text fontSize="xs" color="gray.500">{r.fileName || '—'}</Text>
+                              )}
+                            </Td>
+                            <Td>
+                              <HStack>
+                                <Badge colorScheme={
+                                  r.status === 'reimbursed' ? 'green' :
+                                  r.status === 'closed' ? 'orange' : 'blue'
+                                }>
+                                  {r.status === 'reimbursed' ? 'Remboursée' :
+                                   r.status === 'closed' ? 'Fermée' : 'Ouverte'}
+                                </Badge>
+                                {!r.fileUrl && (
+                                  <Badge variant="outline" colorScheme="purple">Prévisionnelle</Badge>
+                                )}
+                              </HStack>
+                            </Td>
+                            <Td>
+                              <Menu>
+                                <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
+                                <MenuList>
+                                  <MenuItem icon={<FiEye />}>Voir détails</MenuItem>
+                                  {canManageExpenses && r.status !== 'closed' && r.status !== 'reimbursed' && (
+                                    <MenuItem icon={<FiCheck />} onClick={() => handleExpenseStatusChange(r, 'closed')}>
+                                      Marquer "Fermée"
+                                    </MenuItem>
+                                  )}
+                                  {canManageExpenses && r.status !== 'reimbursed' && (
+                                    <MenuItem icon={<FiCheck />} onClick={() => handleExpenseStatusChange(r, 'reimbursed')} isDisabled={!r.fileUrl}>
+                                      Marquer "Remboursée"
+                                    </MenuItem>
+                                  )}
+                                  {canManageExpenses && (
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteExpense(r)}>
+                                      Supprimer
+                                    </MenuItem>
+                                  )}
+                                </MenuList>
+                              </Menu>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  )}
+                </CardBody>
+              </Card>
+            </TabPanel>
+
+            {/* Onglet Simulateur */}
+            <TabPanel px={0}>
+              <Card bg={cardBg}>
+                <CardHeader>
+                  <HStack justify="space-between">
+                    <Heading size="md">🧮 Simulateur de trésorerie</Heading>
+                    <HStack>
+                      <Button variant="outline" onClick={addSimLine} leftIcon={<FiPlus />}>Ajouter une ligne</Button>
+                      <Button variant="outline" onClick={resetSim}>Réinitialiser</Button>
+                      <Button colorScheme="blue" onClick={applySimulation} isDisabled={!canManageExpenses || simLines.length === 0}>
+                        Créer ces transactions
+                      </Button>
+                    </HStack>
+                  </HStack>
+                </CardHeader>
+                <CardBody>
+                  {simLines.length === 0 ? (
+                    <VStack py={8}>
+                      <Text color="gray.500">Ajoutez des lignes pour simuler l'impact sur la trésorerie.</Text>
+                      <Button size="sm" onClick={addSimLine} leftIcon={<FiPlus />}>Ajouter une ligne</Button>
+                    </VStack>
+                  ) : (
+                    <VStack align="stretch" spacing={4}>
+                      <Table size="sm" variant="simple">
+                        <Thead>
+                          <Tr>
+                            <Th>Type</Th>
+                            <Th>Description</Th>
+                            <Th>Catégorie</Th>
+                            <Th>Événement</Th>
+                            <Th isNumeric>Montant</Th>
+                            <Th>Actions</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {simLines.map((l) => (
+                            <Tr key={l.id}>
+                              <Td>
+                                <Select
+                                  value={l.type}
+                                  onChange={(e) => updateSimLine(l.id, { type: e.target.value })}
+                                  size="sm"
+                                >
+                                  <option value="recette">Recette</option>
+                                  <option value="depense">Dépense</option>
+                                </Select>
+                              </Td>
+                              <Td>
+                                <Input
+                                  value={l.description}
+                                  onChange={(e) => updateSimLine(l.id, { description: e.target.value })}
+                                  size="sm"
+                                  placeholder="Description"
+                                />
+                              </Td>
+                              <Td>
+                                <Select
+                                  value={l.category}
+                                  onChange={(e) => updateSimLine(l.id, { category: e.target.value })}
+                                  size="sm"
+                                  placeholder="Catégorie (optionnel)"
+                                  maxW="220px"
+                                >
+                                  {categories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                  ))}
+                                </Select>
+                              </Td>
+                              <Td>
+                                <Select
+                                  size="sm"
+                                  value={l.eventId}
+                                  onChange={(e) => updateSimLine(l.id, { eventId: e.target.value })}
+                                  placeholder="Aucun"
+                                  maxW="240px"
+                                >
+                                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                                </Select>
+                              </Td>
+                              <Td isNumeric>
+                                <MoneyInput
+                                  value={l.amount}
+                                  onChange={(v) => updateSimLine(l.id, { amount: v })}
+                                  placeholder="0,00 €"
+                                  size="sm"
+                                />
+                              </Td>
+                              <Td>
+                                <IconButton
+                                  aria-label="Supprimer"
+                                  icon={<FiTrash2 />}
+                                  size="sm"
+                                  variant="ghost"
+                                  color="red.500"
+                                  onClick={() => removeSimLine(l.id)}
+                                />
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+
+                      <Grid templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} gap={4}>
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Recettes simulées</Text>
+                              <Text fontSize="lg" fontWeight="bold" color="green.600">
+                                {simRevenue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Dépenses simulées</Text>
+                              <Text fontSize="lg" fontWeight="bold" color="red.600">
+                                {simExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Impact net</Text>
+                              <Text fontSize="lg" fontWeight="bold" color={simImpact >= 0 ? 'green.600' : 'red.600'}>
+                                {simImpact.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Solde projeté</Text>
+                              <Text fontSize="lg" fontWeight="bold">
+                                {projectedBalance.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                      </Grid>
+                    </VStack>
                   )}
                 </CardBody>
               </Card>
@@ -984,45 +1379,65 @@ export default function AdminFinance() {
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Nouvelle transaction</ModalHeader>
-          <ModalCloseButton />
+          <ModalHeader>
+            <HStack spacing={4}>
+              <Icon as={FiDollarSign} boxSize={8} color="blue.500" />
+              <Text fontSize="lg" fontWeight="semibold">
+                Nouvelle transaction
+              </Text>
+            </HStack>
+          </ModalHeader>
           <ModalBody>
-            <VStack spacing={4}>
+            <VStack spacing={4} align="stretch">
               <FormControl isRequired>
                 <FormLabel>Type de transaction</FormLabel>
-                <Select
-                  value={formData.type}
-                  onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                >
-                  <option value="recette">Recette</option>
-                  <option value="depense">Dépense</option>
-                </Select>
+                <HStack spacing={4}>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingUp />}
+                    colorScheme={formData.type === 'recette' ? 'green' : 'gray'}
+                    onClick={() => setFormData(prev => ({ ...prev, type: 'recette' }))}
+                  >
+                    Recette
+                  </Button>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingDown />}
+                    colorScheme={formData.type === 'depense' ? 'red' : 'gray'}
+                    onClick={() => setFormData(prev => ({ ...prev, type: 'depense' }))}
+                  >
+                    Dépense
+                  </Button>
+                </HStack>
               </FormControl>
 
               <FormControl isRequired>
                 <FormLabel>Montant</FormLabel>
                 <MoneyInput
+                  placeholder="0,00 €"
                   value={formData.amount}
                   onChange={(value) => setFormData(prev => ({ ...prev, amount: value }))}
-                  placeholder="0,00 €"
+                  size="lg"
                 />
               </FormControl>
 
-              <FormControl isRequired>
+              <FormControl>
                 <FormLabel>Description</FormLabel>
                 <Textarea
+                  placeholder="Description de la transaction"
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Description de la transaction..."
+                  size="lg"
                 />
               </FormControl>
 
               <FormControl>
                 <FormLabel>Catégorie</FormLabel>
                 <Select
+                  placeholder="Sélectionner une catégorie"
                   value={formData.category}
                   onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                  placeholder="Sélectionner une catégorie"
+                  size="lg"
                 >
                   {categories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -1030,34 +1445,41 @@ export default function AdminFinance() {
                 </Select>
               </FormControl>
 
-              <FormControl isRequired>
+              <FormControl>
                 <FormLabel>Date</FormLabel>
                 <Input
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  size="lg"
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>Associer à un événement (optionnel)</FormLabel>
+                <FormLabel>Événement associé</FormLabel>
                 <Select
+                  placeholder="Sélectionner un événement"
                   value={formData.eventId}
                   onChange={(e) => setFormData(prev => ({ ...prev, eventId: e.target.value }))}
-                  placeholder="Aucun">
-                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                  size="lg"
+                >
+                  {events.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                  ))}
                 </Select>
               </FormControl>
+
+              <Button
+                colorScheme="blue"
+                size="lg"
+                onClick={handleSubmit}
+                isLoading={loading}
+                loadingText="Enregistrement..."
+              >
+                Enregistrer la transaction
+              </Button>
             </VStack>
           </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              Annuler
-            </Button>
-            <Button colorScheme="blue" onClick={handleSubmit}>
-              Enregistrer
-            </Button>
-          </ModalFooter>
         </ModalContent>
       </Modal>
 
@@ -1065,41 +1487,41 @@ export default function AdminFinance() {
       <Modal isOpen={isBankBalanceOpen} onClose={onBankBalanceClose}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Configuration du solde bancaire</ModalHeader>
-          <ModalCloseButton />
+          <ModalHeader>
+            <HStack spacing={4}>
+              <Icon as={FiCreditCard} boxSize={8} color="blue.500" />
+              <Text fontSize="lg" fontWeight="semibold">
+                Solde bancaire
+              </Text>
+            </HStack>
+          </ModalHeader>
           <ModalBody>
-            <VStack spacing={4}>
-              <Alert status="info">
-                <AlertIcon />
-                <VStack align="start" spacing={1}>
-                  <Text fontWeight="bold" fontSize="sm">
-                    Solde du compte de l'association
-                  </Text>
-                  <Text fontSize="xs">
-                    Entrez le solde actuel de votre compte bancaire. Cette information sera utilisée pour calculer la trésorerie disponible.
-                  </Text>
-                </VStack>
-              </Alert>
-              
-              <FormControl isRequired>
-                <FormLabel>Solde actuel du compte bancaire</FormLabel>
+            <VStack spacing={4} align="stretch">
+              <Text fontSize="2xl" fontWeight="bold" color="blue.500" textAlign="center">
+                {bankBalance.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+              </Text>
+
+              <FormControl>
+                <FormLabel>Nouveau solde</FormLabel>
                 <MoneyInput
+                  placeholder="0,00 €"
                   value={bankBalanceData.balance}
                   onChange={(value) => setBankBalanceData({ balance: value })}
-                  placeholder="0,00 €"
                   size="lg"
                 />
               </FormControl>
+
+              <Button
+                colorScheme="blue"
+                size="lg"
+                onClick={handleBankBalanceSubmit}
+                isLoading={loading}
+                loadingText="Mise à jour..."
+              >
+                Mettre à jour le solde
+              </Button>
             </VStack>
           </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onBankBalanceClose}>
-              Annuler
-            </Button>
-            <Button colorScheme="blue" onClick={handleBankBalanceSubmit} leftIcon={<FiSave />}>
-              Enregistrer
-            </Button>
-          </ModalFooter>
         </ModalContent>
       </Modal>
 
@@ -1107,50 +1529,70 @@ export default function AdminFinance() {
       <Modal isOpen={isScheduledOperationOpen} onClose={() => { setEditingOperationId(null); onScheduledOperationClose(); }} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>{editingOperationId ? "✏️ Modifier l'opération programmée" : "📅 Programmer une opération financière"}</ModalHeader>
-          <ModalCloseButton />
+          <ModalHeader>
+            <HStack spacing={4}>
+              <Icon as={FiClock} boxSize={8} color="blue.500" />
+              <Text fontSize="lg" fontWeight="semibold">
+                Programmer une opération
+              </Text>
+            </HStack>
+          </ModalHeader>
           <ModalBody>
-            <VStack spacing={4}>
-              <Alert status="info">
-                <AlertIcon />
-                <VStack align="start" spacing={1}>
-                  <Text fontWeight="bold" fontSize="sm">
-                    Opération programmée
-                  </Text>
-                  <Text fontSize="xs">
-                    Cette opération sera visible dans votre planning financier. La date est optionnelle pour les opérations sans échéance précise.
-                  </Text>
-                </VStack>
-              </Alert>
-
+            <VStack spacing={4} align="stretch">
               <FormControl isRequired>
                 <FormLabel>Type d'opération</FormLabel>
-                <Select
-                  value={operationFormData.type}
-                  onChange={(e) => setOperationFormData(prev => ({ ...prev, type: e.target.value }))}
-                >
-                  <option value="recette">Recette</option>
-                  <option value="depense">Dépense</option>
-                </Select>
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel>Description</FormLabel>
-                <Textarea
-                  value={operationFormData.description}
-                  onChange={(e) => setOperationFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Description de l'opération..."
-                />
+                <HStack spacing={4}>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingUp />}
+                    colorScheme={operationFormData.type === 'recette' ? 'green' : 'gray'}
+                    onClick={() => setOperationFormData(prev => ({ ...prev, type: 'recette' }))}
+                  >
+                    Recette
+                  </Button>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingDown />}
+                    colorScheme={operationFormData.type === 'depense' ? 'red' : 'gray'}
+                    onClick={() => setOperationFormData(prev => ({ ...prev, type: 'depense' }))}
+                  >
+                    Dépense
+                  </Button>
+                </HStack>
               </FormControl>
 
               <FormControl isRequired>
                 <FormLabel>Montant</FormLabel>
                 <MoneyInput
+                  placeholder="0,00 €"
                   value={operationFormData.amount}
                   onChange={(value) => setOperationFormData(prev => ({ ...prev, amount: value }))}
-                  placeholder="0,00 €"
                   size="lg"
                 />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Description</FormLabel>
+                <Textarea
+                  placeholder="Description de l'opération"
+                  value={operationFormData.description}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, description: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Catégorie</FormLabel>
+                <Select
+                  placeholder="Sélectionner une catégorie"
+                  value={operationFormData.category}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, category: e.target.value }))}
+                  size="lg"
+                >
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </Select>
               </FormControl>
 
               <FormControl>
@@ -1159,30 +1601,21 @@ export default function AdminFinance() {
                   type="date"
                   value={operationFormData.dueDate}
                   onChange={(e) => setOperationFormData(prev => ({ ...prev, dueDate: e.target.value }))}
-                  placeholder="Laisser vide si pas de date précise"
+                  size="lg"
                 />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Catégorie</FormLabel>
-                <Select
-                  value={operationFormData.category}
-                  onChange={(e) => setOperationFormData(prev => ({ ...prev, category: e.target.value }))}
-                  placeholder="Sélectionner une catégorie"
-                >
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </Select>
               </FormControl>
 
               <FormControl>
                 <FormLabel>Récurrence</FormLabel>
                 <Select
+                  placeholder="Sélectionner une récurrence"
                   value={operationFormData.recurring}
                   onChange={(e) => setOperationFormData(prev => ({ ...prev, recurring: e.target.value }))}
+                  size="lg"
                 >
                   <option value="none">Unique</option>
+                  <option value="daily">Quotidienne</option>
+                  <option value="weekly">Hebdomadaire</option>
                   <option value="monthly">Mensuelle</option>
                   <option value="quarterly">Trimestrielle</option>
                   <option value="yearly">Annuelle</option>
@@ -1190,32 +1623,100 @@ export default function AdminFinance() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Notes (optionnel)</FormLabel>
+                <FormLabel>Notes</FormLabel>
                 <Textarea
+                  placeholder="Notes supplémentaires"
                   value={operationFormData.notes}
                   onChange={(e) => setOperationFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Notes additionnelles sur cette opération..."
-                  size="sm"
+                  size="lg"
                 />
               </FormControl>
 
-              <FormControl>
-                <FormLabel>Associer à un événement (optionnel)</FormLabel>
-                <Select
-                  value={operationFormData.eventId}
-                  onChange={(e) => setOperationFormData(prev => ({ ...prev, eventId: e.target.value }))}
-                  placeholder="Aucun">
-                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-                </Select>
+              <Button
+                colorScheme="blue"
+                size="lg"
+                onClick={handleScheduledOperationSubmit}
+                isLoading={loading}
+                loadingText="Enregistrement..."
+              >
+                Enregistrer l'opération programmée
+              </Button>
+            </VStack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal: Nouvelle note de frais */}
+      <Modal isOpen={isExpenseOpen} onClose={() => { setExpensePdfFile(null); onExpenseClose(); }} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>🧾 Nouvelle note de frais</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Alert status="info">
+                <AlertIcon />
+                <Text fontSize="sm">
+                  Vous pouvez créer une note prévisionnelle sans justificatif, puis ajouter le PDF plus tard.
+                </Text>
+              </Alert>
+
+              <FormControl display="flex" alignItems="center">
+                <HStack justify="space-between" w="full">
+                  <FormLabel m={0}>Note prévisionnelle</FormLabel>
+                  <Switch
+                    isChecked={expenseFormData.isForecast}
+                    onChange={(e) => setExpenseFormData(prev => ({ ...prev, isForecast: e.target.checked }))}
+                  />
+                </HStack>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  Si activé, le justificatif PDF n'est pas requis à la création.
+                </Text>
               </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Date</FormLabel>
+                <Input
+                  type="date"
+                  value={expenseFormData.date}
+                  onChange={(e) => setExpenseFormData(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Description</FormLabel>
+                <Textarea
+                  value={expenseFormData.description}
+                  onChange={(e) => setExpenseFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Ex: Repas mission, péage, parking…"
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Montant</FormLabel>
+                <MoneyInput
+                  value={expenseFormData.amount}
+                  onChange={(v) => setExpenseFormData(prev => ({ ...prev, amount: v }))}
+                  placeholder="0,00 €"
+                />
+              </FormControl>
+
+              {!expenseFormData.isForecast && (
+                <FormControl isRequired>
+                  <FormLabel>Justificatif (PDF)</FormLabel>
+                  <Input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setExpensePdfFile((e.target.files && e.target.files[0]) || null)}
+                  />
+                </FormControl>
+              )}
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onScheduledOperationClose}>
-              Annuler
-            </Button>
-            <Button colorScheme="blue" onClick={handleScheduledOperationSubmit} leftIcon={<FiSave />}>
-              {editingOperationId ? "Enregistrer" : "Programmer l'opération"}
+            <Button variant="ghost" mr={3} onClick={onExpenseClose}>Annuler</Button>
+            <Button colorScheme="blue" leftIcon={<FiUpload />} onClick={handleExpenseSubmit} isDisabled={!canManageExpenses}>
+              Enregistrer la note
             </Button>
           </ModalFooter>
         </ModalContent>
