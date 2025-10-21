@@ -249,19 +249,84 @@ export default function MembersManagement() {
   const fetchMembers = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('🔄 Chargement des membres...');
+      
+      // Test de connectivité d'abord
+      const isAPIAccessible = await membersAPI.testConnectivity();
+      if (!isAPIAccessible) {
+        console.warn('⚠️ API non accessible, mode dégradé activé');
+        toast({
+          status: "warning",
+          title: "Mode dégradé",
+          description: "L'API n'est pas accessible. Certaines fonctionnalités peuvent être limitées.",
+          duration: 5000,
+          isClosable: true
+        });
+        setMembers([]);
+        return;
+      }
+      
       const response = await membersAPI.getAll();
-      const membersList = response?.members || response?.data || response || [];
+      console.log('📥 Réponse API membres:', response);
+      
+      // Gestion flexible de la structure de réponse
+      let membersList = [];
+      if (response?.members) {
+        membersList = Array.isArray(response.members) ? response.members : [response.members];
+      } else if (response?.data) {
+        membersList = Array.isArray(response.data) ? response.data : [response.data];
+      } else if (Array.isArray(response)) {
+        membersList = response;
+      } else {
+        console.warn('⚠️ Structure de réponse inattendue:', response);
+        membersList = [];
+      }
+      
       setMembers(membersList);
-      console.log('👥 Membres chargés:', membersList.length);
+      console.log(`✅ ${membersList.length} membres chargés avec succès`);
+      
+      if (membersList.length === 0) {
+        toast({
+          status: "info",
+          title: "Aucun membre",
+          description: "Aucun membre trouvé dans la base de données",
+          duration: 3000,
+          isClosable: true
+        });
+      }
+      
     } catch (error) {
       console.error('❌ Erreur chargement membres:', error);
+      
+      // Messages d'erreur spécifiques selon le type d'erreur
+      let errorMessage = "Impossible de charger les membres";
+      let errorStatus = "error";
+      
+      if (error.message.includes('404')) {
+        errorMessage = "Endpoint membres non trouvé. Vérifiez la configuration de l'API.";
+      } else if (error.message.includes('401')) {
+        errorMessage = "Session expirée. Veuillez vous reconnecter.";
+        // Redirection automatique vers login
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else if (error.message.includes('500')) {
+        errorMessage = "Erreur serveur. Contactez l'administrateur.";
+      } else if (error.message.includes('Network')) {
+        errorMessage = "Problème de réseau. Vérifiez votre connexion.";
+        errorStatus = "warning";
+      }
+      
       toast({
-        status: "error",
+        status: errorStatus,
         title: "Erreur de chargement",
-        description: "Impossible de charger les membres",
-        duration: 5000,
+        description: errorMessage,
+        duration: 8000,
         isClosable: true
       });
+      
+      // En cas d'erreur, on définit une liste vide pour éviter les crashes
+      setMembers([]);
     } finally {
       setLoading(false);
     }

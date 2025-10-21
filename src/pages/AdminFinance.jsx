@@ -8,13 +8,13 @@ import {
   Spinner, Tabs, TabList, TabPanels, Tab, TabPanel,
   Switch, Table, Thead, Tbody, Tr, Th, Td, Text, Button, Input, Select,
   Card, CardHeader, CardBody, Icon, Heading,
-  SimpleGrid
+  SimpleGrid, Divider, Box
 } from "@chakra-ui/react";
 import {
   FiDollarSign, FiTrendingUp, FiTrendingDown, FiPlus, FiMinus,
   FiPieChart, FiBarChart, FiCalendar, FiCreditCard, FiDownload,
-  FiUpload, FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck, FiX, 
-  FiRefreshCw, FiEye, FiUsers, FiSave, FiClock, FiSettings, FiRepeat
+  FiUpload, FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck, FiX, FiRefreshCw, 
+  FiEye, FiUsers, FiSave, FiClock, FiSettings, FiRepeat, FiShield, FiAlertTriangle
 } from "react-icons/fi";
 import { useUser } from '../context/UserContext';
 import { financeAPI } from '../api/finance';
@@ -132,7 +132,7 @@ const FinanceStats = ({ data, loading }) => {
   return <StatsGrid stats={stats} loading={loading} />;
 };
 
-// Composant principal
+// Composant principal mis à jour
 export default function AdminFinance() {
   const { user, isAdmin, roles = [] } = useUser();
   const toast = useToast();
@@ -148,12 +148,9 @@ export default function AdminFinance() {
     onClose: onScheduledOperationClose 
   } = useDisclosure();
   const {
-    isOpen: isExpenseOpen, 
-    onOpen: onExpenseOpen, 
-    onClose: onExpenseClose
+    isOpen: isExpenseOpen, onOpen: onExpenseOpen, onClose: onExpenseClose
   } = useDisclosure();
 
-  // États principaux
   const [transactions, setTransactions] = useState([]);
   const [financeData, setFinanceData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -163,13 +160,7 @@ export default function AdminFinance() {
   const [events, setEvents] = useState([]);
   const [expenseReports, setExpenseReports] = useState([]);
   const [expenseLoading, setExpenseLoading] = useState(false);
-  const [categories, setCategories] = useState([]);
-  const [editingOperationId, setEditingOperationId] = useState(null);
-
-  // État du simulateur
-  const [simLines, setSimLines] = useState([]);
-
-  // États des formulaires
+  
   const [formData, setFormData] = useState({
     type: 'recette',
     amount: 0,
@@ -178,11 +169,15 @@ export default function AdminFinance() {
     date: new Date().toISOString().split('T')[0],
     eventId: ''
   });
-
+  
+  // État pour la modification du solde bancaire avec justification et sécurité
   const [bankBalanceData, setBankBalanceData] = useState({
-    balance: 0
+    balance: 0,
+    justification: '',
+    password: '',
+    linkedReportId: '' // ID du retro-report lié si applicable
   });
-
+  
   const [operationFormData, setOperationFormData] = useState({
     type: 'depense',
     description: '',
@@ -194,7 +189,7 @@ export default function AdminFinance() {
     notes: '',
     eventId: ''
   });
-
+  
   const [expenseFormData, setExpenseFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     description: '',
@@ -202,24 +197,22 @@ export default function AdminFinance() {
     isForecast: false,
   });
   const [expensePdfFile, setExpensePdfFile] = useState(null);
-
+  
+  const [categories, setCategories] = useState([]);
   const [filters, setFilters] = useState({
     page: 1,
     limit: 20,
     eventId: ''
   });
 
-  // Variables dérivées
+  const [editingOperationId, setEditingOperationId] = useState(null);
+
+  // État du simulateur
+  const [simLines, setSimLines] = useState([]);
+
   const cardBg = useColorModeValue("white", "gray.800");
   const canManageExpenses = isAdmin || roles.includes('TREASURER') || roles.includes('PRESIDENT');
 
-  // Calculs du simulateur
-  const simRevenue = simLines.filter(l => l.type === 'recette').reduce((s, l) => s + Number(l.amount || 0), 0);
-  const simExpenses = simLines.filter(l => l.type === 'depense').reduce((s, l) => s + Number(l.amount || 0), 0);
-  const simImpact = simRevenue - simExpenses;
-  const projectedBalance = Number(bankBalance || 0) + simImpact;
-
-  // Effets
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -235,7 +228,6 @@ export default function AdminFinance() {
     })();
   }, []);
 
-  // Fonctions de chargement
   const loadInitialData = async () => {
     await Promise.all([
       loadFinanceData(),
@@ -250,12 +242,16 @@ export default function AdminFinance() {
   const loadFinanceData = async () => {
     try {
       setLoading(true);
+      console.log('🏦 Chargement des données financières...');
+      
       const data = await financeAPI.getStats();
+      console.log('📊 Données financières reçues:', data);
+      
       setFinanceData(data);
       
       toast({
         title: "Données synchronisées",
-        description: "Statistiques financières mises à jour",
+        description: "Statistiques financières mises à jour avec les données réelles",
         status: "success",
         duration: 2000,
         isClosable: true,
@@ -287,11 +283,11 @@ export default function AdminFinance() {
     try {
       const data = await financeAPI.getBankBalance();
       setBankBalance(data.balance);
-      setBankBalanceData({ balance: data.balance });
+      setBankBalanceData(prev => ({ ...prev, balance: data.balance }));
     } catch (error) {
       console.error('❌ Erreur chargement solde bancaire:', error);
       setBankBalance(0);
-      setBankBalanceData({ balance: 0 });
+      setBankBalanceData(prev => ({ ...prev, balance: 0 }));
     }
   };
 
@@ -309,7 +305,11 @@ export default function AdminFinance() {
   const loadTransactions = async () => {
     try {
       setTransactionsLoading(true);
+      console.log('💳 Chargement des transactions...');
+      
       const data = await financeAPI.getTransactions(filters);
+      console.log('📋 Transactions reçues:', data);
+      
       setTransactions(data.transactions || []);
     } catch (error) {
       console.error('❌ Erreur chargement transactions:', error);
@@ -357,7 +357,6 @@ export default function AdminFinance() {
     }
   };
 
-  // Handlers principales
   const handleSubmit = async () => {
     try {
       if (!formData.amount || !formData.description) {
@@ -371,10 +370,14 @@ export default function AdminFinance() {
         return;
       }
 
+      console.log('💾 Création d\'une nouvelle transaction:', formData);
+
       const newTransaction = await financeAPI.createTransaction({
         ...formData,
         created_by: user?.email || user?.username || 'admin'
       });
+
+      console.log('✅ Transaction créée:', newTransaction);
 
       setTransactions(prev => [newTransaction, ...prev]);
       
@@ -410,17 +413,70 @@ export default function AdminFinance() {
     }
   };
 
+  // Modification du solde bancaire avec sécurité et justification
   const handleBankBalanceSubmit = async () => {
     try {
-      const result = await financeAPI.setBankBalance(bankBalanceData.balance);
+      // Validation des champs requis
+      if (!bankBalanceData.justification.trim()) {
+        toast({
+          title: "Justification requise",
+          description: "Vous devez justifier cette modification de solde",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      if (!bankBalanceData.password.trim()) {
+        toast({
+          title: "Mot de passe requis",
+          description: "Le mot de passe administrateur est obligatoire",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      // Validation du mot de passe côté client (sera aussi validé côté serveur)
+      const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_BALANCE_PASSWORD || 'RBE2024SECURE';
+      if (bankBalanceData.password !== ADMIN_PASSWORD) {
+        toast({
+          title: "Accès refusé",
+          description: "Mot de passe incorrect",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+        setBankBalanceData(prev => ({ ...prev, password: '' }));
+        return;
+      }
+
+      const result = await financeAPI.setBankBalance({
+        balance: bankBalanceData.balance,
+        justification: bankBalanceData.justification,
+        password: bankBalanceData.password,
+        linkedReportId: bankBalanceData.linkedReportId || null,
+        modifiedBy: user?.email || user?.username || 'admin'
+      });
+
       setBankBalance(result.balance);
       onBankBalanceClose();
       
+      // Réinitialiser le formulaire
+      setBankBalanceData({
+        balance: result.balance,
+        justification: '',
+        password: '',
+        linkedReportId: ''
+      });
+      
       toast({
-        title: "Succès",
-        description: `Solde bancaire mis à jour: ${result.formatted}`,
+        title: "Solde mis à jour",
+        description: `Nouveau solde: ${result.formatted}. Modification enregistrée avec justification.`,
         status: "success",
-        duration: 3000,
+        duration: 4000,
         isClosable: true,
       });
       
@@ -434,46 +490,11 @@ export default function AdminFinance() {
         duration: 5000,
         isClosable: true,
       });
+      // Effacer le mot de passe en cas d'erreur
+      setBankBalanceData(prev => ({ ...prev, password: '' }));
     }
   };
 
-  const handleExpenseSubmit = async () => {
-    if (!expenseFormData.description || !expenseFormData.amount) {
-      toast({ title: "Erreur", description: "Description et montant requis", status: "error" });
-      return;
-    }
-
-    if (!expenseFormData.isForecast) {
-      if (!expensePdfFile) {
-        toast({ title: "PDF requis", description: "Veuillez joindre le justificatif PDF", status: "error" });
-        return;
-      }
-      if (expensePdfFile.type !== 'application/pdf') {
-        toast({ title: "Format invalide", description: "Le fichier doit être un PDF", status: "error" });
-        return;
-      }
-    }
-
-    try {
-      await financeAPI.createExpenseReport({
-        date: expenseFormData.date,
-        description: expenseFormData.description,
-        amount: expenseFormData.amount,
-        pdfFile: expensePdfFile || null,
-        planned: !!expenseFormData.isForecast,
-        status: 'open',
-      });
-      await loadExpenseReports();
-      setExpenseFormData({ date: new Date().toISOString().split('T')[0], description: '', amount: 0, isForecast: false });
-      setExpensePdfFile(null);
-      onExpenseClose();
-      toast({ title: "Note créée", status: "success" });
-    } catch (e) {
-      toast({ title: "Erreur", description: e.message || "Création impossible", status: "error" });
-    }
-  };
-
-  // Handlers opérations programmées
   const handleExecuteScheduledOperation = async (op) => {
     try {
       const res = await financeAPI.executeScheduledExpense(op.id);
@@ -551,10 +572,13 @@ export default function AdminFinance() {
     }
   };
 
-  // Handlers utilitaires
   const handleSyncMemberships = async () => {
     try {
+      console.log('🔄 Synchronisation des adhésions...');
+      
       const result = await financeAPI.syncMemberships();
+      console.log('✅ Synchronisation terminée:', result);
+      
       toast({
         title: "Synchronisation réussie",
         description: `${result.synchronized} adhésions synchronisées`,
@@ -562,6 +586,7 @@ export default function AdminFinance() {
         duration: 3000,
         isClosable: true,
       });
+      
       await loadInitialData();
     } catch (error) {
       console.error('❌ Erreur synchronisation:', error);
@@ -618,6 +643,42 @@ export default function AdminFinance() {
     }
   };
 
+  const handleExpenseSubmit = async () => {
+    if (!expenseFormData.description || !expenseFormData.amount) {
+      toast({ title: "Erreur", description: "Description et montant requis", status: "error" });
+      return;
+    }
+
+    if (!expenseFormData.isForecast) {
+      if (!expensePdfFile) {
+        toast({ title: "PDF requis", description: "Veuillez joindre le justificatif PDF", status: "error" });
+        return;
+      }
+      if (expensePdfFile.type !== 'application/pdf') {
+        toast({ title: "Format invalide", description: "Le fichier doit être un PDF", status: "error" });
+        return;
+      }
+    }
+
+    try {
+      await financeAPI.createExpenseReport({
+        date: expenseFormData.date,
+        description: expenseFormData.description,
+        amount: expenseFormData.amount,
+        pdfFile: expensePdfFile || null,
+        planned: !!expenseFormData.isForecast,
+        status: 'open',
+      });
+      await loadExpenseReports();
+      setExpenseFormData({ date: new Date().toISOString().split('T')[0], description: '', amount: 0, isForecast: false });
+      setExpensePdfFile(null);
+      onExpenseClose();
+      toast({ title: "Note créée", status: "success" });
+    } catch (e) {
+      toast({ title: "Erreur", description: e.message || "Création impossible", status: "error" });
+    }
+  };
+
   const handleExpenseStatusChange = async (report, newStatus) => {
     try {
       await financeAPI.updateExpenseReportStatus(report.id, newStatus);
@@ -640,7 +701,7 @@ export default function AdminFinance() {
     }
   };
 
-  // Handlers simulateur
+  // Helpers simulateur
   const addSimLine = () => {
     const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
     setSimLines(prev => [...prev, { id, type: 'depense', amount: 0, description: '', category: '', eventId: '' }]);
@@ -655,6 +716,11 @@ export default function AdminFinance() {
   };
 
   const resetSim = () => setSimLines([]);
+
+  const simRevenue = simLines.filter(l => l.type === 'recette').reduce((s, l) => s + Number(l.amount || 0), 0);
+  const simExpenses = simLines.filter(l => l.type === 'depense').reduce((s, l) => s + Number(l.amount || 0), 0);
+  const simImpact = simRevenue - simExpenses;
+  const projectedBalance = Number(bankBalance || 0) + simImpact;
 
   const applySimulation = async () => {
     if (!simLines.length) return;
@@ -903,7 +969,6 @@ export default function AdminFinance() {
                   </VStack>
                 </ModernCard>
 
-                {/* Sidebar des actions rapides */}
                 <VStack spacing={4}>
                   <ModernCard title="Actions rapides" color="gray">
                     <VStack spacing={3}>
@@ -1152,7 +1217,7 @@ export default function AdminFinance() {
                                     </MenuItem>
                                   )}
                                   {canManageExpenses && r.status !== 'reimbursed' && (
-                                    <MenuItem icon={<FiCheck />} onClick={() => handleExpenseStatusChange(r, 'reimbursed')} isDisabled={!r.fileUrl}>
+                                    <MenuItem icon={<FiCheck />} onClick={() => handleExpenseStatusChange(r, 'reimbursed')} isDisabled={!r.fileUrl} >
                                       Marquer "Remboursée"
                                     </MenuItem>
                                   )}
@@ -1507,6 +1572,26 @@ export default function AdminFinance() {
                   placeholder="0,00 €"
                   value={bankBalanceData.balance}
                   onChange={(value) => setBankBalanceData({ balance: value })}
+                  size="lg"
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Justification</FormLabel>
+                <Textarea
+                  placeholder="Justifiez la modification du solde"
+                  value={bankBalanceData.justification}
+                  onChange={(e) => setBankBalanceData(prev => ({ ...prev, justification: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Mot de passe administrateur</FormLabel>
+                <Input
+                  type="password"
+                  value={bankBalanceData.password}
+                  onChange={(e) => setBankBalanceData(prev => ({ ...prev, password: e.target.value }))}
                   size="lg"
                 />
               </FormControl>
