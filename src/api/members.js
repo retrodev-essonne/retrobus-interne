@@ -10,10 +10,10 @@ export const membersAPI = {
       
       // Essayer plusieurs endpoints possibles
       const possibleEndpoints = [
-        '/api/members',  // Standard REST API
-        '/members',      // Endpoint direct
-        '/api/site-users', // Utilisateurs du site
-        '/api/users'     // Alternative
+        '/api/members',      // Standard REST API
+        '/api/site-users',   // Utilisateurs du site
+        '/members',          // Endpoint direct
+        '/api/users'         // Alternative
       ];
       
       for (const endpoint of possibleEndpoints) {
@@ -52,10 +52,66 @@ export const membersAPI = {
     }
   },
 
+  async create(memberData) {
+    try {
+      console.log('👤 Création membre:', memberData);
+      
+      // Essayer plusieurs endpoints pour la création
+      const possibleEndpoints = [
+        '/api/members',
+        '/api/members/create',
+        '/api/site-users',
+        '/members'
+      ];
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log(`🔗 Test création avec endpoint: ${endpoint}`);
+          const response = await apiClient.post(endpoint, memberData);
+          console.log(`✅ Membre créé avec succès via ${endpoint}:`, response);
+          return response;
+        } catch (error) {
+          console.log(`❌ Échec création via ${endpoint}:`, error.message);
+          // Si c'est la dernière tentative, on relance l'erreur
+          if (endpoint === possibleEndpoints[possibleEndpoints.length - 1]) {
+            throw error;
+          }
+          continue;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur création membre:', error);
+      throw error;
+    }
+  },
+
   async createWithLogin(memberData) {
     try {
-      const response = await apiClient.post('/api/members/create-with-login', memberData);
-      return response;
+      console.log('👤 Création membre avec login:', memberData);
+      
+      // Essayer plusieurs endpoints pour la création avec login
+      const possibleEndpoints = [
+        '/api/members/create-with-login',
+        '/api/members/create',
+        '/api/site-users/create-with-login',
+        '/api/members'
+      ];
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log(`🔗 Test création avec login via endpoint: ${endpoint}`);
+          const response = await apiClient.post(endpoint, memberData);
+          console.log(`✅ Membre avec login créé via ${endpoint}:`, response);
+          return response;
+        } catch (error) {
+          console.log(`❌ Échec création avec login via ${endpoint}:`, error.message);
+          // Si c'est la dernière tentative, on relance l'erreur
+          if (endpoint === possibleEndpoints[possibleEndpoints.length - 1]) {
+            throw error;
+          }
+          continue;
+        }
+      }
     } catch (error) {
       console.error('❌ Erreur createWithLogin:', error);
       throw error;
@@ -91,28 +147,44 @@ export const membersAPI = {
     }
   },
 
-  // Fonction de test de connectivité
+  // Fonction de test de connectivité améliorée
   async testConnectivity() {
     try {
       console.log('🔍 Test de connectivité de l\'API...');
-      const response = await fetch(`${API_BASE_URL}/api/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ API accessible:', data);
-        return true;
-      } else {
-        console.log('⚠️ API répond avec erreur:', response.status);
-        return false;
+      // Tester plusieurs endpoints de santé
+      const healthEndpoints = [
+        '/api/health',
+        '/health',
+        '/ping',
+        '/api/ping',
+        '/api/status'
+      ];
+      
+      for (const endpoint of healthEndpoints) {
+        try {
+          const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          
+          if (response.ok) {
+            console.log(`✅ API accessible via ${endpoint}`);
+            return true;
+          }
+        } catch (error) {
+          console.log(`❌ Endpoint ${endpoint} non accessible:`, error.message);
+          continue;
+        }
       }
+      
+      console.log('⚠️ Aucun endpoint de santé accessible');
+      return false;
     } catch (error) {
-      console.error('❌ API inaccessible:', error);
+      console.error('❌ Test de connectivité échoué:', error);
       return false;
     }
   }
