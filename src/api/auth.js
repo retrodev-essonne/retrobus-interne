@@ -1,3 +1,15 @@
+import { fetchJson } from '../apiClient';
+
+export const AuthAPI = {
+  me:    () => fetchJson('/api/auth/me'),
+  login: (payload) => fetchJson('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  logout: () => fetchJson('/api/auth/logout', { method: 'POST' }),
+};
+
 export const USERS = {
   "w.belaidi": {
     password: "Waiyl9134#",

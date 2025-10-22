@@ -8,15 +8,20 @@ function buildAuthHeaders() {
       localStorage.getItem('token') ||
       localStorage.getItem('jwt');
     return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 
 export async function fetchJson(path: string, options: RequestInit = {}) {
-  const BASE_URL = (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, '');
   const url = `${BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
   const res = await fetch(url, {
-    credentials: 'include',
-    headers: { Accept: 'application/json', ...buildAuthHeaders(), ...(options.headers || {}) },
+    credentials: 'include',      Accept: 'application/json',
+      headers: {
+      Accept: 'application/json',
+      ...buildAuthHeaders(),
+      ...(options.headers || {}),
+    },
     ...options,
   });
   if (res.status === 404) return { notFound: true };

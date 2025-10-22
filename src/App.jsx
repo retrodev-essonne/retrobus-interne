@@ -32,10 +32,13 @@ import SupportSite from "./pages/SupportSite";
 export default function App() {
   const { isAuthenticated } = useUser();
   const location = useLocation();
-  
-  // Debug: afficher la route actuelle
-  console.log('🛣️ Current route:', location.pathname);
-  
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.debug('🛣️ Current route:', location.pathname);
+    }
+  }, [location.pathname]);
+
   const showHeader = isAuthenticated && location.pathname !== '/login';
 
   return (

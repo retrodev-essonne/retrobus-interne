@@ -1,12 +1,14 @@
 ﻿// Client HTTP unique + exports compatibles
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  'https://attractive-kindness-rbe-serveurs.up.railway.app/api';
+  (import.meta.env?.VITE_API_URL || 'https://attractive-kindness-rbe-serveurs.up.railway.app').replace(/\/$/, '');
+
+export const apiUrl = (path = '') =>
+  `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 
 const getToken = () => localStorage.getItem('token');
 
-export const getHeaders = () => ({
+export const getHeaders = () =>({
   'Content-Type': 'application/json',
   ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
 });
