@@ -1,3 +1,5 @@
+----SIMULATIONS POUR TESTS-----
+
 cd "C:\Dev\RETROBUS_ESSONNE\interne\api"
 npm run dev
 
@@ -8,9 +10,7 @@ cd "C:\Dev\RETROBUS_ESSONNE\externe"
 npm run dev
 
 
---DECLENCHEUR DE PUSH--
-
-Interne : 
+--DEPLOIEMENTS--
 
 cd C:\Dev\RETROBUS_ESSONNE\interne
 git add .
@@ -30,4 +30,4 @@ git push origin main
 cd C:\Dev\RETROBUS_ESSONNE\interne\api
 npx prisma generate
 npx prisma db push
-npx prisma studio
+npx prisma migrate deploy
