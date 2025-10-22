@@ -9,10 +9,11 @@ export { newsletterAPI } from './newsletter.js';
 export { myRBEAPI } from './myrbe.js';
 export { flashAPI } from './flash.js';
 export { stocksAPI } from './stocks.js';
+export { FinanceAPI } from './finance.js';
 
 // Import des API pour l'export par défaut
-import { apiClient } from './config.js'; // ✅ nécessaire pour l'alias `api`
-import { AuthAPI } from './auth.js'; // ✅ majuscule
+import { apiClient } from './config.js';
+import { AuthAPI } from './auth.js';
 import { eventsAPI } from './events.js';
 import { vehiculesAPI } from './vehicles.js';
 import { membersAPI } from './members.js';
@@ -21,8 +22,9 @@ import { newsletterAPI } from './newsletter.js';
 import { myRBEAPI } from './myrbe.js';
 import { flashAPI } from './flash.js';
 import { stocksAPI } from './stocks.js';
+import { FinanceAPI } from './finance.js';
 
-// ✅ Alias simple compatible avec l’existant (utilisé par StockManagement.jsx)
+// ✅ Alias simple compatible avec l'existant
 export const api = {
   get: (url, options) => apiClient.get(url, options),
   post: (url, data, options) => apiClient.post(url, data, options),
@@ -32,7 +34,7 @@ export const api = {
 
 // Export par défaut de toutes les API
 export default {
-  auth: authAPI,
+  auth: AuthAPI,           // ✅ majuscule
   events: eventsAPI,
   vehicules: vehiculesAPI,
   members: membersAPI,
@@ -40,5 +42,11 @@ export default {
   newsletter: newsletterAPI,
   myrbe: myRBEAPI,
   flash: flashAPI,
-  stocks: stocksAPI
+  stocks: stocksAPI,
+  finance: FinanceAPI,
 };
+
+// ✅ Helpers (optionnel)
+export const login = (credentials) => AuthAPI.login(credentials);
+export const logout = () => AuthAPI.logout();
+export const getMe = () => AuthAPI.me();
