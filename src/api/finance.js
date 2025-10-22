@@ -1,6 +1,6 @@
 import { apiClient } from './config.js';
 import { API_BASE_URL } from './config.js'; // ADD THIS IMPORT
-import { fetchJson } from '../apiClient';
+import { fetchJson } from '../apiClient.js';
 
 const MOCK = import.meta.env.VITE_FINANCE_MOCK === 'true';
 

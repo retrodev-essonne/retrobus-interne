@@ -12,7 +12,7 @@ function buildAuthHeaders() {
   }
 }
 
-export async function fetchJson(path, options = {}) {
+export const fetchJson = async (path, options = {}) => {
   const url = `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
   const res = await fetch(url, {
     credentials: 'include',
@@ -31,6 +31,6 @@ export async function fetchJson(path, options = {}) {
     throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
   }
   return res.json();
-}
+};
 
 export { API_BASE_URL };

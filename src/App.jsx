@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
 import Header from "./components/Header";
@@ -34,9 +34,7 @@ export default function App() {
   const location = useLocation();
 
   useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.debug('🛣️ Current route:', location.pathname);
-    }
+    if (import.meta.env.DEV) console.debug('🛣️ Current route:', location.pathname);
   }, [location.pathname]);
 
   const showHeader = isAuthenticated && location.pathname !== '/login';

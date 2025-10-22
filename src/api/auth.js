@@ -1,4 +1,4 @@
-import { fetchJson } from '../apiClient';
+import { fetchJson } from '../apiClient.js';
 
 export const AuthAPI = {
   me:    () => fetchJson('/api/auth/me'),
