@@ -13,12 +13,12 @@ import {
   FiHeart, FiHome, FiMapPin, FiPlus, FiRefreshCw, FiSettings, 
   FiTrendingUp, FiTruck, FiUser, FiUsers, FiZap, FiBarChart 
 } from "react-icons/fi";
-import { useUser } from '../context/UserContext';
+import { useUser } from '../context/UserContext.jsx';
 
 // Import APIs avec gestion d'erreur
-import { vehiculesAPI } from '../api/vehicles';
-import { eventsAPI } from '../api/events';
-import { membersAPI } from '../api/members';
+import { vehiculesAPI } from "@api/vehicles";
+import { eventsAPI } from "@api/events";
+import { membersAPI } from "@api/members";
 
 const ANN_KEY = "rbe:announcements";
 
@@ -636,7 +636,7 @@ export default function DashboardHome() {
                         </Badge>
                       </HStack>
                     ))
-                  )}
+                  }
                 </VStack>
               </CardBody>
             </Card>

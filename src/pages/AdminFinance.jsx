@@ -124,9 +124,6 @@ const AdminFinance = () => {
         loadBalanceHistory()
       ]);
       
-      // Calculer les statistiques
-      calculateStats();
-      
     } catch (error) {
       console.error('❌ Erreur chargement données financières:', error);
       toast({
@@ -143,71 +140,159 @@ const AdminFinance = () => {
 
   const loadBalance = async () => {
     try {
-      // Simuler pour l'instant - remplacer par l'API réelle
-      const mockBalance = 2500.75;
-      setBalance(mockBalance);
-      setStats(prev => ({ ...prev, balance: mockBalance }));
+      const response = await fetch('/api/finance/balance', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setBalance(data.balance || 0);
+        setLastBalanceUpdate(data.lastUpdate);
+        setIsBalanceLocked(data.isLocked !== false);
+        setCanModifyBalance(data.canModify === true);
+      } else {
+        console.warn('⚠️ Solde non disponible, utilisation de 0');
+        setBalance(0);
+        setCanModifyBalance(false);
+      }
     } catch (error) {
       console.error('❌ Erreur chargement solde:', error);
+      setBalance(0);
+      setCanModifyBalance(false);
     }
   };
 
   const loadTransactions = async () => {
     try {
-      // Simuler pour l'instant - remplacer par l'API réelle
-      const mockTransactions = [
-        {
-          id: '1',
-          type: 'CREDIT',
-          amount: 50,
-          description: 'Adhésion membre',
-          category: 'ADHESION',
-          date: new Date().toISOString(),
-          createdAt: new Date().toISOString()
+      const response = await fetch('/api/finance/transactions', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
-      ];
-      setTransactions(mockTransactions);
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTransactions(data.transactions || []);
+      } else {
+        console.warn('⚠️ Transactions non disponibles');
+        setTransactions([]);
+      }
     } catch (error) {
       console.error('❌ Erreur chargement transactions:', error);
+      setTransactions([]);
     }
   };
 
   const loadScheduledOperations = async () => {
     try {
-      // Simuler pour l'instant - remplacer par l'API réelle
-      setScheduledOperations([]);
+      const response = await fetch('/api/finance/scheduled-operations', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setScheduledOperations(data.operations || []);
+      } else {
+        console.warn('⚠️ Opérations programmées non disponibles');
+        setScheduledOperations([]);
+      }
     } catch (error) {
       console.error('❌ Erreur chargement opérations programmées:', error);
+      setScheduledOperations([]);
     }
   };
 
   const loadSimulationData = async () => {
     try {
-      // Simuler pour l'instant - remplacer par l'API réelle
-      setSimulationData(prev => ({ ...prev, scenarios: [] }));
+      const response = await fetch('/api/finance/simulations', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSimulationData(prev => ({
+          ...prev,
+          scenarios: data.scenarios || []
+        }));
+      } else {
+        console.warn('⚠️ Simulations non disponibles');
+        setSimulationData(prev => ({ ...prev, scenarios: [] }));
+      }
     } catch (error) {
       console.error('❌ Erreur chargement simulations:', error);
+      setSimulationData(prev => ({ ...prev, scenarios: [] }));
     }
   };
 
   const loadBalanceHistory = async () => {
     try {
-      // Simuler pour l'instant - remplacer par l'API réelle
-      setBalanceHistory([]);
+      const response = await fetch('/api/finance/balance/history', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setBalanceHistory(data.history || []);
+      } else {
+        console.warn('⚠️ Historique non disponible');
+        setBalanceHistory([]);
+      }
     } catch (error) {
       console.error('❌ Erreur chargement historique:', error);
+      setBalanceHistory([]);
     }
   };
 
+  // Ajouter l'état manquant pour les droits utilisateur
+  const [canModifyBalance, setCanModifyBalance] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const loadUserInfo = async () => {
+    try {
+      const response = await fetch('/api/me', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setCurrentUser(userData);
+        
+        // Vérifier si c'est Waiyl BELAIDI par son matricule
+        const isAuthorized = userData.matricule === 'w.belaidi';
+        setCanModifyBalance(isAuthorized);
+        
+        console.log('👤 Utilisateur connecté:', userData.matricule, '- Peut modifier solde:', isAuthorized);
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement utilisateur:', error);
+    }
+  };
+
+  // Calculer les stats après chargement des données
   const calculateStats = () => {
-    // Calculer les statistiques basées sur les données chargées
     const totalCredits = transactions
       .filter(t => t.type === 'CREDIT')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     const totalDebits = transactions
       .filter(t => t.type === 'DEBIT')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     // Transactions du mois en cours
     const thisMonth = new Date();
@@ -221,11 +306,11 @@ const AdminFinance = () => {
     
     const monthlyCredits = monthlyTransactions
       .filter(t => t.type === 'CREDIT')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     const monthlyDebits = monthlyTransactions
       .filter(t => t.type === 'DEBIT')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     const monthlyBalance = monthlyCredits - monthlyDebits;
     
@@ -234,7 +319,7 @@ const AdminFinance = () => {
       .filter(op => op.isActive)
       .reduce((sum, op) => {
         const multiplier = getFrequencyMultiplier(op.frequency);
-        const impact = op.type === 'SCHEDULED_CREDIT' ? op.amount : -op.amount;
+        const impact = op.type === 'SCHEDULED_CREDIT' ? (op.amount || 0) : -(op.amount || 0);
         return sum + (impact * multiplier);
       }, 0);
     
@@ -275,120 +360,734 @@ const AdminFinance = () => {
     return categories[category] || category;
   };
 
-  const getFrequencyLabel = (frequency) => {
-    const frequencies = {
-      'DAILY': 'Quotidien',
-      'WEEKLY': 'Hebdomadaire',
-      'MONTHLY': 'Mensuel',
-      'QUARTERLY': 'Trimestriel',
-      'YEARLY': 'Annuel'
-    };
-    return frequencies[frequency] || frequency;
-  };
-
-  const getFrequencyMultiplier = (frequency) => {
-    const multipliers = {
-      'DAILY': 30,
-      'WEEKLY': 4.33,
-      'MONTHLY': 1,
-      'QUARTERLY': 0.33,
-      'YEARLY': 0.083
-    };
-    return multipliers[frequency] || 1;
-  };
-
   // === FONCTIONS D'ACTIONS ===
   const handleBalanceConfig = async () => {
-    // Implémentation de la configuration du solde
-    console.log('Configuration du solde:', { configCode, newBalance });
-    
-    // Simuler la mise à jour
-    if (configCode === '0920' && newBalance) {
-      setBalance(parseFloat(newBalance));
-      setStats(prev => ({ ...prev, balance: parseFloat(newBalance) }));
-      setShowBalanceConfig(false);
-      setConfigCode('');
-      setNewBalance('');
-      
+    if (!canModifyBalance) {
       toast({
-        status: "success",
-        title: "Solde mis à jour",
-        description: `Nouveau solde: ${formatCurrency(parseFloat(newBalance))}`,
+        status: "error",
+        title: "Accès refusé",
+        description: "Seul Waiyl BELAIDI (w.belaidi) peut modifier le solde",
+        duration: 5000,
+        isClosable: true
+      });
+      return;
+    }
+
+    if (!configCode || configCode.length !== 4) {
+      toast({
+        status: "warning",
+        title: "Code requis",
+        description: "Veuillez saisir le code à 4 chiffres (0920)",
         duration: 3000,
         isClosable: true
       });
-    } else {
+      return;
+    }
+
+    if (configCode !== '0920') {
       toast({
         status: "error",
         title: "Code incorrect",
-        description: "Le code de sécurité est invalide",
+        description: "Le code de sécurité n'est pas valide",
+        duration: 4000,
+        isClosable: true
+      });
+      return;
+    }
+
+    if (!newBalance || isNaN(parseFloat(newBalance))) {
+      toast({
+        status: "warning",
+        title: "Montant invalide",
+        description: "Veuillez saisir un montant valide",
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const response = await fetch('/api/finance/balance/configure', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          code: configCode,
+          newBalance: parseFloat(newBalance),
+          reason: `Mise à jour manuelle du solde par ${currentUser?.matricule} - ${new Date().toLocaleDateString('fr-FR')}`
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBalance(data.newBalance);
+        setConfigCode('');
+        setNewBalance('');
+        setShowBalanceConfig(false);
+        onConfigClose();
+        
+        toast({
+          status: "success",
+          title: "Solde mis à jour",
+          description: `Nouveau solde: ${formatCurrency(data.newBalance)} (différence: ${data.difference >= 0 ? '+' : ''}${formatCurrency(data.difference)})`,
+          duration: 5000,
+          isClosable: true
+        });
+        
+        // Recharger les données
+        await loadBalanceHistory();
+        await loadBalance();
+      } else {
+        const errorData = await response.json();
+        
+        if (response.status === 403) {
+          toast({
+            status: "error",
+            title: "Accès refusé",
+            description: "Seul Waiyl BELAIDI (w.belaidi) peut modifier le solde",
+            duration: 5000,
+            isClosable: true
+          });
+        } else if (response.status === 401) {
+          toast({
+            status: "error",
+            title: "Code incorrect",
+            description: "Le code de sécurité 0920 est incorrect",
+            duration: 4000,
+            isClosable: true
+          });
+        } else {
+          toast({
+            status: "error",
+            title: "Erreur de configuration",
+            description: errorData.message || "Erreur serveur",
+            duration: 4000,
+            isClosable: true
+          });
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur configuration solde:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de configurer le solde. Vérifiez votre connexion.",
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddTransaction = async () => {
+    if (!newTransaction.type || !newTransaction.amount || !newTransaction.description) {
+      toast({
+        status: "warning",
+        title: "Champs requis",
+        description: "Type, montant et description sont obligatoires",
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const response = await fetch('/api/finance/transactions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...newTransaction,
+          amount: parseFloat(newTransaction.amount)
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Transaction ajoutée",
+          description: "La transaction a été enregistrée avec succès",
+          duration: 3000,
+          isClosable: true
+        });
+        
+        setNewTransaction({
+          type: 'CREDIT',
+          amount: '',
+          description: '',
+          category: 'ADHESION',
+          date: new Date().toISOString().split('T')[0]
+        });
+        
+        onTransactionClose();
+        
+        // Recharger les données
+        await loadTransactions();
+        await loadBalance();
+      } else {
+        const errorData = await response.json();
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: errorData.message || "Impossible d'ajouter la transaction",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur ajout transaction:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible d'ajouter la transaction. Vérifiez votre connexion.",
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddScheduledOperation = async () => {
+    if (!newScheduled.type || !newScheduled.amount || !newScheduled.description || !newScheduled.frequency || !newScheduled.nextDate) {
+      toast({
+        status: "warning",
+        title: "Champs requis",
+        description: "Tous les champs sont obligatoires",
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const response = await fetch('/api/finance/scheduled-operations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...newScheduled,
+          amount: parseFloat(newScheduled.amount)
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Opération programmée",
+          description: "L'opération a été programmée avec succès",
+          duration: 3000,
+          isClosable: true
+        });
+        
+        setNewScheduled({
+          type: 'SCHEDULED_PAYMENT',
+          amount: '',
+          description: '',
+          frequency: 'MONTHLY',
+          nextDate: new Date().toISOString().split('T')[0]
+        });
+        
+        onScheduledClose();
+        
+        // Recharger les données
+        await loadScheduledOperations();
+      } else {
+        const errorData = await response.json();
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: errorData.message || "Impossible de programmer l'opération",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur programmation opération:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de programmer l'opération. Vérifiez votre connexion.",
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleScheduledOperation = async (id, currentStatus) => {
+    try {
+      const response = await fetch(`/api/finance/scheduled-operations/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          isActive: !currentStatus
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: `Opération ${!currentStatus ? 'activée' : 'désactivée'}`,
+          duration: 2000,
+          isClosable: true
+        });
+        
+        // Recharger les données
+        await loadScheduledOperations();
+      }
+    } catch (error) {
+      console.error('❌ Erreur toggle opération:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de modifier le statut de l'opération",
         duration: 4000,
         isClosable: true
       });
     }
   };
 
-  const handleAddTransaction = async () => {
-    // Implémentation de l'ajout de transaction
-    console.log('Ajout transaction:', newTransaction);
-    onTransactionClose();
-  };
-
-  const handleAddScheduledOperation = async () => {
-    // Implémentation de l'ajout d'opération programmée
-    console.log('Ajout opération programmée:', newScheduled);
-    onScheduledClose();
-  };
-
-  const toggleScheduledOperation = async (id, currentStatus) => {
-    // Implémentation du toggle d'opération programmée
-    console.log('Toggle opération:', id, !currentStatus);
-  };
-
-  const createSimulationScenario = async () => {
-    // Implémentation de la création de scénario
-    console.log('Création scénario:', newScenario);
-    onSimulationClose();
-  };
-
-  const loadScenarioDetails = async (scenarioId) => {
-    // Implémentation du chargement des détails de scénario
-    console.log('Chargement scénario:', scenarioId);
-  };
-
-  const addIncomeItem = async () => {
-    // Implémentation de l'ajout de recette
-    console.log('Ajout recette:', newIncomeItem);
-  };
-
-  const addExpenseItem = async () => {
-    // Implémentation de l'ajout de dépense
-    console.log('Ajout dépense:', newExpenseItem);
-  };
-
-  const removeIncomeItem = async (itemId) => {
-    // Implémentation de la suppression de recette
-    console.log('Suppression recette:', itemId);
-  };
-
-  const removeExpenseItem = async (itemId) => {
-    // Implémentation de la suppression de dépense
-    console.log('Suppression dépense:', itemId);
-  };
-
-  const runSimulation = async (scenarioId) => {
-    // Implémentation de l'exécution de simulation
-    console.log('Exécution simulation:', scenarioId);
-  };
-
   // Charger les données au montage du composant
   useEffect(() => {
-    loadFinancialData();
+    const initializeData = async () => {
+      await loadUserInfo();
+      await loadFinancialData();
+    };
+    
+    initializeData();
   }, []);
 
   // Re-calculer les stats quand les données changent
   useEffect(() => {
-    calculateStats();
+    if (transactions.length >= 0 && scheduledOperations.length >= 0) {
+      calculateStats();
+    }
+  }, [transactions, scheduledOperations, balance]);
+
+  // === FONCTIONS SIMULATION ===
+  const createSimulationScenario = async () => {
+    if (!newScenario.name || !newScenario.description) {
+      toast({
+        status: "warning",
+        title: "Champs requis",
+        description: "Nom et description sont obligatoires",
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const response = await fetch('/api/finance/simulations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newScenario)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        toast({
+          status: "success",
+          title: "Scénario créé",
+          description: "Vous pouvez maintenant ajouter les recettes et dépenses",
+          duration: 4000,
+          isClosable: true
+        });
+        
+        setNewScenario({
+          name: '',
+          description: '',
+          projectionMonths: 12
+        });
+        
+        await loadSimulationData();
+        onSimulationClose();
+        
+        // Ouvrir automatiquement l'édition du nouveau scénario
+        setEditingScenario(data.scenario);
+        onEditScenarioOpen();
+      } else {
+        const errorData = await response.json();
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: errorData.message || "Impossible de créer le scénario",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur création scénario:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de créer le scénario. Vérifiez votre connexion.",
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadScenarioDetails = async (scenarioId) => {
+    try {
+      const response = await fetch(`/api/finance/simulations/${scenarioId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEditingScenario(data.scenario);
+      } else {
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: "Impossible de charger les détails du scénario",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement détails scénario:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de charger les détails du scénario",
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
+
+  const addIncomeItem = async () => {
+    if (!newIncomeItem.description || !newIncomeItem.amount) {
+      toast({
+        status: "warning",
+        title: "Champs requis",
+        description: "Description et montant sont obligatoires",
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/finance/simulations/${editingScenario.id}/income`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...newIncomeItem,
+          amount: parseFloat(newIncomeItem.amount)
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Recette ajoutée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        setNewIncomeItem({
+          description: '',
+          amount: '',
+          category: 'ADHESION',
+          frequency: 'MONTHLY'
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      } else {
+        const errorData = await response.json();
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: errorData.message || "Impossible d'ajouter la recette",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur ajout recette:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible d'ajouter la recette",
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
+
+  const addExpenseItem = async () => {
+    if (!newExpenseItem.description || !newExpenseItem.amount) {
+      toast({
+        status: "warning",
+        title: "Champs requis",
+        description: "Description et montant sont obligatoires",
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/finance/simulations/${editingScenario.id}/expense`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...newExpenseItem,
+          amount: parseFloat(newExpenseItem.amount)
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Dépense ajoutée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        setNewExpenseItem({
+          description: '',
+          amount: '',
+          category: 'MAINTENANCE',
+          frequency: 'MONTHLY'
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      } else {
+        const errorData = await response.json();
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: errorData.message || "Impossible d'ajouter la dépense",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur ajout dépense:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible d'ajouter la dépense",
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
+
+  const removeIncomeItem = async (itemId) => {
+    try {
+      const response = await fetch(`/api/finance/simulations/income/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Recette supprimée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      } else {
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: "Impossible de supprimer la recette",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur suppression recette:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de supprimer la recette",
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
+
+  const removeExpenseItem = async (itemId) => {
+    try {
+      const response = await fetch(`/api/finance/simulations/expense/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Dépense supprimée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      } else {
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: "Impossible de supprimer la dépense",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur suppression dépense:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de supprimer la dépense",
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
+
+  const runSimulation = async (scenarioId) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`/api/finance/simulations/${scenarioId}/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSimulationResults(data.simulation);
+        onSimulationResultsOpen();
+      } else {
+        const errorData = await response.json();
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: errorData.message || "Impossible d'exécuter la simulation",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur exécution simulation:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible d'exécuter la simulation",
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteScenario = async (scenarioId) => {
+    try {
+      const response = await fetch(`/api/finance/simulations/${scenarioId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Scénario supprimé",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        await loadSimulationData();
+      } else {
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: "Impossible de supprimer le scénario",
+          duration: 4000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur suppression scénario:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible de supprimer le scénario",
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
+
+  // Charger les données au montage du composant
+  useEffect(() => {
+    const initializeData = async () => {
+      await loadUserInfo();
+      await loadFinancialData();
+    };
+    
+    initializeData();
+  }, []);
+
+  // Re-calculer les stats quand les données changent
+  useEffect(() => {
+    if (transactions.length >= 0 && scheduledOperations.length >= 0) {
+      calculateStats();
+    }
   }, [transactions, scheduledOperations, balance]);
 
   return (
