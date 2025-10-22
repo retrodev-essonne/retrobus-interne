@@ -43,41 +43,38 @@ const AdminFinance = () => {
   const [isBalanceLocked, setIsBalanceLocked] = useState(true);
   const [lastBalanceUpdate, setLastBalanceUpdate] = useState(null);
 
-  // === ÉTATS SIMULATION ===
+  // === ÉTATS SIMULATION AMÉLIORÉS ===
   const [simulationData, setSimulationData] = useState({
     scenarios: [],
     activeScenario: null,
     projectionMonths: 12
   });
+  const [selectedScenario, setSelectedScenario] = useState(null);
+  const [simulationResults, setSimulationResults] = useState(null);
+  const [editingScenario, setEditingScenario] = useState(null);
+
+  // Formulaires
   const [newScenario, setNewScenario] = useState({
     name: '',
     description: '',
-    monthlyIncome: '',
-    monthlyExpenses: '',
-    oneTimeEvents: []
+    projectionMonths: 12
   });
-
-  // === ÉTATS FORMULAIRES ===
-  const [newTransaction, setNewTransaction] = useState({
-    type: 'CREDIT',
-    amount: '',
+  const [newIncomeItem, setNewIncomeItem] = useState({
     description: '',
+    amount: '',
     category: 'ADHESION',
-    date: new Date().toISOString().split('T')[0]
+    frequency: 'MONTHLY'
   });
-  const [newScheduled, setNewScheduled] = useState({
-    type: 'SCHEDULED_PAYMENT',
-    amount: '',
+  const [newExpenseItem, setNewExpenseItem] = useState({
     description: '',
-    frequency: 'MONTHLY',
-    nextDate: new Date().toISOString().split('T')[0],
-    isActive: true
+    amount: '',
+    category: 'MAINTENANCE',
+    frequency: 'MONTHLY'
   });
 
-  // === MODALS ===
-  const { isOpen: isTransactionOpen, onOpen: onTransactionOpen, onClose: onTransactionClose } = useDisclosure();
-  const { isOpen: isScheduledOpen, onOpen: onScheduledOpen, onClose: onScheduledClose } = useDisclosure();
-  const { isOpen: isSimulationOpen, onOpen: onSimulationOpen, onClose: onSimulationClose } = useDisclosure();
+  // Modals supplémentaires
+  const { isOpen: isEditScenarioOpen, onOpen: onEditScenarioOpen, onClose: onEditScenarioClose } = useDisclosure();
+  const { isOpen: isSimulationResultsOpen, onOpen: onSimulationResultsOpen, onClose: onSimulationResultsClose } = useDisclosure();
   const { isOpen: isConfigOpen, onOpen: onConfigOpen, onClose: onConfigClose } = useDisclosure();
 
   // === CHARGEMENT INITIAL ===
@@ -198,27 +195,6 @@ const AdminFinance = () => {
     }
   };
 
-  const loadSimulationData = async () => {
-    try {
-      const response = await fetch('/api/finance/simulations', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSimulationData(prev => ({
-          ...prev,
-          scenarios: data.scenarios || []
-        }));
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement simulations:', error);
-    }
-  };
-
   // === GESTION CONFIGURATION SOLDE ===
   const handleBalanceConfig = async () => {
     if (!configCode || configCode.length !== 4) {
@@ -301,11 +277,11 @@ const AdminFinance = () => {
 
   // === GESTION SIMULATIONS ===
   const createSimulationScenario = async () => {
-    if (!newScenario.name || !newScenario.monthlyIncome || !newScenario.monthlyExpenses) {
+    if (!newScenario.name || !newScenario.description) {
       toast({
         status: "warning",
         title: "Champs requis",
-        description: "Nom, revenus et dépenses mensuels sont obligatoires",
+        description: "Nom et description sont obligatoires",
         duration: 3000,
         isClosable: true
       });
@@ -321,38 +297,32 @@ const AdminFinance = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          ...newScenario,
-          monthlyIncome: parseFloat(newScenario.monthlyIncome),
-          monthlyExpenses: parseFloat(newScenario.monthlyExpenses),
-          startingBalance: balance
-        })
+        body: JSON.stringify(newScenario)
       });
 
       if (response.ok) {
         const data = await response.json();
-        setSimulationData(prev => ({
-          ...prev,
-          scenarios: [...prev.scenarios, data.scenario]
-        }));
-        
-        setNewScenario({
-          name: '',
-          description: '',
-          monthlyIncome: '',
-          monthlyExpenses: '',
-          oneTimeEvents: []
-        });
         
         toast({
           status: "success",
           title: "Scénario créé",
-          description: "Le scénario de simulation a été créé avec succès",
-          duration: 3000,
+          description: "Vous pouvez maintenant ajouter les recettes et dépenses",
+          duration: 4000,
           isClosable: true
         });
         
+        setNewScenario({
+          name: '',
+          description: '',
+          projectionMonths: 12
+        });
+        
+        await loadSimulationData();
         onSimulationClose();
+        
+        // Ouvrir automatiquement l'édition du nouveau scénario
+        setEditingScenario(data.scenario);
+        onEditScenarioOpen();
       }
     } catch (error) {
       console.error('❌ Erreur création scénario:', error);
@@ -368,229 +338,212 @@ const AdminFinance = () => {
     }
   };
 
-  const runSimulation = (scenario) => {
-    const projection = [];
-    let currentBalance = balance;
-    
-    for (let month = 0; month < simulationData.projectionMonths; month++) {
-      const monthlyNet = scenario.monthlyIncome - scenario.monthlyExpenses;
-      currentBalance += monthlyNet;
-      
-      // Appliquer les événements ponctuels
-      scenario.oneTimeEvents?.forEach(event => {
-        if (event.month === month) {
-          currentBalance += event.amount;
+  const loadScenarioDetails = async (scenarioId) => {
+    try {
+      const response = await fetch(`/api/finance/simulations/${scenarioId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
       });
       
-      projection.push({
-        month: month + 1,
-        balance: currentBalance,
-        income: scenario.monthlyIncome,
-        expenses: scenario.monthlyExpenses,
-        net: monthlyNet
-      });
-    }
-    
-    return projection;
-  };
-
-  // === GESTION DES TRANSACTIONS ===
-  const handleAddTransaction = async () => {
-    try {
-      if (!newTransaction.amount || !newTransaction.description) {
-        toast({
-          status: "warning",
-          title: "Champs requis",
-          description: "Montant et description sont obligatoires",
-          duration: 3000,
-          isClosable: true
-        });
-        return;
-      }
-
-      setLoading(true);
-      
-      const response = await fetch('/api/finance/transactions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newTransaction,
-          amount: parseFloat(newTransaction.amount)
-        })
-      });
-
       if (response.ok) {
-        toast({
-          status: "success",
-          title: "Transaction ajoutée",
-          duration: 2000,
-          isClosable: true
-        });
-        
-        setNewTransaction({
-          type: 'CREDIT',
-          amount: '',
-          description: '',
-          category: 'ADHESION',
-          date: new Date().toISOString().split('T')[0]
-        });
-        
-        await loadFinancialData();
-        onTransactionClose();
-      } else {
-        throw new Error('Erreur lors de l\'ajout');
+        const data = await response.json();
+        setEditingScenario(data.scenario);
       }
     } catch (error) {
-      console.error('❌ Erreur ajout transaction:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible d'ajouter la transaction",
-        duration: 4000,
-        isClosable: true
-      });
-    } finally {
-      setLoading(false);
+      console.error('❌ Erreur chargement détails scénario:', error);
     }
   };
 
-  // === GESTION DES OPÉRATIONS PROGRAMMÉES ===
-  const handleAddScheduledOperation = async () => {
-    try {
-      if (!newScheduled.amount || !newScheduled.description) {
-        toast({
-          status: "warning",
-          title: "Champs requis",
-          description: "Montant et description sont obligatoires",
-          duration: 3000,
-          isClosable: true
-        });
-        return;
-      }
-
-      setLoading(true);
-      
-      const response = await fetch('/api/finance/scheduled-operations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newScheduled,
-          amount: parseFloat(newScheduled.amount)
-        })
-      });
-
-      if (response.ok) {
-        toast({
-          status: "success",
-          title: "Opération programmée ajoutée",
-          duration: 2000,
-          isClosable: true
-        });
-        
-        setNewScheduled({
-          type: 'SCHEDULED_PAYMENT',
-          amount: '',
-          description: '',
-          frequency: 'MONTHLY',
-          nextDate: new Date().toISOString().split('T')[0],
-          isActive: true
-        });
-        
-        await loadScheduledOperations();
-        onScheduledClose();
-      } else {
-        throw new Error('Erreur lors de l\'ajout');
-      }
-    } catch (error) {
-      console.error('❌ Erreur ajout opération programmée:', error);
+  const addIncomeItem = async () => {
+    if (!newIncomeItem.description || !newIncomeItem.amount) {
       toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible d'ajouter l'opération programmée",
-        duration: 4000,
-        isClosable: true
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleScheduledOperation = async (id, isActive) => {
-    try {
-      const response = await fetch(`/api/finance/scheduled-operations/${id}/toggle`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ isActive: !isActive })
-      });
-
-      if (response.ok) {
-        await loadScheduledOperations();
-        toast({
-          status: "success",
-          title: `Opération ${!isActive ? 'activée' : 'désactivée'}`,
-          duration: 2000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur toggle opération:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de modifier l'opération",
+        status: "warning",
+        title: "Champs requis",
+        description: "Description et montant sont obligatoires",
         duration: 3000,
         isClosable: true
       });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/finance/simulations/${editingScenario.id}/income`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...newIncomeItem,
+          amount: parseFloat(newIncomeItem.amount)
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Recette ajoutée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        setNewIncomeItem({
+          description: '',
+          amount: '',
+          category: 'ADHESION',
+          frequency: 'MONTHLY'
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      }
+    } catch (error) {
+      console.error('❌ Erreur ajout recette:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible d'ajouter la recette",
+        duration: 4000,
+        isClosable: true
+      });
     }
   };
 
-  // === STATISTIQUES ===
-  const getFinancialStats = () => {
-    const totalCredits = transactions
-      .filter(t => t.type === 'CREDIT')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    const totalDebits = transactions
-      .filter(t => t.type === 'DEBIT')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    const thisMonth = new Date();
-    const monthlyTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date || t.createdAt);
-      return transactionDate.getMonth() === thisMonth.getMonth() &&
-             transactionDate.getFullYear() === thisMonth.getFullYear();
-    });
-    
-    const monthlyBalance = monthlyTransactions
-      .reduce((sum, t) => sum + (t.type === 'CREDIT' ? t.amount : -t.amount), 0);
+  const addExpenseItem = async () => {
+    if (!newExpenseItem.description || !newExpenseItem.amount) {
+      toast({
+        status: "warning",
+        title: "Champs requis",
+        description: "Description et montant sont obligatoires",
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
 
-    const scheduledMonthlyImpact = scheduledOperations
-      .filter(op => op.isActive && op.frequency === 'MONTHLY')
-      .reduce((sum, op) => sum + (op.type === 'SCHEDULED_CREDIT' ? op.amount : -op.amount), 0);
+    try {
+      const response = await fetch(`/api/finance/simulations/${editingScenario.id}/expense`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...newExpenseItem,
+          amount: parseFloat(newExpenseItem.amount)
+        })
+      });
 
-    return {
-      balance,
-      totalCredits,
-      totalDebits,
-      monthlyBalance,
-      scheduledMonthlyImpact,
-      transactionCount: transactions.length,
-      scheduledCount: scheduledOperations.filter(op => op.isActive).length,
-      projectedNextMonth: balance + monthlyBalance + scheduledMonthlyImpact
-    };
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Dépense ajoutée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        setNewExpenseItem({
+          description: '',
+          amount: '',
+          category: 'MAINTENANCE',
+          frequency: 'MONTHLY'
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      }
+    } catch (error) {
+      console.error('❌ Erreur ajout dépense:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible d'ajouter la dépense",
+        duration: 4000,
+        isClosable: true
+      });
+    }
   };
 
-  const stats = getFinancialStats();
+  const removeIncomeItem = async (itemId) => {
+    try {
+      const response = await fetch(`/api/finance/simulations/income/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Recette supprimée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      }
+    } catch (error) {
+      console.error('❌ Erreur suppression recette:', error);
+    }
+  };
+
+  const removeExpenseItem = async (itemId) => {
+    try {
+      const response = await fetch(`/api/finance/simulations/expense/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          status: "success",
+          title: "Dépense supprimée",
+          duration: 2000,
+          isClosable: true
+        });
+        
+        await loadScenarioDetails(editingScenario.id);
+      }
+    } catch (error) {
+      console.error('❌ Erreur suppression dépense:', error);
+    }
+  };
+
+  const runSimulation = async (scenarioId) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`/api/finance/simulations/${scenarioId}/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSimulationResults(data.simulation);
+        onSimulationResultsOpen();
+      }
+    } catch (error) {
+      console.error('❌ Erreur exécution simulation:', error);
+      toast({
+        status: "error",
+        title: "Erreur",
+        description: "Impossible d'exécuter la simulation",
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // === FORMATAGE ===
   const formatCurrency = (amount) => {
@@ -1025,112 +978,132 @@ const AdminFinance = () => {
                     <VStack align="start" spacing={2}>
                       <Text fontWeight="bold">Aucun scénario de simulation</Text>
                       <Text fontSize="sm">
-                        Créez des scénarios pour simuler l'évolution de votre trésorerie
-                        sur plusieurs mois avec différentes hypothèses de revenus et dépenses.
+                        Créez des scénarios pour simuler l'évolution de votre trésorerie.
+                        Étape 1: Créer le contexte, Étape 2: Ajouter recettes/dépenses.
                       </Text>
                     </VStack>
                   </Alert>
                 ) : (
-                  <Accordion allowToggle>
-                    {simulationData.scenarios.map((scenario, index) => {
-                      const projection = runSimulation(scenario);
-                      const finalBalance = projection[projection.length - 1]?.balance || 0;
-                      const isPositive = finalBalance >= balance;
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                    {simulationData.scenarios.map((scenario) => {
+                      const isComplete = scenario.itemsCount > 0;
+                      const monthlyNet = scenario.totalMonthlyIncome - scenario.totalMonthlyExpenses;
                       
                       return (
-                        <AccordionItem key={scenario.id || index}>
-                          <AccordionButton>
-                            <Box flex="1" textAlign="left">
-                              <HStack>
-                                <Text fontWeight="bold">{scenario.name}</Text>
-                                <Badge
-                                  colorScheme={isPositive ? "green" : "red"}
-                                  variant="subtle"
-                                >
-                                  {isPositive ? "Positif" : "Négatif"}
-                                </Badge>
-                                <Text fontSize="sm" color="gray.600">
-                                  Projection {simulationData.projectionMonths} mois: {formatCurrency(finalBalance)}
-                                </Text>
-                              </HStack>
-                            </Box>
-                            <AccordionIcon />
-                          </AccordionButton>
-                          <AccordionPanel pb={4}>
-                            <VStack align="stretch" spacing={4}>
-                              <Text fontSize="sm" color="gray.600">
+                        <Card key={scenario.id} borderWidth={2} borderColor={isComplete ? "green.200" : "orange.200"}>
+                          <CardHeader>
+                            <HStack justify="space-between">
+                              <VStack align="start" spacing={1}>
+                                <Heading size="sm">{scenario.name}</Heading>
+                                <HStack>
+                                  <Badge
+                                    colorScheme={isComplete ? "green" : "orange"}
+                                    size="sm"
+                                  >
+                                    {isComplete ? "Complet" : "Brouillon"}
+                                  </Badge>
+                                  <Badge variant="outline" size="sm">
+                                    {scenario.itemsCount} élément(s)
+                                  </Badge>
+                                </HStack>
+                              </VStack>
+                              <Menu>
+                                <MenuButton
+                                  as={IconButton}
+                                  icon={<FiMoreHorizontal />}
+                                  variant="ghost"
+                                  size="sm"
+                                />
+                                <MenuList>
+                                  <MenuItem 
+                                    icon={<FiEdit3 />}
+                                    onClick={async () => {
+                                      await loadScenarioDetails(scenario.id);
+                                      onEditScenarioOpen();
+                                    }}
+                                  >
+                                    Éditer
+                                  </MenuItem>
+                                  <MenuItem 
+                                    icon={<FiActivity />}
+                                    onClick={() => runSimulation(scenario.id)}
+                                    isDisabled={!isComplete}
+                                  >
+                                    Exécuter
+                                  </MenuItem>
+                                  <Divider />
+                                  <MenuItem icon={<FiTrash2 />} color="red.500">
+                                    Supprimer
+                                  </MenuItem>
+                                </MenuList>
+                              </Menu>
+                            </HStack>
+                          </CardHeader>
+                          <CardBody>
+                            <VStack align="stretch" spacing={3}>
+                              <Text fontSize="sm" color="gray.600" noOfLines={2}>
                                 {scenario.description}
                               </Text>
                               
-                              <SimpleGrid columns={3} spacing={4}>
-                                <Card>
-                                  <CardBody>
-                                    <Stat size="sm">
-                                      <StatLabel>Revenus/mois</StatLabel>
-                                      <StatNumber color="green.600">
-                                        {formatCurrency(scenario.monthlyIncome)}
-                                      </StatNumber>
-                                    </Stat>
-                                  </CardBody>
-                                </Card>
-                                <Card>
-                                  <CardBody>
-                                    <Stat size="sm">
-                                      <StatLabel>Dépenses/mois</StatLabel>
-                                      <StatNumber color="red.600">
-                                        {formatCurrency(scenario.monthlyExpenses)}
-                                      </StatNumber>
-                                    </Stat>
-                                  </CardBody>
-                                </Card>
-                                <Card>
-                                  <CardBody>
-                                    <Stat size="sm">
-                                      <StatLabel>Résultat/mois</StatLabel>
-                                      <StatNumber color={scenario.monthlyIncome - scenario.monthlyExpenses >= 0 ? "green.600" : "red.600"}>
-                                        {formatCurrency(scenario.monthlyIncome - scenario.monthlyExpenses)}
-                                      </StatNumber>
-                                    </Stat>
-                                  </CardBody>
-                                </Card>
-                              </SimpleGrid>
-
-                              <Card>
-                                <CardHeader>
-                                  <Heading size="sm">Évolution projetée</Heading>
-                                </CardHeader>
-                                <CardBody>
-                                  <VStack align="stretch" spacing={2}>
-                                    {projection.slice(0, 6).map((month, idx) => (
-                                      <HStack key={idx} justify="space-between">
-                                        <Text fontSize="sm">Mois {month.month}</Text>
-                                        <HStack>
-                                          <Text fontSize="sm" color="green.600">
-                                            +{formatCurrency(month.income)}
-                                          </Text>
-                                          <Text fontSize="sm" color="red.600">
-                                            -{formatCurrency(month.expenses)}
-                                          </Text>
-                                          <Text fontSize="sm" fontWeight="bold" color={month.balance >= 0 ? "green.600" : "red.600"}>
-                                            = {formatCurrency(month.balance)}
-                                          </Text>
-                                        </HStack>
-                                      </HStack>
-                                    ))}
-                                    {projection.length > 6 && (
-                                      <Text fontSize="xs" color="gray.500" textAlign="center">
-                                        ... et {projection.length - 6} mois de plus
-                                      </Text>
-                                    )}
-                                  </VStack>
-                                </CardBody>
-                              </Card>
+                              {isComplete ? (
+                                <SimpleGrid columns={3} spacing={2}>
+                                  <Stat size="sm">
+                                    <StatLabel fontSize="xs">Revenus</StatLabel>
+                                    <StatNumber fontSize="sm" color="green.600">
+                                      {formatCurrency(scenario.totalMonthlyIncome)}
+                                    </StatNumber>
+                                  </Stat>
+                                  <Stat size="sm">
+                                    <StatLabel fontSize="xs">Dépenses</StatLabel>
+                                    <StatNumber fontSize="sm" color="red.600">
+                                      {formatCurrency(scenario.totalMonthlyExpenses)}
+                                    </StatNumber>
+                                  </Stat>
+                                  <Stat size="sm">
+                                    <StatLabel fontSize="xs">Résultat</StatLabel>
+                                    <StatNumber fontSize="sm" color={monthlyNet >= 0 ? "green.600" : "red.600"}>
+                                      {formatCurrency(monthlyNet)}
+                                    </StatNumber>
+                                  </Stat>
+                                </SimpleGrid>
+                              ) : (
+                                <Alert status="warning" size="sm">
+                                  <AlertIcon />
+                                  <Text fontSize="xs">
+                                    Ajoutez des recettes et dépenses pour compléter le scénario
+                                  </Text>
+                                </Alert>
+                              }
+                              
+                              <HStack>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  leftIcon={<FiEdit3 />}
+                                  onClick={async () => {
+                                    await loadScenarioDetails(scenario.id);
+                                    onEditScenarioOpen();
+                                  }}
+                                >
+                                  Éditer
+                                </Button>
+                                <Button
+                                  size="xs"
+                                  colorScheme="teal"
+                                  leftIcon={<FiActivity />}
+                                  onClick={() => runSimulation(scenario.id)}
+                                  isDisabled={!isComplete}
+                                  isLoading={loading}
+                                >
+                                  Simuler
+                                </Button>
+                              </HStack>
                             </VStack>
-                          </AccordionPanel>
-                        </AccordionItem>
+                          </CardBody>
+                        </Card>
                       );
                     })}
-                  </Accordion>
+                  </SimpleGrid>
                 )}
               </VStack>
             </TabPanel>
@@ -1510,10 +1483,13 @@ const AdminFinance = () => {
               <VStack spacing={4}>
                 <Alert status="info">
                   <AlertIcon />
-                  <Text fontSize="sm">
-                    Créez un scénario pour simuler l'évolution de votre trésorerie
-                    sur {simulationData.projectionMonths} mois avec des hypothèses de revenus et dépenses.
-                  </Text>
+                  <VStack align="start" spacing={1}>
+                    <Text fontSize="sm" fontWeight="bold">Étape 1: Contexte du scénario</Text>
+                    <Text fontSize="xs">
+                      Définissez le nom et la description. Vous pourrez ajouter les recettes 
+                      et dépenses dans l'étape suivante.
+                    </Text>
+                  </VStack>
                 </Alert>
 
                 <FormControl isRequired>
@@ -1525,65 +1501,35 @@ const AdminFinance = () => {
                   />
                 </FormControl>
 
-                <FormControl>
+                <FormControl isRequired>
                   <FormLabel>Description</FormLabel>
                   <Textarea
                     value={newScenario.description}
                     onChange={(e) => setNewScenario(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Décrivez les hypothèses de ce scénario..."
-                    rows={3}
+                    placeholder="Décrivez les hypothèses et le contexte de ce scénario..."
+                    rows={4}
                   />
                 </FormControl>
 
-                <SimpleGrid columns={2} spacing={4} width="100%">
-                  <FormControl isRequired>
-                    <FormLabel>Revenus mensuels (€)</FormLabel>
-                    <NumberInput
-                      value={newScenario.monthlyIncome}
-                      onChange={(value) => setNewScenario(prev => ({ ...prev, monthlyIncome: value }))}
-                      precision={2}
-                      step={100}
-                    >
-                      <NumberInputField placeholder="0.00" />
-                      <NumberInputStepper>
-                        <NumberIncrementStepper />
-                        <NumberDecrementStepper />
-                      </NumberInputStepper>
-                    </NumberInput>
-                  </FormControl>
-
-                  <FormControl isRequired>
-                    <FormLabel>Dépenses mensuelles (€)</FormLabel>
-                    <NumberInput
-                      value={newScenario.monthlyExpenses}
-                      onChange={(value) => setNewScenario(prev => ({ ...prev, monthlyExpenses: value }))}
-                      precision={2}
-                      step={100}
-                    >
-                      <NumberInputField placeholder="0.00" />
-                      <NumberInputStepper>
-                        <NumberIncrementStepper />
-                        <NumberDecrementStepper />
-                      </NumberInputStepper>
-                    </NumberInput>
-                  </FormControl>
-                </SimpleGrid>
-
-                {newScenario.monthlyIncome && newScenario.monthlyExpenses && (
-                  <Alert status={parseFloat(newScenario.monthlyIncome) >= parseFloat(newScenario.monthlyExpenses) ? "success" : "warning"}>
-                    <AlertIcon />
-                    <VStack align="start" spacing={1}>
-                      <Text fontSize="sm" fontWeight="bold">Aperçu du scénario</Text>
-                      <Text fontSize="sm">
-                        Résultat mensuel: {formatCurrency(parseFloat(newScenario.monthlyIncome) - parseFloat(newScenario.monthlyExpenses))}
-                      </Text>
-                      <Text fontSize="sm">
-                        Évolution sur {simulationData.projectionMonths} mois: 
-                        {formatCurrency(balance + (parseFloat(newScenario.monthlyIncome) - parseFloat(newScenario.monthlyExpenses)) * simulationData.projectionMonths)}
-                      </Text>
-                    </VStack>
-                  </Alert>
-                )}
+                <FormControl>
+                  <FormLabel>Période de projection (mois)</FormLabel>
+                  <NumberInput
+                    value={newScenario.projectionMonths}
+                    onChange={(value) => setNewScenario(prev => ({ ...prev, projectionMonths: parseInt(value) || 12 }))
+                    }
+                    min={1}
+                    max={60}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    Entre 1 et 60 mois
+                  </Text>
+                </FormControl>
               </VStack>
             </ModalBody>
             <ModalFooter>
@@ -1597,6 +1543,350 @@ const AdminFinance = () => {
                 leftIcon={<FiActivity />}
               >
                 Créer le scénario
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Modal Édition Scénario (recettes/dépenses) */}
+        <Modal isOpen={isEditScenarioOpen} onClose={onEditScenarioClose} size="6xl">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>
+              <HStack>
+                <Text>Édition: {editingScenario?.name}</Text>
+                <Badge colorScheme="blue" variant="outline">
+                  Étape 2: Recettes & Dépenses
+                </Badge>
+              </HStack>
+            </ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              {editingScenario && (
+                <Grid templateColumns="1fr 1fr" gap={6}>
+                  {/* Colonne Recettes */}
+                  <VStack align="stretch" spacing={4}>
+                    <Card>
+                      <CardHeader>
+                        <Heading size="sm" color="green.600">
+                          💰 Recettes ({editingScenario.incomeItems?.length || 0})
+                        </Heading>
+                      </CardHeader>
+                      <CardBody>
+                        <VStack spacing={3}>
+                          {/* Formulaire ajout recette */}
+                          <HStack width="100%">
+                            <Input
+                              placeholder="Description"
+                              size="sm"
+                              value={newIncomeItem.description}
+                              onChange={(e) => setNewIncomeItem(prev => ({ ...prev, description: e.target.value }))}
+                            />
+                            <NumberInput
+                              size="sm"
+                              width="120px"
+                              value={newIncomeItem.amount}
+                              onChange={(value) => setNewIncomeItem(prev => ({ ...prev, amount: value }))}
+                            >
+                              <NumberInputField placeholder="Montant" />
+                            </NumberInput>
+                            <Select
+                              size="sm"
+                              width="120px"
+                              value={newIncomeItem.frequency}
+                              onChange={(e) => setNewIncomeItem(prev => ({ ...prev, frequency: e.target.value }))}
+                            >
+                              <option value="MONTHLY">Mensuel</option>
+                              <option value="QUARTERLY">Trimestriel</option>
+                              <option value="YEARLY">Annuel</option>
+                            </Select>
+                            <IconButton
+                              icon={<FiPlus />}
+                              size="sm"
+                              colorScheme="green"
+                              onClick={addIncomeItem}
+                            />
+                          </HStack>
+                          
+                          {/* Liste des recettes */}
+                          <VStack width="100%" spacing={2}>
+                            {editingScenario.incomeItems?.map((item, index) => (
+                              <HStack key={item.id} width="100%" justify="space-between" p={2} bg="green.50" borderRadius="md">
+                                <VStack align="start" spacing={0} flex={1}>
+                                  <Text fontSize="sm" fontWeight="bold">{item.description}</Text>
+                                  <Text fontSize="xs" color="gray.600">
+                                    {formatCurrency(item.amount)} - {getFrequencyLabel(item.frequency)}
+                                  </Text>
+                                </VStack>
+                                <IconButton
+                                  icon={<FiTrash2 />}
+                                  size="xs"
+                                  variant="ghost"
+                                  colorScheme="red"
+                                  onClick={() => removeIncomeItem(item.id)}
+                                />
+                              </HStack>
+                            ))}
+                          </VStack>
+                          
+                          {/* Total recettes */}
+                          <Box width="100%" p={2} bg="green.100" borderRadius="md">
+                            <Text fontSize="sm" fontWeight="bold" color="green.700">
+                              Total mensuel: {formatCurrency(editingScenario.totalMonthlyIncome || 0)}
+                            </Text>
+                          </Box>
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  </VStack>
+
+                  {/* Colonne Dépenses */}
+                  <VStack align="stretch" spacing={4}>
+                    <Card>
+                      <CardHeader>
+                        <Heading size="sm" color="red.600">
+                          💸 Dépenses ({editingScenario.expenseItems?.length || 0})
+                        </Heading>
+                      </CardHeader>
+                      <CardBody>
+                        <VStack spacing={3}>
+                          {/* Formulaire ajout dépense */}
+                          <HStack width="100%">
+                            <Input
+                              placeholder="Description"
+                              size="sm"
+                              value={newExpenseItem.description}
+                              onChange={(e) => setNewExpenseItem(prev => ({ ...prev, description: e.target.value }))}
+                            />
+                            <NumberInput
+                              size="sm"
+                              width="120px"
+                              value={newExpenseItem.amount}
+                              onChange={(value) => setNewExpenseItem(prev => ({ ...prev, amount: value }))}
+                            >
+                              <NumberInputField placeholder="Montant" />
+                            </NumberInput>
+                            <Select
+                              size="sm"
+                              width="120px"
+                              value={newExpenseItem.frequency}
+                              onChange={(e) => setNewExpenseItem(prev => ({ ...prev, frequency: e.target.value }))}
+                            >
+                              <option value="MONTHLY">Mensuel</option>
+                              <option value="QUARTERLY">Trimestriel</option>
+                              <option value="YEARLY">Annuel</option>
+                            </Select>
+                            <IconButton
+                              icon={<FiPlus />}
+                              size="sm"
+                              colorScheme="red"
+                              onClick={addExpenseItem}
+                            />
+                          </HStack>
+                          
+                          {/* Liste des dépenses */}
+                          <VStack width="100%" spacing={2}>
+                            {editingScenario.expenseItems?.map((item, index) => (
+                              <HStack key={item.id} width="100%" justify="space-between" p={2} bg="red.50" borderRadius="md">
+                                <VStack align="start" spacing={0} flex={1}>
+                                  <Text fontSize="sm" fontWeight="bold">{item.description}</Text>
+                                  <Text fontSize="xs" color="gray.600">
+                                    {formatCurrency(item.amount)} - {getFrequencyLabel(item.frequency)}
+                                  </Text>
+                                </VStack>
+                                <IconButton
+                                  icon={<FiTrash2 />}
+                                  size="xs"
+                                  variant="ghost"
+                                  colorScheme="red"
+                                  onClick={() => removeExpenseItem(item.id)}
+                                />
+                              </HStack>
+                            ))}
+                          </VStack>
+                          
+                          {/* Total dépenses */}
+                          <Box width="100%" p={2} bg="red.100" borderRadius="md">
+                            <Text fontSize="sm" fontWeight="bold" color="red.700">
+                              Total mensuel: {formatCurrency(editingScenario.totalMonthlyExpenses || 0)}
+                            </Text>
+                          </Box>
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  </VStack>
+                </Grid>
+              )}
+              
+              {/* Résumé du scénario */}
+              {editingScenario && (
+                <Card mt={4}>
+                  <CardBody>
+                    <SimpleGrid columns={4} spacing={4}>
+                      <Stat>
+                        <StatLabel>Recettes/mois</StatLabel>
+                        <StatNumber color="green.600">
+                          {formatCurrency(editingScenario.totalMonthlyIncome || 0)}
+                        </StatNumber>
+                      </Stat>
+                      <Stat>
+                        <StatLabel>Dépenses/mois</StatLabel>
+                        <StatNumber color="red.600">
+                          {formatCurrency(editingScenario.totalMonthlyExpenses || 0)}
+                        </StatNumber>
+                      </Stat>
+                      <Stat>
+                        <StatLabel>Résultat/mois</StatLabel>
+                        <StatNumber color={editingScenario.monthlyNet >= 0 ? "green.600" : "red.600"}>
+                          {formatCurrency(editingScenario.monthlyNet || 0)}
+                        </StatNumber>
+                      </Stat>
+                      <Stat>
+                        <StatLabel>Éléments</StatLabel>
+                        <StatNumber>
+                          {(editingScenario.incomeItems?.length || 0) + (editingScenario.expenseItems?.length || 0)}
+                        </StatNumber>
+                      </Stat>
+                    </SimpleGrid>
+                  </CardBody>
+                </Card>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onEditScenarioClose}>
+                Fermer
+              </Button>
+              <Button
+                colorScheme="teal"
+                onClick={() => runSimulation(editingScenario?.id)}
+                isLoading={loading}
+                leftIcon={<FiActivity />}
+                isDisabled={!editingScenario || editingScenario.itemsCount === 0}
+              >
+                Exécuter la simulation
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Modal Résultats de Simulation */}
+        <Modal isOpen={isSimulationResultsOpen} onClose={onSimulationResultsClose} size="6xl">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>
+              <HStack>
+                <Text>Résultats: {simulationResults?.scenarioName}</Text>
+                <Badge colorScheme={simulationResults?.summary?.isPositive ? "green" : "red"}>
+                  {simulationResults?.summary?.isPositive ? "Positif" : "Déficitaire"}
+                </Badge>
+              </HStack>
+            </ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              {simulationResults && (
+                <VStack spacing={6}>
+                  {/* Résumé général */}
+                  <SimpleGrid columns={4} spacing={4} width="100%">
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Solde initial</StatLabel>
+                          <StatNumber>{formatCurrency(simulationResults.startingBalance)}</StatNumber>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Solde final</StatLabel>
+                          <StatNumber color={simulationResults.finalBalance >= 0 ? "green.600" : "red.600"}>
+                            {formatCurrency(simulationResults.finalBalance)}
+                          </StatNumber>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Évolution totale</StatLabel>
+                          <StatNumber color={simulationResults.totalChange >= 0 ? "green.600" : "red.600"}>
+                            <StatArrow type={simulationResults.totalChange >= 0 ? "increase" : "decrease"} />
+                            {formatCurrency(Math.abs(simulationResults.totalChange))}
+                          </StatNumber>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Résultat/mois</StatLabel>
+                          <StatNumber color={simulationResults.monthlyNet >= 0 ? "green.600" : "red.600"}>
+                            {formatCurrency(simulationResults.monthlyNet)}
+                          </StatNumber>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                  </SimpleGrid>
+
+                  {/* Projection mensuelle */}
+                  <Card width="100%">
+                    <CardHeader>
+                      <Heading size="sm">Évolution mensuelle</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <Box overflowX="auto">
+                        <Table variant="simple" size="sm">
+                          <Thead>
+                            <Tr>
+                              <Th>Mois</Th>
+                              <Th>Solde début</Th>
+                              <Th isNumeric>Recettes</Th>
+                              <Th isNumeric>Dépenses</Th>
+                              <Th isNumeric>Résultat</Th>
+                              <Th isNumeric>Solde fin</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {simulationResults.projection.slice(0, 12).map((month) => (
+                              <Tr key={month.month}>
+                                <Td>Mois {month.month}</Td>
+                                <Td>{formatCurrency(month.startBalance)}</Td>
+                                <Td isNumeric color="green.600">+{formatCurrency(month.income)}</Td>
+                                <Td isNumeric color="red.600">-{formatCurrency(month.expenses)}</Td>
+                                <Td isNumeric color={month.net >= 0 ? "green.600" : "red.600"}>
+                                  {month.net >= 0 ? "+" : ""}{formatCurrency(month.net)}
+                                </Td>
+                                <Td isNumeric fontWeight="bold" color={month.endBalance >= 0 ? "green.600" : "red.600"}>
+                                  {formatCurrency(month.endBalance)}
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </Box>
+                      {simulationResults.projection.length > 12 && (
+                        <Text fontSize="sm" color="gray.500" mt={2} textAlign="center">
+                          ... et {simulationResults.projection.length - 12} mois supplémentaires
+                        </Text>
+                      )}
+                    </CardBody>
+                  </Card>
+
+                  {/* Alertes */}
+                  {simulationResults.summary.breakEvenMonth && (
+                    <Alert status="warning" width="100%">
+                      <AlertIcon />
+                      <Text>
+                        Attention: Le solde devient négatif au mois {simulationResults.summary.breakEvenMonth}
+                      </Text>
+                    </Alert>
+                  )}
+                </VStack>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button onClick={onSimulationResultsClose}>
+                Fermer
               </Button>
             </ModalFooter>
           </ModalContent>
