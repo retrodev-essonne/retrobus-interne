@@ -36,6 +36,10 @@ export default defineConfig({
       }
     }
   },
+  hmr: {
+    overlay: true,
+  },
+  host: '0.0.0.0', // expose sur toutes les interfaces
   build: {
     outDir: 'dist'
   },

@@ -1,6 +1,6 @@
 // Export de toutes les API clients
 export { apiClient, API_BASE_URL } from './config.js';
-export { authAPI } from './auth.js';
+export { AuthAPI } from './auth.js';
 export { eventsAPI } from './events.js';
 export { vehiculesAPI } from './vehicles.js';
 export { membersAPI } from './members.js';
@@ -12,7 +12,7 @@ export { stocksAPI } from './stocks.js';
 
 // Import des API pour l'export par défaut
 import { apiClient } from './config.js'; // ✅ nécessaire pour l'alias `api`
-import { authAPI } from './auth.js';
+import { AuthAPI } from './auth.js'; // ✅ majuscule
 import { eventsAPI } from './events.js';
 import { vehiculesAPI } from './vehicles.js';
 import { membersAPI } from './members.js';
