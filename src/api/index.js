@@ -12,17 +12,19 @@ export { stocksAPI } from './stocks.js';
 export { FinanceAPI } from './finance.js';
 
 // Import des API pour l'export par défaut
-import { apiClient } from './config.js';
+import { apiClient, API_BASE_URL } from './config.js';
 import { AuthAPI } from './auth.js';
-import { eventsAPI } from './events.js';
-import { vehiculesAPI } from './vehicles.js';
-import { membersAPI } from './members.js';
-import { documentsAPI } from './documents.js';
-import { newsletterAPI } from './newsletter.js';
-import { myRBEAPI } from './myrbe.js';
-import { flashAPI } from './flash.js';
-import { stocksAPI } from './stocks.js';
 import { FinanceAPI } from './finance.js';
+
+// Commente/supprime temporairement les APIs manquantes
+// import { eventsAPI } from './events.js';
+// import { vehiculesAPI } from './vehicles.js';
+// import { membersAPI } from './members.js';
+// import { documentsAPI } from './documents.js';
+// import { newsletterAPI } from './newsletter.js';
+// import { myRBEAPI } from './myrbe.js';
+// import { flashAPI } from './flash.js';
+// import { stocksAPI } from './stocks.js';
 
 // ✅ Alias simple compatible avec l'existant
 export const api = {
@@ -35,14 +37,6 @@ export const api = {
 // Export par défaut de toutes les API
 export default {
   auth: AuthAPI,           // ✅ majuscule
-  events: eventsAPI,
-  vehicules: vehiculesAPI,
-  members: membersAPI,
-  documents: documentsAPI,
-  newsletter: newsletterAPI,
-  myrbe: myRBEAPI,
-  flash: flashAPI,
-  stocks: stocksAPI,
   finance: FinanceAPI,
 };
 
