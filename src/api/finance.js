@@ -2,8 +2,6 @@ import { apiClient } from './config.js';
 import { API_BASE_URL } from './config.js'; // ADD THIS IMPORT
 import { fetchJson } from '../apiClient.js';
 
-const USE_MOCK = import.meta.env?.VITE_USE_MOCK_AUTH === 'true';
-
 const MOCK = import.meta.env.VITE_FINANCE_MOCK === 'true';
 
 const is404 = (err) => {

@@ -1,8 +1,8 @@
-﻿import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
+import { Box, Button, Input, VStack, Text } from '@chakra-ui/react';
+import { useState } from 'react';
 import { useUser } from '../context/UserContext';
 import { AuthAPI } from '../api/auth';
-import './Login.css';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -10,60 +10,57 @@ export default function Login() {
   const [error, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { setToken } = useUser();
+  const { setToken, setUser } = useUser();
 
-  const submit = async () => {
-    setErr('');
-    setLoading(true);
+  const submit = async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const email = form.get('email');
+    const password = form.get('password');
+
     try {
-      const res = await AuthAPI.login({ email: username, password });
+      const res = await AuthAPI.login({ email, password });
       const tok = res?.token || res?.accessToken || res?.jwt;
       if (!tok) throw new Error('Token manquant');
       setToken(tok);
+      setUser(res.user);
       navigate('/dashboard', { replace: true });
-    } catch (e) {
-      setErr(e.message || 'Erreur de connexion');
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error('Login error:', err);
+      // TODO: afficher un message d’erreur
     }
   };
 
   const key = (e) => e.key === 'Enter' && submit();
 
   return (
-    <div className="login-page">
-      <div className="login-banner">
-        <img src="/univers_rbe.png" alt="RétroBus Essonne" />
-      </div>
-      <div className="login-container">
-        <div className="login-card">
-          <h1>Connexion</h1>
-          <div className="login-form">
-            <input
-              type="email"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyDown={key}
-              placeholder="Email"
-              autoComplete="username"
-              className="login-input"
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPwd(e.target.value)}
-              onKeyDown={key}
-              placeholder="Mot de passe"
-              autoComplete="current-password"
-              className="login-input"
-            />
-            {error && <p className="login-error">{error}</p>}
-            <button onClick={submit} disabled={loading} className="login-button">
-              {loading ? 'Connexion...' : 'Se connecter'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <Box h="100vh" bg="#2b2b2b" display="flex" alignItems="center" justifyContent="center">
+      <VStack spacing={4} bg="white" p={8} borderRadius="lg" shadow="lg" minW="360px">
+        <Text fontSize="2xl" fontWeight="bold">Connexion Intranet</Text>
+        {error && <Text color="red.500" textAlign="center">{error}</Text>}
+        <Input
+          placeholder="Identifiant"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          onKeyDown={key}
+        />
+        <Input
+          placeholder="Mot de passe"
+          type="password"
+          value={password}
+          onChange={e => setPwd(e.target.value)}
+          onKeyDown={key}
+        />
+        <Button
+          colorScheme="blue"
+          w="full"
+          onClick={submit}
+          isLoading={loading}
+          loadingText="Connexion..."
+        >
+          Se connecter
+        </Button>
+      </VStack>
+    </Box>
   );
 }

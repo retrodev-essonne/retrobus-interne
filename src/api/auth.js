@@ -1,5 +1,15 @@
 import { fetchJson } from '../apiClient.js';
 
+export const AuthAPI = {
+  me:    () => fetchJson('/api/auth/me'),
+  login: (payload) => fetchJson('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  logout: () => fetchJson('/api/auth/logout', { method: 'POST' }),
+};
+
 export const USERS = {
   "w.belaidi": {
     password: "Waiyl9134#",
@@ -27,59 +37,47 @@ export const USERS = {
   }
 };
 
-// Mode mock: si VITE_USE_MOCK_AUTH=true
-const USE_MOCK = import.meta.env?.VITE_USE_MOCK_AUTH === 'true';
-
-function mockLogin(payload) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const { email, password } = payload;
-      const username = email?.split('@')[0] || email; // ex: w.belaidi@...
-      const user = USERS[username];
-      
-      if (!user || user.password !== password) {
-        return reject(new Error('Identifiants incorrects'));
-      }
-
-      // Token fictif
-      const token = btoa(JSON.stringify({ 
-        userId: username, 
-        email, 
-        nom: user.nom, 
-        prenom: user.prenom,
-        roles: user.roles 
-      }));
-
-      resolve({ token, user: { id: username, email, ...user } });
-    }, 300);
-  });
-}
-
-function mockMe() {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      try {
-        const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-        if (!token) return resolve({ notFound: true });
-        const decoded = JSON.parse(atob(token));
-        resolve({ id: decoded.userId, email: decoded.email, nom: decoded.nom, prenom: decoded.prenom });
-      } catch {
-        resolve({ notFound: true });
-      }
-    }, 200);
-  });
-}
-
-function mockLogout() {
-  return Promise.resolve({ ok: true });
-}
-
-export const AuthAPI = {
-  me: () => USE_MOCK ? mockMe() : fetchJson('/api/auth/me'),
-  login: (payload) => USE_MOCK ? mockLogin(payload) : fetchJson('/api/auth/login', {
+export async function login(username, password) {
+  const base = import.meta.env.VITE_API_URL;
+  if (!base) throw new Error('API non configurée (VITE_API_URL manquante)');
+  
+  const res = await fetch(`${base}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }),
-  logout: () => USE_MOCK ? mockLogout() : fetchJson('/api/auth/logout', { method: 'POST' }),
+    body: JSON.stringify({ username, password })
+  });
+  
+  if (!res.ok) {
+    let msg = 'Échec de connexion';
+    try {
+      const j = await res.json();
+      if (j.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  
+  return res.json();
+}
+
+// Export de l'API d'authentification
+export const authAPI = {
+  login,
+  USERS
 };
+
+// Connexion membre (matricule/email + mot de passe interne)
+export async function memberLogin(identifier, password) {
+  const base = import.meta.env.VITE_API_URL;
+  if (!base) throw new Error('API non configurée (VITE_API_URL manquante)');
+  const res = await fetch(`${base}/auth/member-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifier, password })
+  });
+  if (!res.ok) {
+    let msg = 'Échec de connexion';
+    try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
