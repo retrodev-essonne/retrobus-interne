@@ -1,74 +1,252 @@
-﻿// Client HTTP unique + exports compatibles
+﻿// Configuration de base pour les API
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
-export const API_BASE_URL =
-  (import.meta.env?.VITE_API_URL || 'https://attractive-kindness-rbe-serveurs.up.railway.app').replace(/\/$/, '');
+if (!API_BASE_URL) {
+  throw new Error('API non configurée (VITE_API_URL manquante)');
+}
 
-export const apiUrl = (path = '') =>
-  `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-
-const getToken = () => localStorage.getItem('token');
-
-export const getHeaders = () =>({
+// Headers par défaut
+const getDefaultHeaders = (options = {}) => ({
   'Content-Type': 'application/json',
-  ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+  ...options.headers,
 });
 
-const buildUrl = (endpoint) =>
-  `${API_BASE_URL}/${endpoint.startsWith('/') ? endpoint.slice(1) : endpoint}`;
+// Headers avec authentification JWT
+const getAuthHeaders = (token, options = {}) => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${token}`,
+  ...options.headers,
+});
 
+// Fonction pour parser la réponse de manière sécurisée
 const parseResponse = async (response) => {
   const contentType = response.headers.get('content-type');
-
-  if (!response.ok) {
-    if (contentType && contentType.includes('application/json')) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.message || `Erreur ${response.status}`);
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      return await response.json();
+    } catch (error) {
+      console.error('❌ Erreur parsing JSON:', error);
+      throw new Error('Réponse JSON invalide du serveur');
     }
-    throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  if (!contentType || !contentType.includes('application/json')) {
+  } else {
+    // Si ce n'est pas du JSON, récupérer le texte pour débogage
     const text = await response.text();
-    throw new Error('Réponse non-JSON reçue. Vérifie l’URL API.');
+    console.error('❌ Réponse non-JSON reçue:', text.substring(0, 200) + '...');
+    
+    if (text.includes('<!DOCTYPE')) {
+      throw new Error('Le serveur a renvoyé une page HTML au lieu de JSON. Vérifiez l\'URL de l\'API.');
+    } else {
+      throw new Error(`Réponse inattendue du serveur (${response.status}): ${text.substring(0, 100)}`);
+    }
   }
-
-  return response.json();
 };
 
+// Instance API client avec support JWT et gestion d'erreur améliorée
 export const apiClient = {
-  async get(endpoint) {
-    const res = await fetch(buildUrl(endpoint), {
-      method: 'GET',
-      headers: getHeaders(),
-    });
-    return parseResponse(res);
+  baseURL: API_BASE_URL,
+  
+  get: async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    const headers = token 
+      ? getAuthHeaders(token, options)
+      : getDefaultHeaders(options);
+
+    console.log(`🔗 GET ${API_BASE_URL}${url}`);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        method: 'GET',
+        headers,
+        ...options,
+      });
+      
+      console.log(`📡 Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('🔒 Token expiré, redirection vers login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        
+        // Essayer de récupérer le message d'erreur du serveur
+        const errorData = await parseResponse(response);
+        const errorMessage = errorData?.error || errorData?.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      return await parseResponse(response);
+    } catch (error) {
+      console.error(`❌ Erreur GET ${url}:`, error.message);
+      throw error;
+    }
   },
-  async post(endpoint, body) {
-    const res = await fetch(buildUrl(endpoint), {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(body),
-    });
-    return parseResponse(res);
+  
+  post: async (url, data, options = {}) => {
+    const token = localStorage.getItem('token');
+    const headers = token 
+      ? getAuthHeaders(token, options)
+      : getDefaultHeaders(options);
+
+    console.log(`🔗 POST ${API_BASE_URL}${url}`, data);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+        ...options,
+      });
+      
+      console.log(`📡 Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('🔒 Token expiré, redirection vers login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        
+        // Essayer de récupérer le message d'erreur du serveur
+        const errorData = await parseResponse(response);
+        const errorMessage = errorData?.error || errorData?.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      return await parseResponse(response);
+    } catch (error) {
+      console.error(`❌ Erreur POST ${url}:`, error.message);
+      throw error;
+    }
   },
-  async put(endpoint, body) {
-    const res = await fetch(buildUrl(endpoint), {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(body),
-    });
-    return parseResponse(res);
+  
+  put: async (url, data, options = {}) => {
+    const token = localStorage.getItem('token');
+    const headers = token 
+      ? getAuthHeaders(token, options)
+      : getDefaultHeaders(options);
+
+    console.log(`🔗 PUT ${API_BASE_URL}${url}`, data);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(data),
+        ...options,
+      });
+      
+      console.log(`📡 Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('🔒 Token expiré, redirection vers login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        
+        const errorData = await parseResponse(response);
+        const errorMessage = errorData?.error || errorData?.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      return await parseResponse(response);
+    } catch (error) {
+      console.error(`❌ Erreur PUT ${url}:`, error.message);
+      throw error;
+    }
   },
-  async delete(endpoint) {
-    const res = await fetch(buildUrl(endpoint), {
-      method: 'DELETE',
-      headers: getHeaders(),
-    });
-    return parseResponse(res);
+
+  patch: async (url, data, options = {}) => {
+    const token = localStorage.getItem('token');
+    const headers = token 
+      ? getAuthHeaders(token, options)
+      : getDefaultHeaders(options);
+
+    console.log(`🔗 PATCH ${API_BASE_URL}${url}`, data);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(data),
+        ...options,
+      });
+      
+      console.log(`📡 Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('🔒 Token expiré, redirection vers login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        
+        const errorData = await parseResponse(response);
+        const errorMessage = errorData?.error || errorData?.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      return await parseResponse(response);
+    } catch (error) {
+      console.error(`❌ Erreur PATCH ${url}:`, error.message);
+      throw error;
+    }
   },
+
+  delete: async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    const headers = token 
+      ? getAuthHeaders(token, options)
+      : getDefaultHeaders(options);
+
+    console.log(`🔗 DELETE ${API_BASE_URL}${url}`);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        method: 'DELETE',
+        headers,
+        ...options,
+      });
+      
+      console.log(`📡 Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('🔒 Token expiré, redirection vers login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+        
+        const errorData = await parseResponse(response);
+        const errorMessage = errorData?.error || errorData?.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      // DELETE peut retourner du contenu ou être vide
+      const contentLength = response.headers.get('content-length');
+      if (contentLength === '0' || response.status === 204) {
+        return { success: true };
+      }
+      
+      return await parseResponse(response);
+    } catch (error) {
+      console.error(`❌ Erreur DELETE ${url}:`, error.message);
+      throw error;
+    }
+  }
 };
 
-// Alias utiles pour compatibilité avec d’autres imports éventuels
-export const api = apiClient;
-export default apiClient;
+export { API_BASE_URL };
 

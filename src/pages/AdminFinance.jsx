@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Grid, VStack, HStack, Badge, useToast, useColorModeValue, Modal, ModalOverlay,
   ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
@@ -8,1345 +8,940 @@ import {
   Spinner, Tabs, TabList, TabPanels, Tab, TabPanel,
   Switch, Table, Thead, Tbody, Tr, Th, Td, Text, Button, Input, Select,
   Card, CardHeader, CardBody, Icon, Heading,
-  SimpleGrid, Divider, Box, Progress, Tooltip, PinInput, PinInputField,
-  NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper,
-  NumberDecrementStepper, Stat, StatLabel, StatNumber, StatHelpText,
-  StatArrow, Accordion, AccordionItem, AccordionButton, AccordionPanel,
-  AccordionIcon, Tag, TagLabel, TagCloseButton, Flex, Image, Link
+  SimpleGrid, Divider, Box
 } from "@chakra-ui/react";
 import {
   FiDollarSign, FiTrendingUp, FiTrendingDown, FiPlus, FiMinus,
   FiPieChart, FiBarChart, FiCalendar, FiCreditCard, FiDownload,
-  FiUpload, FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck, FiX, 
-  FiRefreshCw, FiClock, FiRepeat, FiTarget, FiSettings, FiLock,
-  FiUnlock, FiEye, FiEyeOff, FiActivity, FiTrendingDown as FiSimulation,
-  FiDatabase, FiShield, FiAlertTriangle, FiInfo, FiSave, FiRotateCcw
+  FiUpload, FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck, FiX, FiRefreshCw, 
+  FiEye, FiUsers, FiSave, FiClock, FiSettings, FiRepeat, FiShield, FiAlertTriangle
 } from "react-icons/fi";
+import { useUser } from '../context/UserContext';
+import { financeAPI } from '../api/finance';
+import { eventsAPI } from '../api/events.js';
+import PageLayout from '../components/Layout/PageLayout';
+import StatsGrid from '../components/Layout/StatsGrid';
+import ModernCard from '../components/Layout/ModernCard';
 
-const AdminFinance = () => {
-  // === ÉTATS PRINCIPAUX ===
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
-  
-  // États financiers
-  const [balance, setBalance] = useState(0);
-  const [lastBalanceUpdate, setLastBalanceUpdate] = useState(null);
-  const [isBalanceLocked, setIsBalanceLocked] = useState(true);
-  
-  // Ajouter l'état stats manquant
-  const [stats, setStats] = useState({
-    balance: 0,
-    totalCredits: 0,
-    totalDebits: 0,
-    monthlyBalance: 0,
-    scheduledMonthlyImpact: 0,
-    scheduledCount: 0,
-    projectedNextMonth: 0
-  });
-  
-  // États des transactions
-  const [transactions, setTransactions] = useState([]);
-  const [newTransaction, setNewTransaction] = useState({
-    type: 'CREDIT',
-    amount: '',
-    description: '',
-    category: 'ADHESION',
-    date: new Date().toISOString().split('T')[0]
-  });
-  
-  // États des opérations programmées
-  const [scheduledOperations, setScheduledOperations] = useState([]);
-  const [newScheduled, setNewScheduled] = useState({
-    type: 'SCHEDULED_PAYMENT',
-    amount: '',
-    description: '',
-    frequency: 'MONTHLY',
-    nextDate: new Date().toISOString().split('T')[0]
-  });
-  
-  // États de configuration
-  const [showBalanceConfig, setShowBalanceConfig] = useState(false);
-  const [configCode, setConfigCode] = useState('');
-  const [newBalance, setNewBalance] = useState('');
-  const [balanceHistory, setBalanceHistory] = useState([]);
-  
-  // États simulation
-  const [simulationData, setSimulationData] = useState({
-    scenarios: [],
-    activeScenario: null,
-    projectionMonths: 12
-  });
-  const [selectedScenario, setSelectedScenario] = useState(null);
-  const [simulationResults, setSimulationResults] = useState(null);
-  const [editingScenario, setEditingScenario] = useState(null);
+// Composant pour la saisie d'argent innovante
+const MoneyInput = ({ value, onChange, placeholder = "0,00 €", size = "md", ...props }) => {
+  const [displayValue, setDisplayValue] = useState("");
+  const [focused, setFocused] = useState(false);
 
-  // Formulaires simulation
-  const [newScenario, setNewScenario] = useState({
-    name: '',
-    description: '',
-    projectionMonths: 12
-  });
-  const [newIncomeItem, setNewIncomeItem] = useState({
-    description: '',
-    amount: '',
-    category: 'ADHESION',
-    frequency: 'MONTHLY'
-  });
-  const [newExpenseItem, setNewExpenseItem] = useState({
-    description: '',
-    amount: '',
-    category: 'MAINTENANCE',
-    frequency: 'MONTHLY'
-  });
+  useEffect(() => {
+    if (!focused && value !== undefined) {
+      setDisplayValue(formatCurrency(value));
+    }
+  }, [value, focused]);
 
-  // Toast
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return "";
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const parseCurrency = (str) => {
+    const numStr = str.replace(/[^\d,-]/g, '').replace(',', '.');
+    return parseFloat(numStr) || 0;
+  };
+
+  const handleChange = (e) => {
+    const newValue = e.target.value;
+    setDisplayValue(newValue);
+    
+    if (onChange) {
+      const numericValue = parseCurrency(newValue);
+      onChange(numericValue);
+    }
+  };
+
+  const bgColor = useColorModeValue("white", "gray.800");
+  const focusColor = useColorModeValue("blue.500", "blue.300");
+
+  return (
+    <InputGroup size={size}>
+      <InputLeftElement pointerEvents="none">
+        <Icon as={FiDollarSign} color="gray.400" />
+      </InputLeftElement>
+      <Input
+        {...props}
+        value={displayValue}
+        onChange={handleChange}
+        onFocus={() => {
+          setFocused(true);
+          setDisplayValue(value?.toString() || "");
+        }}
+        onBlur={() => {
+          setFocused(false);
+          setDisplayValue(formatCurrency(value));
+        }}
+        placeholder={placeholder}
+        textAlign="right"
+        bg={bgColor}
+        borderColor="gray.300"
+        _focus={{
+          borderColor: focusColor,
+          boxShadow: `0 0 0 1px ${focusColor}`
+        }}
+        _hover={{
+          borderColor: "gray.400"
+        }}
+      />
+    </InputGroup>
+  );
+};
+
+// Composant pour afficher les statistiques financières modernes
+const FinanceStats = ({ data, loading }) => {
+  const stats = [
+    {
+      label: "Recettes du mois",
+      value: data?.monthlyRevenue || "0,00 €",
+      icon: FiTrendingUp,
+      color: "success",
+      change: data?.revenueGrowth > 0 ? {
+        type: "increase",
+        value: `+${data?.revenueGrowth}% vs mois dernier`
+      } : undefined
+    },
+    {
+      label: "Dépenses du mois", 
+      value: data?.monthlyExpenses || "0,00 €",
+      icon: FiTrendingDown,
+      color: "warning",
+      change: { type: "decrease", value: "Optimisé ce mois" }
+    },
+    {
+      label: "Solde bancaire",
+      value: data?.currentBalance || "0,00 €", 
+      icon: FiBarChart,
+      color: "brand"
+    },
+    {
+      label: "Adhésions encaissées",
+      value: `${data?.activeMembers || 0} membres`,
+      icon: FiUsers,
+      color: "purple",
+      change: { type: "increase", value: data?.membershipRevenue || "0,00 €" }
+    }
+  ];
+
+  return <StatsGrid stats={stats} loading={loading} />;
+};
+
+// Composant principal mis à jour
+export default function AdminFinance() {
+  const { user, isAdmin, roles = [] } = useUser();
   const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { 
+    isOpen: isBankBalanceOpen, 
+    onOpen: onBankBalanceOpen, 
+    onClose: onBankBalanceClose 
+  } = useDisclosure();
+  const { 
+    isOpen: isScheduledOperationOpen, 
+    onOpen: onScheduledOperationOpen, 
+    onClose: onScheduledOperationClose 
+  } = useDisclosure();
+  const {
+    isOpen: isExpenseOpen, onOpen: onExpenseOpen, onClose: onExpenseClose
+  } = useDisclosure();
 
-  // Modals
-  const { isOpen: isConfigOpen, onOpen: onConfigOpen, onClose: onConfigClose } = useDisclosure();
-  const { isOpen: isTransactionOpen, onOpen: onTransactionOpen, onClose: onTransactionClose } = useDisclosure();
-  const { isOpen: isScheduledOpen, onOpen: onScheduledOpen, onClose: onScheduledClose } = useDisclosure();
-  const { isOpen: isSimulationOpen, onOpen: onSimulationOpen, onClose: onSimulationClose } = useDisclosure();
-  const { isOpen: isEditScenarioOpen, onOpen: onEditScenarioOpen, onClose: onEditScenarioClose } = useDisclosure();
-  const { isOpen: isSimulationResultsOpen, onOpen: onSimulationResultsOpen, onClose: onSimulationResultsClose } = useDisclosure();
+  const [transactions, setTransactions] = useState([]);
+  const [financeData, setFinanceData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [bankBalance, setBankBalance] = useState(0);
+  const [scheduledOperations, setScheduledOperations] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [expenseReports, setExpenseReports] = useState([]);
+  const [expenseLoading, setExpenseLoading] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    type: 'recette',
+    amount: 0,
+    description: '',
+    category: '',
+    date: new Date().toISOString().split('T')[0],
+    eventId: ''
+  });
+  
+  // État pour la modification du solde bancaire avec justification et sécurité
+  const [bankBalanceData, setBankBalanceData] = useState({
+    balance: 0,
+    justification: '',
+    password: '',
+    linkedReportId: '' // ID du retro-report lié si applicable
+  });
+  
+  const [operationFormData, setOperationFormData] = useState({
+    type: 'depense',
+    description: '',
+    amount: 0,
+    dueDate: '',
+    category: '',
+    recurring: 'none',
+    isScheduled: true,
+    notes: '',
+    eventId: ''
+  });
+  
+  const [expenseFormData, setExpenseFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    amount: 0,
+    isForecast: false,
+  });
+  const [expensePdfFile, setExpensePdfFile] = useState(null);
+  
+  const [categories, setCategories] = useState([]);
+  const [filters, setFilters] = useState({
+    page: 1,
+    limit: 20,
+    eventId: ''
+  });
 
-  // === FONCTIONS DE CHARGEMENT ===
-  const loadFinancialData = async () => {
+  const [editingOperationId, setEditingOperationId] = useState(null);
+
+  // État du simulateur
+  const [simLines, setSimLines] = useState([]);
+
+  const cardBg = useColorModeValue("white", "gray.800");
+  const canManageExpenses = isAdmin || roles.includes('TREASURER') || roles.includes('PRESIDENT');
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await eventsAPI.getAll();
+        setEvents(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setEvents([]);
+      }
+    })();
+  }, []);
+
+  const loadInitialData = async () => {
+    await Promise.all([
+      loadFinanceData(),
+      loadTransactions(),
+      loadCategories(),
+      loadBankBalance(),
+      loadScheduledOperations(),
+      loadExpenseReports(),
+    ]);
+  };
+
+  const loadFinanceData = async () => {
     try {
       setLoading(true);
+      console.log('🏦 Chargement des données financières...');
       
-      // Charger toutes les données en parallèle
-      await Promise.all([
-        loadBalance(),
-        loadTransactions(),
-        loadScheduledOperations(),
-        loadSimulationData(),
-        loadBalanceHistory()
-      ]);
+      const data = await financeAPI.getStats();
+      console.log('📊 Données financières reçues:', data);
       
+      setFinanceData(data);
+      
+      toast({
+        title: "Données synchronisées",
+        description: "Statistiques financières mises à jour avec les données réelles",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
     } catch (error) {
       console.error('❌ Erreur chargement données financières:', error);
       toast({
+        title: "Erreur",
+        description: `Impossible de charger les données financières: ${error.message}`,
         status: "error",
-        title: "Erreur de chargement",
-        description: "Impossible de charger les données financières",
-        duration: 4000,
-        isClosable: true
+        duration: 5000,
+        isClosable: true,
+      });
+      
+      setFinanceData({
+        monthlyRevenue: "0,00 €",
+        monthlyExpenses: "0,00 €",
+        currentBalance: "0,00 €",
+        membershipRevenue: "0,00 €",
+        activeMembers: 0,
+        revenueGrowth: 0
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const loadBalance = async () => {
+  const loadBankBalance = async () => {
     try {
-      const response = await fetch('/api/finance/balance', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setBalance(data.balance || 0);
-        setLastBalanceUpdate(data.lastUpdate);
-        setIsBalanceLocked(data.isLocked !== false);
-        setCanModifyBalance(data.canModify === true);
-      } else {
-        console.warn('⚠️ Solde non disponible, utilisation de 0');
-        setBalance(0);
-        setCanModifyBalance(false);
-      }
+      const data = await financeAPI.getBankBalance();
+      setBankBalance(data.balance);
+      setBankBalanceData(prev => ({ ...prev, balance: data.balance }));
     } catch (error) {
-      console.error('❌ Erreur chargement solde:', error);
-      setBalance(0);
-      setCanModifyBalance(false);
-    }
-  };
-
-  const loadTransactions = async () => {
-    try {
-      const response = await fetch('/api/finance/transactions', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data.transactions || []);
-      } else {
-        console.warn('⚠️ Transactions non disponibles');
-        setTransactions([]);
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement transactions:', error);
-      setTransactions([]);
+      console.error('❌ Erreur chargement solde bancaire:', error);
+      setBankBalance(0);
+      setBankBalanceData(prev => ({ ...prev, balance: 0 }));
     }
   };
 
   const loadScheduledOperations = async () => {
     try {
-      const response = await fetch('/api/finance/scheduled-operations', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setScheduledOperations(data.operations || []);
-      } else {
-        console.warn('⚠️ Opérations programmées non disponibles');
-        setScheduledOperations([]);
-      }
+      const data = await financeAPI.getScheduledExpenses();
+      const ops = Array.isArray(data) ? data : (data?.operations || data?.items || data?.expenses || []);
+      setScheduledOperations(Array.isArray(ops) ? ops : []);
     } catch (error) {
       console.error('❌ Erreur chargement opérations programmées:', error);
       setScheduledOperations([]);
     }
   };
 
-  const loadSimulationData = async () => {
+  const loadTransactions = async () => {
     try {
-      const response = await fetch('/api/finance/simulations', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      setTransactionsLoading(true);
+      console.log('💳 Chargement des transactions...');
       
-      if (response.ok) {
-        const data = await response.json();
-        setSimulationData(prev => ({
-          ...prev,
-          scenarios: data.scenarios || []
-        }));
-      } else {
-        console.warn('⚠️ Simulations non disponibles');
-        setSimulationData(prev => ({ ...prev, scenarios: [] }));
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement simulations:', error);
-      setSimulationData(prev => ({ ...prev, scenarios: [] }));
-    }
-  };
-
-  const loadBalanceHistory = async () => {
-    try {
-      const response = await fetch('/api/finance/balance/history', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const data = await financeAPI.getTransactions(filters);
+      console.log('📋 Transactions reçues:', data);
       
-      if (response.ok) {
-        const data = await response.json();
-        setBalanceHistory(data.history || []);
-      } else {
-        console.warn('⚠️ Historique non disponible');
-        setBalanceHistory([]);
-      }
+      setTransactions(data.transactions || []);
     } catch (error) {
-      console.error('❌ Erreur chargement historique:', error);
-      setBalanceHistory([]);
-    }
-  };
-
-  // Ajouter l'état manquant pour les droits utilisateur
-  const [canModifyBalance, setCanModifyBalance] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-
-  const loadUserInfo = async () => {
-    try {
-      const response = await fetch('/api/me', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData);
-        
-        // Vérifier si c'est Waiyl BELAIDI par son matricule
-        const isAuthorized = userData.matricule === 'w.belaidi';
-        setCanModifyBalance(isAuthorized);
-        
-        console.log('👤 Utilisateur connecté:', userData.matricule, '- Peut modifier solde:', isAuthorized);
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement utilisateur:', error);
-    }
-  };
-
-  // Calculer les stats après chargement des données
-  const calculateStats = () => {
-    const totalCredits = transactions
-      .filter(t => t.type === 'CREDIT')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    const totalDebits = transactions
-      .filter(t => t.type === 'DEBIT')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    // Transactions du mois en cours
-    const thisMonth = new Date();
-    const monthStart = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1);
-    const monthEnd = new Date(thisMonth.getFullYear(), thisMonth.getMonth() + 1, 0);
-    
-    const monthlyTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date || t.createdAt);
-      return transactionDate >= monthStart && transactionDate <= monthEnd;
-    });
-    
-    const monthlyCredits = monthlyTransactions
-      .filter(t => t.type === 'CREDIT')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    const monthlyDebits = monthlyTransactions
-      .filter(t => t.type === 'DEBIT')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    const monthlyBalance = monthlyCredits - monthlyDebits;
-    
-    // Impact mensuel des opérations programmées
-    const scheduledMonthlyImpact = scheduledOperations
-      .filter(op => op.isActive)
-      .reduce((sum, op) => {
-        const multiplier = getFrequencyMultiplier(op.frequency);
-        const impact = op.type === 'SCHEDULED_CREDIT' ? (op.amount || 0) : -(op.amount || 0);
-        return sum + (impact * multiplier);
-      }, 0);
-    
-    const projectedNextMonth = balance + monthlyBalance + scheduledMonthlyImpact;
-    
-    setStats({
-      balance,
-      totalCredits,
-      totalDebits,
-      monthlyBalance,
-      scheduledMonthlyImpact,
-      scheduledCount: scheduledOperations.filter(op => op.isActive).length,
-      projectedNextMonth
-    });
-  };
-
-  // === FONCTIONS UTILITAIRES ===
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount || 0);
-  };
-
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('fr-FR');
-  };
-
-  const getCategoryLabel = (category) => {
-    const categories = {
-      'ADHESION': 'Adhésion',
-      'MAINTENANCE': 'Maintenance',
-      'CARBURANT': 'Carburant',
-      'ASSURANCE': 'Assurance',
-      'AUTRE': 'Autre'
-    };
-    return categories[category] || category;
-  };
-
-  // === FONCTIONS D'ACTIONS ===
-  const handleBalanceConfig = async () => {
-    if (!canModifyBalance) {
+      console.error('❌ Erreur chargement transactions:', error);
       toast({
+        title: "Erreur",
+        description: `Impossible de charger les transactions: ${error.message}`,
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      setTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const loadExpenseReports = async () => {
+    try {
+      setExpenseLoading(true);
+      const data = await financeAPI.getExpenseReports();
+      setExpenseReports(data.reports || []);
+    } catch (e) {
+      setExpenseReports([]);
+    } finally {
+      setExpenseLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const data = await financeAPI.getCategories();
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.error('❌ Erreur chargement catégories:', error);
+      setCategories([
+        { id: 'adhesions', name: 'Adhésions' },
+        { id: 'evenements', name: 'Événements' },
+        { id: 'carburant', name: 'Carburant' },
+        { id: 'maintenance', name: 'Maintenance' },
+        { id: 'assurance', name: 'Assurance' },
+        { id: 'materiel', name: 'Matériel' },
+        { id: 'frais_admin', name: 'Frais administratifs' },
+        { id: 'autres', name: 'Autres' }
+      ]);
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      if (!formData.amount || !formData.description) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez remplir tous les champs obligatoires",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      console.log('💾 Création d\'une nouvelle transaction:', formData);
+
+      const newTransaction = await financeAPI.createTransaction({
+        ...formData,
+        created_by: user?.email || user?.username || 'admin'
+      });
+
+      console.log('✅ Transaction créée:', newTransaction);
+
+      setTransactions(prev => [newTransaction, ...prev]);
+      
+      setFormData({
+        type: 'recette',
+        amount: 0,
+        description: '',
+        category: '',
+        date: new Date().toISOString().split('T')[0],
+        eventId: ''
+      });
+
+      onClose();
+      
+      toast({
+        title: "Succès",
+        description: "Transaction enregistrée avec succès",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      loadFinanceData();
+    } catch (error) {
+      console.error('❌ Erreur création transaction:', error);
+      toast({
+        title: "Erreur",
+        description: `Impossible d'enregistrer la transaction: ${error.message}`,
         status: "error",
-        title: "Accès refusé",
-        description: "Seul Waiyl BELAIDI (w.belaidi) peut modifier le solde",
         duration: 5000,
-        isClosable: true
+        isClosable: true,
       });
-      return;
-    }
-
-    if (!configCode || configCode.length !== 4) {
-      toast({
-        status: "warning",
-        title: "Code requis",
-        description: "Veuillez saisir le code à 4 chiffres (0920)",
-        duration: 3000,
-        isClosable: true
-      });
-      return;
-    }
-
-    if (configCode !== '0920') {
-      toast({
-        status: "error",
-        title: "Code incorrect",
-        description: "Le code de sécurité n'est pas valide",
-        duration: 4000,
-        isClosable: true
-      });
-      return;
-    }
-
-    if (!newBalance || isNaN(parseFloat(newBalance))) {
-      toast({
-        status: "warning",
-        title: "Montant invalide",
-        description: "Veuillez saisir un montant valide",
-        duration: 3000,
-        isClosable: true
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      const response = await fetch('/api/finance/balance/configure', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          code: configCode,
-          newBalance: parseFloat(newBalance),
-          reason: `Mise à jour manuelle du solde par ${currentUser?.matricule} - ${new Date().toLocaleDateString('fr-FR')}`
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setBalance(data.newBalance);
-        setConfigCode('');
-        setNewBalance('');
-        setShowBalanceConfig(false);
-        onConfigClose();
-        
-        toast({
-          status: "success",
-          title: "Solde mis à jour",
-          description: `Nouveau solde: ${formatCurrency(data.newBalance)} (différence: ${data.difference >= 0 ? '+' : ''}${formatCurrency(data.difference)})`,
-          duration: 5000,
-          isClosable: true
-        });
-        
-        // Recharger les données
-        await loadBalanceHistory();
-        await loadBalance();
-      } else {
-        const errorData = await response.json();
-        
-        if (response.status === 403) {
-          toast({
-            status: "error",
-            title: "Accès refusé",
-            description: "Seul Waiyl BELAIDI (w.belaidi) peut modifier le solde",
-            duration: 5000,
-            isClosable: true
-          });
-        } else if (response.status === 401) {
-          toast({
-            status: "error",
-            title: "Code incorrect",
-            description: "Le code de sécurité 0920 est incorrect",
-            duration: 4000,
-            isClosable: true
-          });
-        } else {
-          toast({
-            status: "error",
-            title: "Erreur de configuration",
-            description: errorData.message || "Erreur serveur",
-            duration: 4000,
-            isClosable: true
-          });
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erreur configuration solde:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de configurer le solde. Vérifiez votre connexion.",
-        duration: 4000,
-        isClosable: true
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleAddTransaction = async () => {
-    if (!newTransaction.type || !newTransaction.amount || !newTransaction.description) {
-      toast({
-        status: "warning",
-        title: "Champs requis",
-        description: "Type, montant et description sont obligatoires",
-        duration: 3000,
-        isClosable: true
-      });
-      return;
-    }
-
+  // Modification du solde bancaire avec sécurité et justification
+  const handleBankBalanceSubmit = async () => {
     try {
-      setLoading(true);
-      
-      const response = await fetch('/api/finance/transactions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newTransaction,
-          amount: parseFloat(newTransaction.amount)
-        })
-      });
-
-      if (response.ok) {
+      // Validation des champs requis
+      if (!bankBalanceData.justification.trim()) {
         toast({
-          status: "success",
-          title: "Transaction ajoutée",
-          description: "La transaction a été enregistrée avec succès",
+          title: "Justification requise",
+          description: "Vous devez justifier cette modification de solde",
+          status: "error",
           duration: 3000,
-          isClosable: true
+          isClosable: true,
         });
-        
-        setNewTransaction({
-          type: 'CREDIT',
-          amount: '',
-          description: '',
-          category: 'ADHESION',
-          date: new Date().toISOString().split('T')[0]
-        });
-        
-        onTransactionClose();
-        
-        // Recharger les données
-        await loadTransactions();
-        await loadBalance();
-      } else {
-        const errorData = await response.json();
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible d'ajouter la transaction",
-          duration: 4000,
-          isClosable: true
-        });
+        return;
       }
-    } catch (error) {
-      console.error('❌ Erreur ajout transaction:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible d'ajouter la transaction. Vérifiez votre connexion.",
-        duration: 4000,
-        isClosable: true
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleAddScheduledOperation = async () => {
-    if (!newScheduled.type || !newScheduled.amount || !newScheduled.description || !newScheduled.frequency || !newScheduled.nextDate) {
-      toast({
-        status: "warning",
-        title: "Champs requis",
-        description: "Tous les champs sont obligatoires",
-        duration: 3000,
-        isClosable: true
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      const response = await fetch('/api/finance/scheduled-operations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newScheduled,
-          amount: parseFloat(newScheduled.amount)
-        })
-      });
-
-      if (response.ok) {
+      if (!bankBalanceData.password.trim()) {
         toast({
-          status: "success",
-          title: "Opération programmée",
-          description: "L'opération a été programmée avec succès",
+          title: "Mot de passe requis",
+          description: "Le mot de passe administrateur est obligatoire",
+          status: "error",
           duration: 3000,
-          isClosable: true
+          isClosable: true,
         });
-        
-        setNewScheduled({
-          type: 'SCHEDULED_PAYMENT',
-          amount: '',
-          description: '',
-          frequency: 'MONTHLY',
-          nextDate: new Date().toISOString().split('T')[0]
-        });
-        
-        onScheduledClose();
-        
-        // Recharger les données
-        await loadScheduledOperations();
-      } else {
-        const errorData = await response.json();
+        return;
+      }
+
+      // Validation du mot de passe côté client (sera aussi validé côté serveur)
+      const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_BALANCE_PASSWORD || 'RBE2024SECURE';
+      if (bankBalanceData.password !== ADMIN_PASSWORD) {
         toast({
+          title: "Accès refusé",
+          description: "Mot de passe incorrect",
           status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible de programmer l'opération",
-          duration: 4000,
-          isClosable: true
+          duration: 3000,
+          isClosable: true,
         });
+        setBankBalanceData(prev => ({ ...prev, password: '' }));
+        return;
       }
-    } catch (error) {
-      console.error('❌ Erreur programmation opération:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de programmer l'opération. Vérifiez votre connexion.",
-        duration: 4000,
-        isClosable: true
+
+      const result = await financeAPI.setBankBalance({
+        balance: bankBalanceData.balance,
+        justification: bankBalanceData.justification,
+        password: bankBalanceData.password,
+        linkedReportId: bankBalanceData.linkedReportId || null,
+        modifiedBy: user?.email || user?.username || 'admin'
       });
-    } finally {
-      setLoading(false);
+
+      setBankBalance(result.balance);
+      onBankBalanceClose();
+      
+      // Réinitialiser le formulaire
+      setBankBalanceData({
+        balance: result.balance,
+        justification: '',
+        password: '',
+        linkedReportId: ''
+      });
+      
+      toast({
+        title: "Solde mis à jour",
+        description: `Nouveau solde: ${result.formatted}. Modification enregistrée avec justification.`,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+      
+      loadFinanceData();
+    } catch (error) {
+      console.error('❌ Erreur mise à jour solde:', error);
+      toast({
+        title: "Erreur",
+        description: `Impossible de mettre à jour le solde: ${error.message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      // Effacer le mot de passe en cas d'erreur
+      setBankBalanceData(prev => ({ ...prev, password: '' }));
     }
   };
 
-  const toggleScheduledOperation = async (id, currentStatus) => {
+  const handleExecuteScheduledOperation = async (op) => {
     try {
-      const response = await fetch(`/api/finance/scheduled-operations/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          isActive: !currentStatus
-        })
-      });
-
-      if (response.ok) {
-        toast({
-          status: "success",
-          title: `Opération ${!currentStatus ? 'activée' : 'désactivée'}`,
-          duration: 2000,
-          isClosable: true
-        });
-        
-        // Recharger les données
-        await loadScheduledOperations();
+      const res = await financeAPI.executeScheduledExpense(op.id);
+      if (res?.transaction) {
+        setTransactions(prev => [res.transaction, ...prev]);
       }
-    } catch (error) {
-      console.error('❌ Erreur toggle opération:', error);
+      await loadScheduledOperations();
       toast({
+        title: "Opération exécutée",
+        description: "La transaction a été créée.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      loadFinanceData();
+      loadBankBalance();
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur", description: "Exécution impossible", status: "error" });
+    }
+  };
+
+  const handleDeleteScheduledOperation = async (op) => {
+    try {
+      await financeAPI.deleteScheduledExpense(op.id);
+      setScheduledOperations(prev => prev.filter(o => o.id !== op.id));
+      toast({ title: "Supprimée", status: "success" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur", description: "Suppression impossible", status: "error" });
+    }
+  };
+
+  const handleEditScheduledOperation = (op) => {
+    setEditingOperationId(op.id);
+    setOperationFormData({
+      type: op.type || 'depense',
+      description: op.description || '',
+      amount: op.amount || 0,
+      dueDate: op.dueDate || '',
+      category: op.category || '',
+      recurring: op.recurring || 'none',
+      isScheduled: true,
+      notes: op.notes || ''
+    });
+    onScheduledOperationOpen();
+  };
+
+  const handleScheduledOperationSubmit = async () => {
+    try {
+      if (!operationFormData.description || !operationFormData.amount) {
+        toast({ title: "Erreur", description: "Veuillez remplir la description et le montant", status: "error" });
+        return;
+      }
+
+      if (editingOperationId) {
+        const updated = await financeAPI.updateScheduledExpense(editingOperationId, operationFormData);
+        setScheduledOperations(prev => prev.map(o => o.id === editingOperationId ? (updated?.operation || updated) : o));
+        toast({ title: "Modifiée", description: "Opération programmée mise à jour.", status: "success" });
+      } else {
+        const created = await financeAPI.createScheduledExpense(operationFormData);
+        setScheduledOperations(prev => [...prev, created?.operation || created]);
+        toast({ title: "Créée", description: "Opération programmée créée.", status: "success" });
+      }
+
+      setOperationFormData({
+        type: 'depense', description: '', amount: 0, dueDate: '', category: '',
+        recurring: 'none', isScheduled: true, notes: ''
+      });
+      setEditingOperationId(null);
+      onScheduledOperationClose();
+    } catch (error) {
+      console.error('❌ Erreur opération programmée:', error);
+      toast({ title: "Erreur", description: `Impossible d'enregistrer: ${error.message}`, status: "error" });
+    }
+  };
+
+  const handleSyncMemberships = async () => {
+    try {
+      console.log('🔄 Synchronisation des adhésions...');
+      
+      const result = await financeAPI.syncMemberships();
+      console.log('✅ Synchronisation terminée:', result);
+      
+      toast({
+        title: "Synchronisation réussie",
+        description: `${result.synchronized} adhésions synchronisées`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      await loadInitialData();
+    } catch (error) {
+      console.error('❌ Erreur synchronisation:', error);
+      toast({
+        title: "Erreur synchronisation",
+        description: `Impossible de synchroniser les adhésions: ${error.message}`,
         status: "error",
-        title: "Erreur",
-        description: "Impossible de modifier le statut de l'opération",
-        duration: 4000,
-        isClosable: true
+        duration: 5000,
+        isClosable: true,
       });
     }
   };
 
-  // Charger les données au montage du composant
-  useEffect(() => {
-    const initializeData = async () => {
-      await loadUserInfo();
-      await loadFinancialData();
-    };
-    
-    initializeData();
-  }, []);
-
-  // Re-calculer les stats quand les données changent
-  useEffect(() => {
-    if (transactions.length >= 0 && scheduledOperations.length >= 0) {
-      calculateStats();
-    }
-  }, [transactions, scheduledOperations, balance]);
-
-  // === FONCTIONS SIMULATION ===
-  const createSimulationScenario = async () => {
-    if (!newScenario.name || !newScenario.description) {
+  const handleExport = async () => {
+    try {
+      const blob = await financeAPI.exportData('csv');
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance-export-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
       toast({
-        status: "warning",
-        title: "Champs requis",
-        description: "Nom et description sont obligatoires",
+        title: "Export réussi",
+        description: "Les données ont été exportées avec succès",
+        status: "success",
         duration: 3000,
-        isClosable: true
+        isClosable: true,
       });
+    } catch (error) {
+      console.error('❌ Erreur export:', error);
+      toast({
+        title: "Erreur export",
+        description: "Impossible d'exporter les données",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleDeleteTransaction = async (transaction) => {
+    if (!window.confirm('Supprimer cette transaction ?')) return;
+    try {
+      await financeAPI.deleteTransaction(transaction.id);
+      setTransactions(prev => prev.filter(t => t.id !== transaction.id));
+      toast({ title: "Supprimée", status: "success" });
+      loadFinanceData();
+    } catch (e) {
+      toast({ title: "Erreur", description: "Suppression impossible", status: "error" });
+    }
+  };
+
+  const handleExpenseSubmit = async () => {
+    if (!expenseFormData.description || !expenseFormData.amount) {
+      toast({ title: "Erreur", description: "Description et montant requis", status: "error" });
       return;
     }
 
-    try {
-      setLoading(true);
-      
-      const response = await fetch('/api/finance/simulations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newScenario)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        toast({
-          status: "success",
-          title: "Scénario créé",
-          description: "Vous pouvez maintenant ajouter les recettes et dépenses",
-          duration: 4000,
-          isClosable: true
-        });
-        
-        setNewScenario({
-          name: '',
-          description: '',
-          projectionMonths: 12
-        });
-        
-        await loadSimulationData();
-        onSimulationClose();
-        
-        // Ouvrir automatiquement l'édition du nouveau scénario
-        setEditingScenario(data.scenario);
-        onEditScenarioOpen();
-      } else {
-        const errorData = await response.json();
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible de créer le scénario",
-          duration: 4000,
-          isClosable: true
-        });
+    if (!expenseFormData.isForecast) {
+      if (!expensePdfFile) {
+        toast({ title: "PDF requis", description: "Veuillez joindre le justificatif PDF", status: "error" });
+        return;
       }
-    } catch (error) {
-      console.error('❌ Erreur création scénario:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de créer le scénario. Vérifiez votre connexion.",
-        duration: 4000,
-        isClosable: true
+      if (expensePdfFile.type !== 'application/pdf') {
+        toast({ title: "Format invalide", description: "Le fichier doit être un PDF", status: "error" });
+        return;
+      }
+    }
+
+    try {
+      await financeAPI.createExpenseReport({
+        date: expenseFormData.date,
+        description: expenseFormData.description,
+        amount: expenseFormData.amount,
+        pdfFile: expensePdfFile || null,
+        planned: !!expenseFormData.isForecast,
+        status: 'open',
       });
-    } finally {
-      setLoading(false);
+      await loadExpenseReports();
+      setExpenseFormData({ date: new Date().toISOString().split('T')[0], description: '', amount: 0, isForecast: false });
+      setExpensePdfFile(null);
+      onExpenseClose();
+      toast({ title: "Note créée", status: "success" });
+    } catch (e) {
+      toast({ title: "Erreur", description: e.message || "Création impossible", status: "error" });
     }
   };
 
-  const loadScenarioDetails = async (scenarioId) => {
+  const handleExpenseStatusChange = async (report, newStatus) => {
     try {
-      const response = await fetch(`/api/finance/simulations/${scenarioId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setEditingScenario(data.scenario);
-      } else {
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: "Impossible de charger les détails du scénario",
-          duration: 4000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement détails scénario:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de charger les détails du scénario",
-        duration: 4000,
-        isClosable: true
-      });
+      await financeAPI.updateExpenseReportStatus(report.id, newStatus);
+      await loadExpenseReports();
+      const label = newStatus === 'closed' ? 'fermée' : newStatus === 'reimbursed' ? 'remboursée' : newStatus;
+      toast({ title: `Note ${label}`, status: "success" });
+    } catch (e) {
+      toast({ title: "Erreur", description: "Mise à jour du statut impossible", status: "error" });
     }
   };
 
-  const addIncomeItem = async () => {
-    if (!newIncomeItem.description || !newIncomeItem.amount) {
-      toast({
-        status: "warning",
-        title: "Champs requis",
-        description: "Description et montant sont obligatoires",
-        duration: 3000,
-        isClosable: true
-      });
+  const handleDeleteExpense = async (report) => {
+    if (!window.confirm('Supprimer cette note de frais ?')) return;
+    try {
+      await financeAPI.deleteExpenseReport(report.id);
+      await loadExpenseReports();
+      toast({ title: "Note supprimée", status: "success" });
+    } catch (e) {
+      toast({ title: "Erreur", description: "Suppression impossible", status: "error" });
+    }
+  };
+
+  // Helpers simulateur
+  const addSimLine = () => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    setSimLines(prev => [...prev, { id, type: 'depense', amount: 0, description: '', category: '', eventId: '' }]);
+  };
+
+  const updateSimLine = (id, patch) => {
+    setSimLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+  };
+
+  const removeSimLine = (id) => {
+    setSimLines(prev => prev.filter(l => l.id !== id));
+  };
+
+  const resetSim = () => setSimLines([]);
+
+  const simRevenue = simLines.filter(l => l.type === 'recette').reduce((s, l) => s + Number(l.amount || 0), 0);
+  const simExpenses = simLines.filter(l => l.type === 'depense').reduce((s, l) => s + Number(l.amount || 0), 0);
+  const simImpact = simRevenue - simExpenses;
+  const projectedBalance = Number(bankBalance || 0) + simImpact;
+
+  const applySimulation = async () => {
+    if (!simLines.length) return;
+    if (!canManageExpenses) {
+      toast({ title: "Accès requis", description: "Seul le trésorier, le président ou un admin peut créer des transactions", status: "warning" });
       return;
     }
-
     try {
-      const response = await fetch(`/api/finance/simulations/${editingScenario.id}/income`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newIncomeItem,
-          amount: parseFloat(newIncomeItem.amount)
+      const effective = simLines.filter(l => Number(l.amount) > 0 && (l.type === 'recette' || l.type === 'depense'));
+      if (!effective.length) {
+        toast({ title: "Simulation vide", description: "Ajoutez des lignes valides (montant > 0)", status: "info" });
+        return;
+      }
+      await Promise.all(effective.map(l =>
+        financeAPI.createTransaction({
+          type: l.type,
+          amount: Number(l.amount),
+          description: l.description || '(Simulateur)',
+          category: l.category || '',
+          date: new Date().toISOString().split('T')[0],
+          eventId: l.eventId || ''
         })
-      });
-
-      if (response.ok) {
-        toast({
-          status: "success",
-          title: "Recette ajoutée",
-          duration: 2000,
-          isClosable: true
-        });
-        
-        setNewIncomeItem({
-          description: '',
-          amount: '',
-          category: 'ADHESION',
-          frequency: 'MONTHLY'
-        });
-        
-        await loadScenarioDetails(editingScenario.id);
-      } else {
-        const errorData = await response.json();
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible d'ajouter la recette",
-          duration: 4000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur ajout recette:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible d'ajouter la recette",
-        duration: 4000,
-        isClosable: true
-      });
+      ));
+      resetSim();
+      await Promise.all([loadTransactions(), loadFinanceData(), loadBankBalance()]);
+      toast({ title: "Transactions créées", description: "Votre simulation a été appliquée", status: "success" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur", description: "Impossible d'appliquer la simulation", status: "error" });
     }
   };
 
-  const addExpenseItem = async () => {
-    if (!newExpenseItem.description || !newExpenseItem.amount) {
-      toast({
-        status: "warning",
-        title: "Champs requis",
-        description: "Description et montant sont obligatoires",
-        duration: 3000,
-        isClosable: true
-      });
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/finance/simulations/${editingScenario.id}/expense`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newExpenseItem,
-          amount: parseFloat(newExpenseItem.amount)
-        })
-      });
-
-      if (response.ok) {
-        toast({
-          status: "success",
-          title: "Dépense ajoutée",
-          duration: 2000,
-          isClosable: true
-        });
-        
-        setNewExpenseItem({
-          description: '',
-          amount: '',
-          category: 'MAINTENANCE',
-          frequency: 'MONTHLY'
-        });
-        
-        await loadScenarioDetails(editingScenario.id);
-      } else {
-        const errorData = await response.json();
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible d'ajouter la dépense",
-          duration: 4000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur ajout dépense:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible d'ajouter la dépense",
-        duration: 4000,
-        isClosable: true
-      });
-    }
-  };
-
-  const removeIncomeItem = async (itemId) => {
-    try {
-      const response = await fetch(`/api/finance/simulations/income/${itemId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        toast({
-          status: "success",
-          title: "Recette supprimée",
-          duration: 2000,
-          isClosable: true
-        });
-        
-        await loadScenarioDetails(editingScenario.id);
-      } else {
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: "Impossible de supprimer la recette",
-          duration: 4000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur suppression recette:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de supprimer la recette",
-        duration: 4000,
-        isClosable: true
-      });
-    }
-  };
-
-  const removeExpenseItem = async (itemId) => {
-    try {
-      const response = await fetch(`/api/finance/simulations/expense/${itemId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        toast({
-          status: "success",
-          title: "Dépense supprimée",
-          duration: 2000,
-          isClosable: true
-        });
-        
-        await loadScenarioDetails(editingScenario.id);
-      } else {
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: "Impossible de supprimer la dépense",
-          duration: 4000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur suppression dépense:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de supprimer la dépense",
-        duration: 4000,
-        isClosable: true
-      });
-    }
-  };
-
-  const runSimulation = async (scenarioId) => {
-    try {
-      setLoading(true);
-      
-      const response = await fetch(`/api/finance/simulations/${scenarioId}/run`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSimulationResults(data.simulation);
-        onSimulationResultsOpen();
-      } else {
-        const errorData = await response.json();
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible d'exécuter la simulation",
-          duration: 4000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur exécution simulation:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible d'exécuter la simulation",
-        duration: 4000,
-        isClosable: true
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteScenario = async (scenarioId) => {
-    try {
-      const response = await fetch(`/api/finance/simulations/${scenarioId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        toast({
-          status: "success",
-          title: "Scénario supprimé",
-          duration: 2000,
-          isClosable: true
-        });
-        
-        await loadSimulationData();
-      } else {
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: "Impossible de supprimer le scénario",
-          duration: 4000,
-          isClosable: true
-        });
-      }
-    } catch (error) {
-      console.error('❌ Erreur suppression scénario:', error);
-      toast({
-        status: "error",
-        title: "Erreur",
-        description: "Impossible de supprimer le scénario",
-        duration: 4000,
-        isClosable: true
-      });
-    }
-  };
-
-  // Charger les données au montage du composant
-  useEffect(() => {
-    const initializeData = async () => {
-      await loadUserInfo();
-      await loadFinancialData();
-    };
-    
-    initializeData();
-  }, []);
-
-  // Re-calculer les stats quand les données changent
-  useEffect(() => {
-    if (transactions.length >= 0 && scheduledOperations.length >= 0) {
-      calculateStats();
-    }
-  }, [transactions, scheduledOperations, balance]);
+  if (loading) {
+    return (
+      <PageLayout
+        title="🏦 Gestion Financière"
+        subtitle="Chargement des données financières..."
+        bgGradient="linear(to-r, rbe.600, blue.600)"
+      >
+        <VStack spacing={8} py={16}>
+          <Spinner size="xl" color="rbe.500" thickness="4px" />
+          <Text color="gray.600">Synchronisation avec la base de données...</Text>
+        </VStack>
+      </PageLayout>
+    );
+  }
 
   return (
-    <Box p={6}>
-      <VStack spacing={6} align="stretch">
-        {/* En-tête avec configuration */}
-        <HStack justify="space-between" align="center">
-          <Heading size="lg" color="blue.600">
-            💰 Gestion Financière
-          </Heading>
-          <HStack>
-            <IconButton
-              icon={<FiRefreshCw />}
-              onClick={loadFinancialData}
-              isLoading={loading}
-              variant="outline"
-              size="sm"
-            />
-            <IconButton
-              icon={<FiSettings />}
-              onClick={onConfigOpen}
-              variant="outline"
-              size="sm"
-              colorScheme="purple"
-            />
-            <Badge
-              colorScheme={stats.balance >= 0 ? "green" : "red"}
-              fontSize="lg"
-              p={2}
-              borderRadius="md"
-              cursor="pointer"
-              onClick={() => setShowBalanceConfig(!showBalanceConfig)}
-            >
-              {isBalanceLocked ? <Icon as={FiLock} mr={1} /> : <Icon as={FiUnlock} mr={1} />}
-              Solde: {formatCurrency(stats.balance)}
-            </Badge>
-          </HStack>
+    <PageLayout
+      title="💰 Gestion Financière"
+      subtitle="Suivi des recettes, dépenses et trésorerie de l'association"
+      bgGradient="linear(to-r, rbe.600, green.600)"
+      breadcrumbs={[
+        { label: "MyRBE", href: "/dashboard/myrbe" },
+        { label: "Gestion Financière", href: "/admin/finance" }
+      ]}
+      headerActions={
+        <HStack spacing={3}>
+          <Button
+            leftIcon={<FiPlus />}
+            variant="secondary"
+            bg="whiteAlpha.200"
+            color="white"
+            borderColor="whiteAlpha.300"
+            _hover={{ bg: "whiteAlpha.300" }}
+            onClick={onOpen}
+          >
+            Nouvelle transaction
+          </Button>
+          <Button
+            leftIcon={<FiClock />}
+            variant="secondary"
+            bg="whiteAlpha.200"
+            color="white"
+            borderColor="whiteAlpha.300"
+            _hover={{ bg: "whiteAlpha.300" }}
+            onClick={onScheduledOperationOpen}
+          >
+            Programmer opération
+          </Button>
         </HStack>
+      }
+    >
+      <VStack spacing={8} align="stretch">
+        {/* Statistiques financières */}
+        <FinanceStats data={financeData} loading={false} />
 
-        {/* Configuration rapide du solde */}
-        {showBalanceConfig && (
-          <Alert status="warning" borderRadius="md">
-            <AlertIcon />
-            <VStack align="stretch" spacing={3} flex={1}>
-              <Text fontWeight="bold">Configuration du solde (Code requis)</Text>
-              <HStack>
-                <HStack>
-                  <Text fontSize="sm">Code:</Text>
-                  <HStack>
-                    <PinInput value={configCode} onChange={setConfigCode} type="number">
-                      <PinInputField />
-                      <PinInputField />
-                      <PinInputField />
-                      <PinInputField />
-                    </PinInput>
-                  </HStack>
-                </HStack>
-                <NumberInput
-                  value={newBalance}
-                  onChange={setNewBalance}
-                  precision={2}
-                  step={0.01}
-                  width="150px"
-                >
-                  <NumberInputField placeholder="Nouveau solde" />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper />
-                    <NumberDecrementStepper />
-                  </NumberInputStepper>
-                </NumberInput>
-                <Button
-                  size="sm"
-                  colorScheme="orange"
-                  onClick={handleBalanceConfig}
-                  isLoading={loading}
-                  leftIcon={<FiCheck />}
-                >
-                  Appliquer
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowBalanceConfig(false)}
-                  leftIcon={<FiX />}
-                >
-                  Annuler
-                </Button>
-              </HStack>
-            </VStack>
-          </Alert>
-        )}
-
-        {/* Statistiques étendues */}
-        <SimpleGrid columns={{ base: 2, md: 6 }} spacing={4}>
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Solde Actuel</StatLabel>
-                <StatNumber color={stats.balance >= 0 ? "green.600" : "red.600"}>
-                  {formatCurrency(stats.balance)}
-                </StatNumber>
-                {lastBalanceUpdate && (
-                  <StatHelpText fontSize="xs">
-                    MAJ: {formatDate(lastBalanceUpdate)}
-                  </StatHelpText>
-                )}
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Crédits Total</StatLabel>
-                <StatNumber color="green.600">
-                  {formatCurrency(stats.totalCredits)}
-                </StatNumber>
-                <StatHelpText>
-                  <StatArrow type="increase" />
-                  Entrées
-                </StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Débits Total</StatLabel>
-                <StatNumber color="red.600">
-                  {formatCurrency(stats.totalDebits)}
-                </StatNumber>
-                <StatHelpText>
-                  <StatArrow type="decrease" />
-                  Sorties
-                </StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Ce Mois</StatLabel>
-                <StatNumber color={stats.monthlyBalance >= 0 ? "green.600" : "red.600"}>
-                  {formatCurrency(stats.monthlyBalance)}
-                </StatNumber>
-                <StatHelpText>
-                  <StatArrow type={stats.monthlyBalance >= 0 ? "increase" : "decrease"} />
-                  Résultat mensuel
-                </StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Programmé/Mois</StatLabel>
-                <StatNumber color={stats.scheduledMonthlyImpact >= 0 ? "green.600" : "red.600"}>
-                  {formatCurrency(stats.scheduledMonthlyImpact)}
-                </StatNumber>
-                <StatHelpText>
-                  {stats.scheduledCount} opérations
-                </StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Projection M+1</StatLabel>
-                <StatNumber color={stats.projectedNextMonth >= 0 ? "green.600" : "red.600"}>
-                  {formatCurrency(stats.projectedNextMonth)}
-                </StatNumber>
-                <StatHelpText>
-                  Estimation
-                </StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-        </SimpleGrid>
-
-        {/* Onglets étendus */}
-        <Tabs index={activeTab} onChange={setActiveTab}>
+        {/* Onglets de gestion */}
+        <Tabs variant="enclosed" colorScheme="rbe">
           <TabList>
-            <Tab>💳 Transactions</Tab>
-            <Tab>⏰ Échéanciers</Tab>
-            <Tab>🧮 Simulations</Tab>
-            <Tab>📊 Rapports</Tab>
-            <Tab>⚙️ Configuration</Tab>
+            <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
+              💳 Transactions
+            </Tab>
+            <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
+              📅 Opérations programmées
+            </Tab>
+            <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
+              🧾 Notes de frais
+            </Tab>
+            <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
+              🧮 Simulateur
+            </Tab>
+            <Tab _selected={{ color: "rbe.600", borderColor: "rbe.600" }}>
+              ⚙️ Configuration
+            </Tab>
           </TabList>
 
           <TabPanels>
             {/* Onglet Transactions */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <HStack justify="space-between">
-                  <Heading size="md">Transactions</Heading>
-                  <Button
-                    leftIcon={<FiPlus />}
-                    colorScheme="blue"
-                    onClick={onTransactionOpen}
-                    size="sm"
-                  >
-                    Nouvelle transaction
-                  </Button>
-                </HStack>
+            <TabPanel px={0}>
+              <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={8}>
+                <ModernCard
+                  title="Transactions récentes"
+                  badge={{ label: `${transactions.length}`, color: "blue" }}
+                >
+                  <VStack spacing={4} align="stretch">
+                    <HStack justify="space-between">
+                      <ButtonGroup size="sm">
+                        <Button
+                          leftIcon={<FiPlus />}
+                          variant="primary"
+                          onClick={onOpen}
+                        >
+                          Nouvelle transaction
+                        </Button>
+                        <Button
+                          leftIcon={<FiRefreshCw />}
+                          variant="modern"
+                          onClick={loadTransactions}
+                          isLoading={transactionsLoading}
+                        >
+                          Actualiser
+                        </Button>
+                      </ButtonGroup>
+                      <HStack>
+                        <Select
+                          size="sm"
+                          maxW="280px"
+                          placeholder="Tous les événements"
+                          value={filters.eventId}
+                          onChange={(e) => setFilters(prev => ({ ...prev, eventId: e.target.value }))}
+                        >
+                          {events.map(ev => (
+                            <option key={ev.id} value={ev.id}>{ev.title}</option>
+                          ))}
+                        </Select>
+                        <Button size="sm" variant="outline" onClick={loadTransactions}>Filtrer</Button>
+                      </HStack>
+                    </HStack>
 
-                {loading ? (
-                  <Box textAlign="center" p={8}>
-                    <Spinner size="lg" />
-                    <Text mt={2}>Chargement...</Text>
-                  </Box>
-                ) : transactions.length === 0 ? (
-                  <Alert status="info">
-                    <AlertIcon />
-                    Aucune transaction enregistrée
-                  </Alert>
-                ) : (
-                  <Card>
-                    <CardBody p={0}>
-                      <Table variant="simple">
+                    {transactionsLoading ? (
+                      <VStack py={8}>
+                        <Spinner color="rbe.500" />
+                        <Text color="gray.500">Chargement des transactions...</Text>
+                      </VStack>
+                    ) : transactions.length === 0 ? (
+                      <VStack py={8} spacing={4}>
+                        <Text color="gray.500" fontSize="lg">Aucune transaction trouvée</Text>
+                        <Button 
+                          size="sm" 
+                          onClick={handleSyncMemberships} 
+                          leftIcon={<FiUsers />}
+                          variant="secondary"
+                        >
+                          Synchroniser les adhésions
+                        </Button>
+                      </VStack>
+                    ) : (
+                      <Table variant="simple" size="sm">
                         <Thead>
                           <Tr>
                             <Th>Date</Th>
-                            <Th>Description</Th>
-                            <Th>Catégorie</Th>
                             <Th>Type</Th>
+                            <Th>Description</Th>
                             <Th isNumeric>Montant</Th>
                             <Th>Actions</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {transactions.map((transaction, index) => (
-                            <Tr key={transaction.id || index}>
-                              <Td>{formatDate(transaction.date || transaction.createdAt)}</Td>
-                              <Td>{transaction.description}</Td>
-                              <Td>
-                                <Badge size="sm" variant="outline">
-                                  {getCategoryLabel(transaction.category)}
-                                </Badge>
+                          {transactions.map((transaction) => (
+                            <Tr key={transaction.id} _hover={{ bg: "gray.50" }}>
+                              <Td fontSize="sm">
+                                {new Date(transaction.date).toLocaleDateString('fr-FR')}
                               </Td>
                               <Td>
                                 <Badge
-                                  colorScheme={transaction.type === 'CREDIT' ? 'green' : 'red'}
-                                  size="sm"
+                                  colorScheme={transaction.type === 'recette' ? 'success' : 'warning'}
+                                  variant="subtle"
+                                  borderRadius="md"
                                 >
-                                  {transaction.type === 'CREDIT' ? 'Crédit' : 'Débit'}
+                                  {transaction.type === 'recette' ? 'Recette' : 'Dépense'}
                                 </Badge>
+                              </Td>
+                              <Td>
+                                <VStack align="start" spacing={0}>
+                                  <Text fontSize="sm" fontWeight="500">
+                                    {transaction.description}
+                                  </Text>
+                                  {transaction.eventId && (
+                                    <Badge colorScheme="purple" mt={1}>
+                                      {events.find(e => e.id === transaction.eventId)?.title || `Événement #${transaction.eventId}`}
+                                    </Badge>
+                                  )}
+                                  {transaction.member && (
+                                    <Text fontSize="xs" color="gray.500">
+                                      {transaction.member.firstName} {transaction.member.lastName} ({transaction.member.memberNumber})
+                                    </Text>
+                                  )}
+                                </VStack>
                               </Td>
                               <Td isNumeric>
                                 <Text
-                                  color={transaction.type === 'CREDIT' ? 'green.600' : 'red.600'}
-                                  fontWeight="bold"
+                                  color={transaction.type === 'recette' ? 'success.600' : 'warning.600'}
+                                  fontWeight="600"
+                                  fontSize="sm"
                                 >
-                                  {transaction.type === 'CREDIT' ? '+' : '-'}
-                                  {formatCurrency(Math.abs(transaction.amount))}
+                                  {transaction.type === 'recette' ? '+' : '-'}
+                                  {new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'EUR'
+                                  }).format(transaction.amount)}
                                 </Text>
                               </Td>
                               <Td>
@@ -1358,8 +953,9 @@ const AdminFinance = () => {
                                     size="sm"
                                   />
                                   <MenuList>
+                                    <MenuItem icon={<FiEye />}>Voir détails</MenuItem>
                                     <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500">
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteTransaction(transaction)}>
                                       Supprimer
                                     </MenuItem>
                                   </MenuList>
@@ -1369,154 +965,143 @@ const AdminFinance = () => {
                           ))}
                         </Tbody>
                       </Table>
-                    </CardBody>
-                  </Card>
-                )}
-              </VStack>
-            </TabPanel>
+                    )}
+                  </VStack>
+                </ModernCard>
 
-            {/* Onglet Échéanciers */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <HStack justify="space-between">
-                  <Heading size="md">Opérations Programmées</Heading>
-                  <Button
-                    leftIcon={<FiPlus />}
-                    colorScheme="purple"
-                    onClick={onScheduledOpen}
-                    size="sm"
-                  >
-                    Nouvelle opération
-                  </Button>
-                </HStack>
+                <VStack spacing={4}>
+                  <ModernCard title="Actions rapides" color="gray">
+                    <VStack spacing={3}>
+                      <Button
+                        leftIcon={<FiUsers />}
+                        variant="modern"
+                        size="sm"
+                        w="full"
+                        onClick={handleSyncMemberships}
+                      >
+                        Synchroniser adhésions
+                      </Button>
+                      <Button
+                        leftIcon={<FiDownload />}
+                        variant="modern"
+                        size="sm"
+                        w="full"
+                        onClick={handleExport}
+                      >
+                        Exporter comptabilité
+                      </Button>
+                      <Button
+                        leftIcon={<FiSettings />}
+                        variant="modern"
+                        size="sm"
+                        w="full"
+                        onClick={onBankBalanceOpen}
+                      >
+                        Configurer solde
+                      </Button>
+                    </VStack>
+                  </ModernCard>
 
-                {loading ? (
-                  <Box textAlign="center" p={8}>
-                    <Spinner size="lg" />
-                    <Text mt={2}>Chargement...</Text>
-                  </Box>
-                ) : scheduledOperations.length === 0 ? (
-                  <Alert status="info">
+                  <Alert status="success" borderRadius="lg" border="1px solid" borderColor="success.200">
                     <AlertIcon />
-                    Aucune opération programmée
-                  </Alert>
-                ) : (
-                  <Card>
-                    <CardBody p={0}>
-                      <Table variant="simple">
-                        <Thead>
-                          <Tr>
-                            <Th>Description</Th>
-                            <Th>Fréquence</Th>
-                            <Th>Prochaine date</Th>
-                            <Th isNumeric>Montant</Th>
-                            <Th>Statut</Th>
-                            <Th>Actions</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {scheduledOperations.map((operation, index) => (
-                            <Tr key={operation.id || index}>
-                              <Td>{operation.description}</Td>
-                              <Td>
-                                <Badge variant="outline">
-                                  {getFrequencyLabel(operation.frequency)}
-                                </Badge>
-                              </Td>
-                              <Td>{formatDate(operation.nextDate)}</Td>
-                              <Td isNumeric>
-                                <Text
-                                  color={operation.type === 'SCHEDULED_CREDIT' ? 'green.600' : 'red.600'}
-                                  fontWeight="bold"
-                                >
-                                  {operation.type === 'SCHEDULED_CREDIT' ? '+' : '-'}
-                                  {formatCurrency(Math.abs(operation.amount))}
-                                </Text>
-                              </Td>
-                              <Td>
-                                <Switch
-                                  isChecked={operation.isActive}
-                                  onChange={() => toggleScheduledOperation(operation.id, operation.isActive)}
-                                  colorScheme="green"
-                                  size="sm"
-                                />
-                              </Td>
-                              <Td>
-                                <Menu>
-                                  <MenuButton
-                                    as={IconButton}
-                                    icon={<FiMoreHorizontal />}
-                                    variant="ghost"
-                                    size="sm"
-                                  />
-                                  <MenuList>
-                                    <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500">
-                                      Supprimer
-                                    </MenuItem>
-                                  </MenuList>
-                                </Menu>
-                              </Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </CardBody>
-                  </Card>
-                )}
-              </VStack>
-            </TabPanel>
-
-            {/* Onglet Simulations */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <HStack justify="space-between">
-                  <Heading size="md">Simulations Financières</Heading>
-                  <Button
-                    leftIcon={<FiActivity />}
-                    colorScheme="teal"
-                    onClick={onSimulationOpen}
-                    size="sm"
-                  >
-                    Nouveau scénario
-                  </Button>
-                </HStack>
-
-                {simulationData.scenarios.length === 0 ? (
-                  <Alert status="info">
-                    <AlertIcon />
-                    <VStack align="start" spacing={2}>
-                      <Text fontWeight="bold">Aucun scénario de simulation</Text>
-                      <Text fontSize="sm">
-                        Créez des scénarios pour simuler l'évolution de votre trésorerie.
-                        Étape 1: Créer le contexte, Étape 2: Ajouter recettes/dépenses.
+                    <VStack align="start" spacing={1}>
+                      <Text fontWeight="600" fontSize="sm" color="success.800">
+                        Données en temps réel
+                      </Text>
+                      <Text fontSize="xs" color="success.700">
+                        Synchronisé avec {financeData?.activeMembers || 0} membres actifs
                       </Text>
                     </VStack>
                   </Alert>
-                ) : (
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                    {simulationData.scenarios.map((scenario) => {
-                      const isComplete = scenario.itemsCount > 0;
-                      const monthlyNet = scenario.totalMonthlyIncome - scenario.totalMonthlyExpenses;
-                      
-                      return (
-                        <Card key={scenario.id} borderWidth={2} borderColor={isComplete ? "green.200" : "orange.200"}>
-                          <CardHeader>
-                            <HStack justify="space-between">
-                              <VStack align="start" spacing={1}>
-                                <Heading size="sm">{scenario.name}</Heading>
-                                <HStack>
-                                  <Badge
-                                    colorScheme={isComplete ? "green" : "orange"}
-                                    size="sm"
-                                  >
-                                    {isComplete ? "Complet" : "Brouillon"}
-                                  </Badge>
-                                  <Badge variant="outline" size="sm">
-                                    {scenario.itemsCount} élément(s)
-                                  </Badge>
-                                </HStack>
+                </VStack>
+              </Grid>
+            </TabPanel>
+
+            {/* Onglet Opérations programmées */}
+            <TabPanel px={0}>
+              <Card bg={cardBg}>
+                <CardHeader>
+                  <HStack justify="space-between">
+                    <Heading size="md">📅 Opérations programmées</Heading>
+                    <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={onScheduledOperationOpen}>
+                      Programmer une opération
+                    </Button>
+                  </HStack>
+                </CardHeader>
+                <CardBody>
+                  {scheduledOperations.length === 0 ? (
+                    <VStack py={8}>
+                      <Icon as={FiClock} size="48px" color="gray.300" />
+                      <Text color="gray.500">Aucune opération programmée</Text>
+                      <Button size="sm" onClick={onScheduledOperationOpen} leftIcon={<FiPlus />}>
+                        Programmer une opération
+                      </Button>
+                    </VStack>
+                  ) : (
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th>Type</Th>
+                          <Th>Description</Th>
+                          <Th>Catégorie</Th>
+                          <Th isNumeric>Montant</Th>
+                          <Th>Date prévue</Th>
+                          <Th>Récurrence</Th>
+                          <Th>Actions</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {scheduledOperations.map((operation) => (
+                          <Tr key={operation.id}>
+                            <Td>
+                              <Badge
+                                colorScheme={operation.type === 'recette' ? 'green' : 'red'}
+                                variant="subtle"
+                              >
+                                {operation.type === 'recette' ? 'Recette' : 'Dépense'}
+                              </Badge>
+                            </Td>
+                            <Td>
+                              <VStack align="start" spacing={0}>
+                                <Text fontSize="sm" fontWeight="bold">{operation.description}</Text>
+                                {operation.notes && (
+                                  <Text fontSize="xs" color="gray.500">{operation.notes}</Text>
+                                )}
                               </VStack>
+                            </Td>
+                            <Td>
+                              <Badge variant="subtle">
+                                {categories.find(c => c.id === operation.category)?.name || operation.category}
+                              </Badge>
+                            </Td>
+                            <Td isNumeric>
+                              <Text fontWeight="bold" 
+                                color={operation.type === 'recette' ? 'green.500' : 'red.500'}>
+                                {operation.type === 'recette' ? '+' : '-'}
+                                {operation.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </Td>
+                            <Td>
+                              {operation.dueDate ? (
+                                new Date(operation.dueDate).toLocaleDateString('fr-FR')
+                              ) : (
+                                <Badge variant="outline">Pas de date</Badge>
+                              )}
+                            </Td>
+                            <Td>
+                              <HStack>
+                                {operation.recurring !== 'none' && (
+                                  <Icon as={FiRepeat} color="blue.500" size="sm" />
+                                )}
+                                <Text fontSize="sm">
+                                  {operation.recurring === 'none' ? 'Unique' : 
+                                   operation.recurring === 'monthly' ? 'Mensuelle' :
+                                   operation.recurring === 'quarterly' ? 'Trimestrielle' :
+                                   operation.recurring === 'yearly' ? 'Annuelle' : operation.recurring}
+                                </Text>
+                              </HStack>
+                            </Td>
+                            <Td>
                               <Menu>
                                 <MenuButton
                                   as={IconButton}
@@ -1525,885 +1110,702 @@ const AdminFinance = () => {
                                   size="sm"
                                 />
                                 <MenuList>
-                                  <MenuItem 
-                                    icon={<FiEdit3 />}
-                                    onClick={async () => {
-                                      await loadScenarioDetails(scenario.id);
-                                      onEditScenarioOpen();
-                                    }}
-                                  >
-                                    Éditer
+                                  <MenuItem icon={<FiCheck />} onClick={() => handleExecuteScheduledOperation(operation)}>
+                                    Exécuter maintenant
                                   </MenuItem>
-                                  <MenuItem 
-                                    icon={<FiActivity />}
-                                    onClick={() => runSimulation(scenario.id)}
-                                    isDisabled={!isComplete}
-                                  >
-                                    Exécuter
+                                  <MenuItem icon={<FiEdit3 />} onClick={() => handleEditScheduledOperation(operation)}>
+                                    Modifier
                                   </MenuItem>
-                                  <Divider />
-                                  <MenuItem icon={<FiTrash2 />} color="red.500">
+                                  <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteScheduledOperation(operation)}>
                                     Supprimer
                                   </MenuItem>
                                 </MenuList>
                               </Menu>
-                            </HStack>
-                          </CardHeader>
-                          <CardBody>
-                            <VStack align="stretch" spacing={3}>
-                              <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                                {scenario.description}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  )}
+                </CardBody>
+              </Card>
+            </TabPanel>
+
+            {/* Onglet Notes de frais */}
+            <TabPanel px={0}>
+              <Card bg={cardBg}>
+                <CardHeader>
+                  <HStack justify="space-between">
+                    <Heading size="md">🧾 Notes de frais</Heading>
+                    {canManageExpenses && (
+                      <Button leftIcon={<FiUpload />} colorScheme="blue" onClick={onExpenseOpen}>
+                        Nouvelle note de frais
+                      </Button>
+                    )}
+                  </HStack>
+                </CardHeader>
+                <CardBody>
+                  {expenseLoading ? (
+                    <VStack py={8}><Spinner /><Text>Chargement des notes...</Text></VStack>
+                  ) : expenseReports.length === 0 ? (
+                    <VStack py={8}>
+                      <Text color="gray.500">Aucune note de frais</Text>
+                      {canManageExpenses && (
+                        <Button size="sm" onClick={onExpenseOpen} leftIcon={<FiUpload />}>
+                          Ajouter une note de frais
+                        </Button>
+                      )}
+                    </VStack>
+                  ) : (
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th>Date</Th>
+                          <Th>Description</Th>
+                          <Th isNumeric>Montant</Th>
+                          <Th>Justificatif</Th>
+                          <Th>Statut</Th>
+                          <Th>Actions</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {expenseReports.map((r) => (
+                          <Tr key={r.id}>
+                            <Td>{new Date(r.date).toLocaleDateString('fr-FR')}</Td>
+                            <Td>
+                              <VStack align="start" spacing={0}>
+                                <Text fontSize="sm" fontWeight="500">{r.description}</Text>
+                                {r.createdBy && <Text fontSize="xs" color="gray.500">Par {r.createdBy}</Text>}
+                              </VStack>
+                            </Td>
+                            <Td isNumeric>
+                              <Text fontWeight="bold">
+                                {Number(r.amount || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                               </Text>
-                              
-                              {isComplete ? (
-                                <SimpleGrid columns={3} spacing={2}>
-                                  <Stat size="sm">
-                                    <StatLabel fontSize="xs">Revenus</StatLabel>
-                                    <StatNumber fontSize="sm" color="green.600">
-                                      {formatCurrency(scenario.totalMonthlyIncome)}
-                                    </StatNumber>
-                                  </Stat>
-                                  <Stat size="sm">
-                                    <StatLabel fontSize="xs">Dépenses</StatLabel>
-                                    <StatNumber fontSize="sm" color="red.600">
-                                      {formatCurrency(scenario.totalMonthlyExpenses)}
-                                    </StatNumber>
-                                  </Stat>
-                                  <Stat size="sm">
-                                    <StatLabel fontSize="xs">Résultat</StatLabel>
-                                    <StatNumber fontSize="sm" color={monthlyNet >= 0 ? "green.600" : "red.600"}>
-                                      {formatCurrency(monthlyNet)}
-                                    </StatNumber>
-                                  </Stat>
-                                </SimpleGrid>
+                            </Td>
+                            <Td>
+                              {r.fileUrl ? (
+                                <Button as="a" href={r.fileUrl} target="_blank" rel="noreferrer" size="xs" variant="outline">
+                                  Voir PDF
+                                </Button>
                               ) : (
-                                <Alert status="warning" size="sm">
-                                  <AlertIcon />
-                                  <Text fontSize="xs">
-                                    Ajoutez des recettes et dépenses pour compléter le scénario
-                                  </Text>
-                                </Alert>
+                                <Text fontSize="xs" color="gray.500">{r.fileName || '—'}</Text>
                               )}
-                              
+                            </Td>
+                            <Td>
                               <HStack>
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  leftIcon={<FiEdit3 />}
-                                  onClick={async () => {
-                                    await loadScenarioDetails(scenario.id);
-                                    onEditScenarioOpen();
-                                  }}
-                                >
-                                  Éditer
-                                </Button>
-                                <Button
-                                  size="xs"
-                                  colorScheme="teal"
-                                  leftIcon={<FiActivity />}
-                                  onClick={() => runSimulation(scenario.id)}
-                                  isDisabled={!isComplete}
-                                  isLoading={loading}
-                                >
-                                  Simuler
-                                </Button>
+                                <Badge colorScheme={
+                                  r.status === 'reimbursed' ? 'green' :
+                                  r.status === 'closed' ? 'orange' : 'blue'
+                                }>
+                                  {r.status === 'reimbursed' ? 'Remboursée' :
+                                   r.status === 'closed' ? 'Fermée' : 'Ouverte'}
+                                </Badge>
+                                {!r.fileUrl && (
+                                  <Badge variant="outline" colorScheme="purple">Prévisionnelle</Badge>
+                                )}
                               </HStack>
-                            </VStack>
-                          </CardBody>
-                        </Card>
-                      );
-                    })}
-                  </SimpleGrid>
-                )}
-              </VStack>
+                            </Td>
+                            <Td>
+                              <Menu>
+                                <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
+                                <MenuList>
+                                  <MenuItem icon={<FiEye />}>Voir détails</MenuItem>
+                                  {canManageExpenses && r.status !== 'closed' && r.status !== 'reimbursed' && (
+                                    <MenuItem icon={<FiCheck />} onClick={() => handleExpenseStatusChange(r, 'closed')}>
+                                      Marquer "Fermée"
+                                    </MenuItem>
+                                  )}
+                                  {canManageExpenses && r.status !== 'reimbursed' && (
+                                    <MenuItem icon={<FiCheck />} onClick={() => handleExpenseStatusChange(r, 'reimbursed')} isDisabled={!r.fileUrl} >
+                                      Marquer "Remboursée"
+                                    </MenuItem>
+                                  )}
+                                  {canManageExpenses && (
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteExpense(r)}>
+                                      Supprimer
+                                    </MenuItem>
+                                  )}
+                                </MenuList>
+                              </Menu>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  )}
+                </CardBody>
+              </Card>
             </TabPanel>
 
-            {/* Onglet Rapports */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Heading size="md">Rapports Financiers</Heading>
-                <Alert status="info">
-                  <AlertIcon />
-                  <VStack align="start" spacing={2}>
-                    <Text fontWeight="bold">Rapports détaillés en développement</Text>
-                    <Text fontSize="sm">
-                      Prochainement : graphiques d'évolution, analyse des tendances,
-                      export PDF des rapports mensuels et annuels.
-                    </Text>
-                  </VStack>
-                </Alert>
-              </VStack>
-            </TabPanel>
-
-            {/* Onglet Configuration */}
-            <TabPanel>
-              <VStack spacing={6} align="stretch">
-                <Heading size="md">Configuration Avancée</Heading>
-                
-                {/* Historique des modifications de solde */}
-                <Card>
-                  <CardHeader>
-                    <Heading size="sm">Historique des Modifications de Solde</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    {balanceHistory.length === 0 ? (
-                      <Text color="gray.500" fontSize="sm">Aucune modification enregistrée</Text>
-                    ) : (
-                      <Table variant="simple" size="sm">
+            {/* Onglet Simulateur */}
+            <TabPanel px={0}>
+              <Card bg={cardBg}>
+                <CardHeader>
+                  <HStack justify="space-between">
+                    <Heading size="md">🧮 Simulateur de trésorerie</Heading>
+                    <HStack>
+                      <Button variant="outline" onClick={addSimLine} leftIcon={<FiPlus />}>Ajouter une ligne</Button>
+                      <Button variant="outline" onClick={resetSim}>Réinitialiser</Button>
+                      <Button colorScheme="blue" onClick={applySimulation} isDisabled={!canManageExpenses || simLines.length === 0}>
+                        Créer ces transactions
+                      </Button>
+                    </HStack>
+                  </HStack>
+                </CardHeader>
+                <CardBody>
+                  {simLines.length === 0 ? (
+                    <VStack py={8}>
+                      <Text color="gray.500">Ajoutez des lignes pour simuler l'impact sur la trésorerie.</Text>
+                      <Button size="sm" onClick={addSimLine} leftIcon={<FiPlus />}>Ajouter une ligne</Button>
+                    </VStack>
+                  ) : (
+                    <VStack align="stretch" spacing={4}>
+                      <Table size="sm" variant="simple">
                         <Thead>
                           <Tr>
-                            <Th>Date</Th>
-                            <Th>Ancien solde</Th>
-                            <Th>Nouveau solde</Th>
-                            <Th>Différence</Th>
-                            <Th>Raison</Th>
+                            <Th>Type</Th>
+                            <Th>Description</Th>
+                            <Th>Catégorie</Th>
+                            <Th>Événement</Th>
+                            <Th isNumeric>Montant</Th>
+                            <Th>Actions</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {balanceHistory.slice(0, 10).map((entry, index) => (
-                            <Tr key={index}>
-                              <Td>{formatDate(entry.date)}</Td>
-                              <Td>{formatCurrency(entry.oldBalance)}</Td>
-                              <Td>{formatCurrency(entry.newBalance)}</Td>
+                          {simLines.map((l) => (
+                            <Tr key={l.id}>
                               <Td>
-                                <Text color={entry.newBalance - entry.oldBalance >= 0 ? "green.600" : "red.600"}>
-                                  {entry.newBalance - entry.oldBalance >= 0 ? "+" : ""}
-                                  {formatCurrency(entry.newBalance - entry.oldBalance)}
-                                </Text>
+                                <Select
+                                  value={l.type}
+                                  onChange={(e) => updateSimLine(l.id, { type: e.target.value })}
+                                  size="sm"
+                                >
+                                  <option value="recette">Recette</option>
+                                  <option value="depense">Dépense</option>
+                                </Select>
                               </Td>
-                              <Td fontSize="sm">{entry.reason}</Td>
+                              <Td>
+                                <Input
+                                  value={l.description}
+                                  onChange={(e) => updateSimLine(l.id, { description: e.target.value })}
+                                  size="sm"
+                                  placeholder="Description"
+                                />
+                              </Td>
+                              <Td>
+                                <Select
+                                  value={l.category}
+                                  onChange={(e) => updateSimLine(l.id, { category: e.target.value })}
+                                  size="sm"
+                                  placeholder="Catégorie (optionnel)"
+                                  maxW="220px"
+                                >
+                                  {categories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                  ))}
+                                </Select>
+                              </Td>
+                              <Td>
+                                <Select
+                                  size="sm"
+                                  value={l.eventId}
+                                  onChange={(e) => updateSimLine(l.id, { eventId: e.target.value })}
+                                  placeholder="Aucun"
+                                  maxW="240px"
+                                >
+                                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                                </Select>
+                              </Td>
+                              <Td isNumeric>
+                                <MoneyInput
+                                  value={l.amount}
+                                  onChange={(v) => updateSimLine(l.id, { amount: v })}
+                                  placeholder="0,00 €"
+                                  size="sm"
+                                />
+                              </Td>
+                              <Td>
+                                <IconButton
+                                  aria-label="Supprimer"
+                                  icon={<FiTrash2 />}
+                                  size="sm"
+                                  variant="ghost"
+                                  color="red.500"
+                                  onClick={() => removeSimLine(l.id)}
+                                />
+                              </Td>
                             </Tr>
                           ))}
                         </Tbody>
                       </Table>
-                    )}
-                  </CardBody>
-                </Card>
 
-                {/* Paramètres de simulation */}
-                <Card>
+                      <Grid templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} gap={4}>
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Recettes simulées</Text>
+                              <Text fontSize="lg" fontWeight="bold" color="green.600">
+                                {simRevenue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Dépenses simulées</Text>
+                              <Text fontSize="lg" fontWeight="bold" color="red.600">
+                                {simExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Impact net</Text>
+                              <Text fontSize="lg" fontWeight="bold" color={simImpact >= 0 ? 'green.600' : 'red.600'}>
+                                {simImpact.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                        <Card>
+                          <CardBody>
+                            <VStack spacing={1} align="start">
+                              <Text fontSize="xs" color="gray.500">Solde projeté</Text>
+                              <Text fontSize="lg" fontWeight="bold">
+                                {projectedBalance.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </Text>
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                      </Grid>
+                    </VStack>
+                  )}
+                </CardBody>
+              </Card>
+            </TabPanel>
+
+            {/* Onglet Configuration */}
+            <TabPanel px={0}>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+                <Card bg={cardBg}>
                   <CardHeader>
-                    <Heading size="sm">Paramètres de Simulation</Heading>
+                    <Heading size="md">Solde bancaire</Heading>
                   </CardHeader>
                   <CardBody>
-                    <FormControl>
-                      <FormLabel>Nombre de mois à projeter</FormLabel>
-                      <NumberInput
-                        value={simulationData.projectionMonths}
-                        onChange={(value) => setSimulationData(prev => ({ ...prev, projectionMonths: parseInt(value) || 12 }))
-                        }
-                        min={1}
-                        max={60}
-                      >
-                        <NumberInputField />
-                        <NumberInputStepper>
-                          <NumberIncrementStepper />
-                          <NumberDecrementStepper />
-                        </NumberInputStepper>
-                      </NumberInput>
-                      <Text fontSize="xs" color="gray.500" mt={1}>
-                        Entre 1 et 60 mois (actuellement: {simulationData.projectionMonths} mois)
+                    <VStack spacing={4}>
+                      <Text fontSize="2xl" fontWeight="bold" color="blue.500">
+                        {bankBalance.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                       </Text>
-                    </FormControl>
-                  </CardBody>
-                </Card>
-
-                {/* Sécurité */}
-                <Card>
-                  <CardHeader>
-                    <Heading size="sm">Sécurité</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack align="stretch" spacing={3}>
-                      <HStack>
-                        <Icon as={isBalanceLocked ? FiLock : FiUnlock} color={isBalanceLocked ? "red.500" : "green.500"} />
-                        <Text fontSize="sm">
-                          Solde {isBalanceLocked ? "verrouillé" : "déverrouillé"} - 
-                          {isBalanceLocked ? " Code requis pour modification" : " Modification libre"}
-                        </Text>
-                      </HStack>
-                      <Alert status="warning" size="sm">
-                        <AlertIcon />
-                        <Text fontSize="xs">
-                          Le code de sécurité à 4 chiffres est requis pour toute modification directe du solde.
-                          Contactez l'administrateur système si vous avez oublié le code.
-                        </Text>
-                      </Alert>
+                      <Button size="sm" onClick={onBankBalanceOpen} leftIcon={<FiEdit3 />}>
+                        Modifier le solde
+                      </Button>
                     </VStack>
                   </CardBody>
                 </Card>
-              </VStack>
+
+                <Card bg={cardBg}>
+                  <CardHeader>
+                    <Heading size="md">Prochaines dépenses</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack spacing={3}>
+                      {scheduledOperations.slice(0, 3).map(operation => (
+                        <HStack key={operation.id} justify="space-between" w="full">
+                          <VStack align="start" spacing={0}>
+                            <Text fontSize="sm" fontWeight="bold">{operation.description}</Text>
+                            <Text fontSize="xs" color="gray.500">
+                              {operation.dueDate ? new Date(operation.dueDate).toLocaleDateString('fr-FR') : 'Pas de date'}
+                            </Text>
+                          </VStack>
+                          <Text fontWeight="bold" color="red.500">
+                            {operation.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                          </Text>
+                        </HStack>
+                      ))}
+                      <Button size="sm" onClick={onScheduledOperationOpen} leftIcon={<FiPlus />}>
+                        Ajouter une dépense
+                      </Button>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              </SimpleGrid>
             </TabPanel>
           </TabPanels>
         </Tabs>
+      </VStack>
 
-        {/* Modal Configuration */}
-        <Modal isOpen={isConfigOpen} onClose={onConfigClose} size="lg">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Configuration Rapide</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4}>
-                <Alert status="info">
-                  <AlertIcon />
-                  <Text fontSize="sm">
-                    Configuration sécurisée du solde de base. Un code à 4 chiffres est requis.
-                  </Text>
-                </Alert>
-                
-                <FormControl isRequired>
-                  <FormLabel>Code de sécurité (4 chiffres)</FormLabel>
-                  <HStack>
-                    <PinInput value={configCode} onChange={setConfigCode} type="number">
-                      <PinInputField />
-                      <PinInputField />
-                      <PinInputField />
-                      <PinInputField />
-                    </PinInput>
-                  </HStack>
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel>Nouveau solde (€)</FormLabel>
-                  <NumberInput
-                    value={newBalance}
-                    onChange={setNewBalance}
-                    precision={2}
-                    step={0.01}
+      {/* Modal pour nouvelle transaction */}
+      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <HStack spacing={4}>
+              <Icon as={FiDollarSign} boxSize={8} color="blue.500" />
+              <Text fontSize="lg" fontWeight="semibold">
+                Nouvelle transaction
+              </Text>
+            </HStack>
+          </ModalHeader>
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <FormControl isRequired>
+                <FormLabel>Type de transaction</FormLabel>
+                <HStack spacing={4}>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingUp />}
+                    colorScheme={formData.type === 'recette' ? 'green' : 'gray'}
+                    onClick={() => setFormData(prev => ({ ...prev, type: 'recette' }))}
                   >
-                    <NumberInputField placeholder="Entrez le nouveau solde" />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
-
-                {newBalance && !isNaN(parseFloat(newBalance)) && (
-                  <Alert status={parseFloat(newBalance) >= balance ? "success" : "warning"}>
-                    <AlertIcon />
-                    <VStack align="start" spacing={1}>
-                      <Text fontSize="sm" fontWeight="bold">
-                        Aperçu de la modification
-                      </Text>
-                      <Text fontSize="sm">
-                        Solde actuel: {formatCurrency(balance)}
-                      </Text>
-                      <Text fontSize="sm">
-                        Nouveau solde: {formatCurrency(parseFloat(newBalance))}
-                      </Text>
-                      <Text fontSize="sm" color={parseFloat(newBalance) - balance >= 0 ? "green.600" : "red.600"}>
-                        Différence: {parseFloat(newBalance) - balance >= 0 ? "+" : ""}
-                        {formatCurrency(parseFloat(newBalance) - balance)}
-                      </Text>
-                    </VStack>
-                  </Alert>
-                )}
-              </VStack>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onConfigClose}>
-                Annuler
-              </Button>
-              <Button
-                colorScheme="orange"
-                onClick={handleBalanceConfig}
-                isLoading={loading}
-                leftIcon={<FiSave />}
-              >
-                Configurer le solde
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-
-        {/* Modal Nouvelle Transaction */}
-        <Modal isOpen={isTransactionOpen} onClose={onTransactionClose}>
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Nouvelle Transaction</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Type</FormLabel>
-                  <Select
-                    value={newTransaction.type}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, type: e.target.value }))}
+                    Recette
+                  </Button>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingDown />}
+                    colorScheme={formData.type === 'depense' ? 'red' : 'gray'}
+                    onClick={() => setFormData(prev => ({ ...prev, type: 'depense' }))}
                   >
-                    <option value="CREDIT">Crédit</option>
-                    <option value="DEBIT">Débit</option>
-                  </Select>
-                </FormControl>
+                    Dépense
+                  </Button>
+                </HStack>
+              </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel>Montant (€)</FormLabel>
-                  <NumberInput
-                    value={newTransaction.amount}
-                    onChange={(value) => setNewTransaction(prev => ({ ...prev, amount: value }))}
-                    precision={2}
-                    step={0.01}
-                  >
-                    <NumberInputField placeholder="0.00" />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
+              <FormControl isRequired>
+                <FormLabel>Montant</FormLabel>
+                <MoneyInput
+                  placeholder="0,00 €"
+                  value={formData.amount}
+                  onChange={(value) => setFormData(prev => ({ ...prev, amount: value }))}
+                  size="lg"
+                />
+              </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel>Description</FormLabel>
-                  <Input
-                    value={newTransaction.description}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Description de la transaction"
-                  />
-                </FormControl>
+              <FormControl>
+                <FormLabel>Description</FormLabel>
+                <Textarea
+                  placeholder="Description de la transaction"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
 
-                <FormControl>
-                  <FormLabel>Catégorie</FormLabel>
-                  <Select
-                    value={newTransaction.category}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, category: e.target.value }))}
-                  >
-                    <option value="ADHESION">Adhésion</option>
-                    <option value="MAINTENANCE">Maintenance</option>
-                    <option value="CARBURANT">Carburant</option>
-                    <option value="ASSURANCE">Assurance</option>
-                    <option value="AUTRE">Autre</option>
-                  </Select>
-                </FormControl>
+              <FormControl>
+                <FormLabel>Catégorie</FormLabel>
+                <Select
+                  placeholder="Sélectionner une catégorie"
+                  value={formData.category}
+                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                  size="lg"
+                >
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </Select>
+              </FormControl>
 
-                <FormControl>
-                  <FormLabel>Date</FormLabel>
-                  <Input
-                    type="date"
-                    value={newTransaction.date}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, date: e.target.value }))}
-                  />
-                </FormControl>
-              </VStack>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onTransactionClose}>
-                Annuler
-              </Button>
+              <FormControl>
+                <FormLabel>Date</FormLabel>
+                <Input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Événement associé</FormLabel>
+                <Select
+                  placeholder="Sélectionner un événement"
+                  value={formData.eventId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, eventId: e.target.value }))}
+                  size="lg"
+                >
+                  {events.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                  ))}
+                </Select>
+              </FormControl>
+
               <Button
                 colorScheme="blue"
-                onClick={handleAddTransaction}
+                size="lg"
+                onClick={handleSubmit}
                 isLoading={loading}
+                loadingText="Enregistrement..."
               >
-                Ajouter
+                Enregistrer la transaction
               </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+            </VStack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
-        {/* Modal Nouvelle Opération Programmée */}
-        <Modal isOpen={isScheduledOpen} onClose={onScheduledClose}>
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Nouvelle Opération Programmée</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Type</FormLabel>
-                  <Select
-                    value={newScheduled.type}
-                    onChange={(e) => setNewScheduled(prev => ({ ...prev, type: e.target.value }))}
-                  >
-                    <option value="SCHEDULED_PAYMENT">Paiement programmé</option>
-                    <option value="SCHEDULED_CREDIT">Crédit programmé</option>
-                  </Select>
-                </FormControl>
+      {/* Modal pour configuration du solde bancaire */}
+      <Modal isOpen={isBankBalanceOpen} onClose={onBankBalanceClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <HStack spacing={4}>
+              <Icon as={FiCreditCard} boxSize={8} color="blue.500" />
+              <Text fontSize="lg" fontWeight="semibold">
+                Solde bancaire
+              </Text>
+            </HStack>
+          </ModalHeader>
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Text fontSize="2xl" fontWeight="bold" color="blue.500" textAlign="center">
+                {bankBalance.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+              </Text>
 
-                <FormControl isRequired>
-                  <FormLabel>Montant (€)</FormLabel>
-                  <NumberInput
-                    value={newScheduled.amount}
-                    onChange={(value) => setNewScheduled(prev => ({ ...prev, amount: value }))}
-                    precision={2}
-                    step={0.01}
-                  >
-                    <NumberInputField placeholder="0.00" />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
+              <FormControl>
+                <FormLabel>Nouveau solde</FormLabel>
+                <MoneyInput
+                  placeholder="0,00 €"
+                  value={bankBalanceData.balance}
+                  onChange={(value) => setBankBalanceData({ balance: value })}
+                  size="lg"
+                />
+              </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel>Description</FormLabel>
-                  <Input
-                    value={newScheduled.description}
-                    onChange={(e) => setNewScheduled(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Description de l'opération"
-                  />
-                </FormControl>
+              <FormControl isRequired>
+                <FormLabel>Justification</FormLabel>
+                <Textarea
+                  placeholder="Justifiez la modification du solde"
+                  value={bankBalanceData.justification}
+                  onChange={(e) => setBankBalanceData(prev => ({ ...prev, justification: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
 
-                <FormControl>
-                  <FormLabel>Fréquence</FormLabel>
-                  <Select
-                    value={newScheduled.frequency}
-                    onChange={(e) => setNewScheduled(prev => ({ ...prev, frequency: e.target.value }))}
-                  >
-                    <option value="MONTHLY">Mensuel</option>
-                    <option value="WEEKLY">Hebdomadaire</option>
-                    <option value="QUARTERLY">Trimestriel</option>
-                    <option value="YEARLY">Annuel</option>
-                  </Select>
-                </FormControl>
+              <FormControl isRequired>
+                <FormLabel>Mot de passe administrateur</FormLabel>
+                <Input
+                  type="password"
+                  value={bankBalanceData.password}
+                  onChange={(e) => setBankBalanceData(prev => ({ ...prev, password: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
 
-                <FormControl>
-                  <FormLabel>Prochaine exécution</FormLabel>
-                  <Input
-                    type="date"
-                    value={newScheduled.nextDate}
-                    onChange={(e) => setNewScheduled(prev => ({ ...prev, nextDate: e.target.value }))}
-                  />
-                </FormControl>
-              </VStack>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onScheduledClose}>
-                Annuler
-              </Button>
               <Button
-                colorScheme="purple"
-                onClick={handleAddScheduledOperation}
+                colorScheme="blue"
+                size="lg"
+                onClick={handleBankBalanceSubmit}
                 isLoading={loading}
+                loadingText="Mise à jour..."
               >
-                Programmer
+                Mettre à jour le solde
               </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+            </VStack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
-        {/* Modal Nouveau Scénario de Simulation */}
-        <Modal isOpen={isSimulationOpen} onClose={onSimulationClose} size="lg">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Nouveau Scénario de Simulation</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4}>
-                <Alert status="info">
-                  <AlertIcon />
-                  <VStack align="start" spacing={1}>
-                    <Text fontSize="sm" fontWeight="bold">Étape 1: Contexte du scénario</Text>
-                    <Text fontSize="xs">
-                      Définissez le nom et la description. Vous pourrez ajouter les recettes 
-                      et dépenses dans l'étape suivante.
-                    </Text>
-                  </VStack>
-                </Alert>
-
-                <FormControl isRequired>
-                  <FormLabel>Nom du scénario</FormLabel>
-                  <Input
-                    value={newScenario.name}
-                    onChange={(e) => setNewScenario(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="ex: Scénario optimiste 2024"
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel>Description</FormLabel>
-                  <Textarea
-                    value={newScenario.description}
-                    onChange={(e) => setNewScenario(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Décrivez les hypothèses et le contexte de ce scénario..."
-                    rows={4}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Période de projection (mois)</FormLabel>
-                  <NumberInput
-                    value={newScenario.projectionMonths}
-                    onChange={(value) => setNewScenario(prev => ({ ...prev, projectionMonths: parseInt(value) || 12 }))
-                    }
-                    min={1}
-                    max={60}
+      {/* Modal pour programmer une opération */}
+      <Modal isOpen={isScheduledOperationOpen} onClose={() => { setEditingOperationId(null); onScheduledOperationClose(); }} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <HStack spacing={4}>
+              <Icon as={FiClock} boxSize={8} color="blue.500" />
+              <Text fontSize="lg" fontWeight="semibold">
+                Programmer une opération
+              </Text>
+            </HStack>
+          </ModalHeader>
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <FormControl isRequired>
+                <FormLabel>Type d'opération</FormLabel>
+                <HStack spacing={4}>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingUp />}
+                    colorScheme={operationFormData.type === 'recette' ? 'green' : 'gray'}
+                    onClick={() => setOperationFormData(prev => ({ ...prev, type: 'recette' }))}
                   >
-                    <NumberInputField />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                  <Text fontSize="xs" color="gray.500" mt={1}>
-                    Entre 1 et 60 mois
-                  </Text>
+                    Recette
+                  </Button>
+                  <Button
+                    flex={1}
+                    leftIcon={<FiTrendingDown />}
+                    colorScheme={operationFormData.type === 'depense' ? 'red' : 'gray'}
+                    onClick={() => setOperationFormData(prev => ({ ...prev, type: 'depense' }))}
+                  >
+                    Dépense
+                  </Button>
+                </HStack>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Montant</FormLabel>
+                <MoneyInput
+                  placeholder="0,00 €"
+                  value={operationFormData.amount}
+                  onChange={(value) => setOperationFormData(prev => ({ ...prev, amount: value }))}
+                  size="lg"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Description</FormLabel>
+                <Textarea
+                  placeholder="Description de l'opération"
+                  value={operationFormData.description}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, description: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Catégorie</FormLabel>
+                <Select
+                  placeholder="Sélectionner une catégorie"
+                  value={operationFormData.category}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, category: e.target.value }))}
+                  size="lg"
+                >
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Date prévue</FormLabel>
+                <Input
+                  type="date"
+                  value={operationFormData.dueDate}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Récurrence</FormLabel>
+                <Select
+                  placeholder="Sélectionner une récurrence"
+                  value={operationFormData.recurring}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, recurring: e.target.value }))}
+                  size="lg"
+                >
+                  <option value="none">Unique</option>
+                  <option value="daily">Quotidienne</option>
+                  <option value="weekly">Hebdomadaire</option>
+                  <option value="monthly">Mensuelle</option>
+                  <option value="quarterly">Trimestrielle</option>
+                  <option value="yearly">Annuelle</option>
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Notes</FormLabel>
+                <Textarea
+                  placeholder="Notes supplémentaires"
+                  value={operationFormData.notes}
+                  onChange={(e) => setOperationFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  size="lg"
+                />
+              </FormControl>
+
+              <Button
+                colorScheme="blue"
+                size="lg"
+                onClick={handleScheduledOperationSubmit}
+                isLoading={loading}
+                loadingText="Enregistrement..."
+              >
+                Enregistrer l'opération programmée
+              </Button>
+            </VStack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal: Nouvelle note de frais */}
+      <Modal isOpen={isExpenseOpen} onClose={() => { setExpensePdfFile(null); onExpenseClose(); }} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>🧾 Nouvelle note de frais</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Alert status="info">
+                <AlertIcon />
+                <Text fontSize="sm">
+                  Vous pouvez créer une note prévisionnelle sans justificatif, puis ajouter le PDF plus tard.
+                </Text>
+              </Alert>
+
+              <FormControl display="flex" alignItems="center">
+                <HStack justify="space-between" w="full">
+                  <FormLabel m={0}>Note prévisionnelle</FormLabel>
+                  <Switch
+                    isChecked={expenseFormData.isForecast}
+                    onChange={(e) => setExpenseFormData(prev => ({ ...prev, isForecast: e.target.checked }))}
+                  />
+                </HStack>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  Si activé, le justificatif PDF n'est pas requis à la création.
+                </Text>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Date</FormLabel>
+                <Input
+                  type="date"
+                  value={expenseFormData.date}
+                  onChange={(e) => setExpenseFormData(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Description</FormLabel>
+                <Textarea
+                  value={expenseFormData.description}
+                  onChange={(e) => setExpenseFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Ex: Repas mission, péage, parking…"
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Montant</FormLabel>
+                <MoneyInput
+                  value={expenseFormData.amount}
+                  onChange={(v) => setExpenseFormData(prev => ({ ...prev, amount: v }))}
+                  placeholder="0,00 €"
+                />
+              </FormControl>
+
+              {!expenseFormData.isForecast && (
+                <FormControl isRequired>
+                  <FormLabel>Justificatif (PDF)</FormLabel>
+                  <Input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setExpensePdfFile((e.target.files && e.target.files[0]) || null)}
+                  />
                 </FormControl>
-              </VStack>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onSimulationClose}>
-                Annuler
-              </Button>
-              <Button
-                colorScheme="teal"
-                onClick={createSimulationScenario}
-                isLoading={loading}
-                leftIcon={<FiActivity />}
-              >
-                Créer le scénario
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-
-        {/* Modal Édition Scénario (recettes/dépenses) */}
-        <Modal isOpen={isEditScenarioOpen} onClose={onEditScenarioClose} size="6xl">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>
-              <HStack>
-                <Text>Édition: {editingScenario?.name}</Text>
-                <Badge colorScheme="blue" variant="outline">
-                  Étape 2: Recettes & Dépenses
-                </Badge>
-              </HStack>
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              {editingScenario && (
-                <Grid templateColumns="1fr 1fr" gap={6}>
-                  {/* Colonne Recettes */}
-                  <VStack align="stretch" spacing={4}>
-                    <Card>
-                      <CardHeader>
-                        <Heading size="sm" color="green.600">
-                          💰 Recettes ({editingScenario.incomeItems?.length || 0})
-                        </Heading>
-                      </CardHeader>
-                      <CardBody>
-                        <VStack spacing={3}>
-                          {/* Formulaire ajout recette */}
-                          <HStack width="100%">
-                            <Input
-                              placeholder="Description"
-                              size="sm"
-                              value={newIncomeItem.description}
-                              onChange={(e) => setNewIncomeItem(prev => ({ ...prev, description: e.target.value }))}
-                            />
-                            <NumberInput
-                              size="sm"
-                              width="120px"
-                              value={newIncomeItem.amount}
-                              onChange={(value) => setNewIncomeItem(prev => ({ ...prev, amount: value }))}
-                            >
-                              <NumberInputField placeholder="Montant" />
-                            </NumberInput>
-                            <Select
-                              size="sm"
-                              width="120px"
-                              value={newIncomeItem.frequency}
-                              onChange={(e) => setNewIncomeItem(prev => ({ ...prev, frequency: e.target.value }))}
-                            >
-                              <option value="MONTHLY">Mensuel</option>
-                              <option value="QUARTERLY">Trimestriel</option>
-                              <option value="YEARLY">Annuel</option>
-                            </Select>
-                            <IconButton
-                              icon={<FiPlus />}
-                              size="sm"
-                              colorScheme="green"
-                              onClick={addIncomeItem}
-                            />
-                          </HStack>
-                          
-                          {/* Liste des recettes */}
-                          <VStack width="100%" spacing={2}>
-                            {editingScenario.incomeItems?.map((item, index) => (
-                              <HStack key={item.id} width="100%" justify="space-between" p={2} bg="green.50" borderRadius="md">
-                                <VStack align="start" spacing={0} flex={1}>
-                                  <Text fontSize="sm" fontWeight="bold">{item.description}</Text>
-                                  <Text fontSize="xs" color="gray.600">
-                                    {formatCurrency(item.amount)} - {getFrequencyLabel(item.frequency)}
-                                  </Text>
-                                </VStack>
-                                <IconButton
-                                  icon={<FiTrash2 />}
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="red"
-                                  onClick={() => removeIncomeItem(item.id)}
-                                />
-                              </HStack>
-                            ))}
-                          </VStack>
-                          
-                          {/* Total recettes */}
-                          <Box width="100%" p={2} bg="green.100" borderRadius="md">
-                            <Text fontSize="sm" fontWeight="bold" color="green.700">
-                              Total mensuel: {formatCurrency(editingScenario.totalMonthlyIncome || 0)}
-                            </Text>
-                          </Box>
-                        </VStack>
-                      </CardBody>
-                    </Card>
-                  </VStack>
-
-                  {/* Colonne Dépenses */}
-                  <VStack align="stretch" spacing={4}>
-                    <Card>
-                      <CardHeader>
-                        <Heading size="sm" color="red.600">
-                          💸 Dépenses ({editingScenario.expenseItems?.length || 0})
-                        </Heading>
-                      </CardHeader>
-                      <CardBody>
-                        <VStack spacing={3}>
-                          {/* Formulaire ajout dépense */}
-                          <HStack width="100%">
-                            <Input
-                              placeholder="Description"
-                              size="sm"
-                              value={newExpenseItem.description}
-                              onChange={(e) => setNewExpenseItem(prev => ({ ...prev, description: e.target.value }))}
-                            />
-                            <NumberInput
-                              size="sm"
-                              width="120px"
-                              value={newExpenseItem.amount}
-                              onChange={(value) => setNewExpenseItem(prev => ({ ...prev, amount: value }))}
-                            >
-                              <NumberInputField placeholder="Montant" />
-                            </NumberInput>
-                            <Select
-                              size="sm"
-                              width="120px"
-                              value={newExpenseItem.frequency}
-                              onChange={(e) => setNewExpenseItem(prev => ({ ...prev, frequency: e.target.value }))}
-                            >
-                              <option value="MONTHLY">Mensuel</option>
-                              <option value="QUARTERLY">Trimestriel</option>
-                              <option value="YEARLY">Annuel</option>
-                            </Select>
-                            <IconButton
-                              icon={<FiPlus />}
-                              size="sm"
-                              colorScheme="red"
-                              onClick={addExpenseItem}
-                            />
-                          </HStack>
-                          
-                          {/* Liste des dépenses */}
-                          <VStack width="100%" spacing={2}>
-                            {editingScenario.expenseItems?.map((item, index) => (
-                              <HStack key={item.id} width="100%" justify="space-between" p={2} bg="red.50" borderRadius="md">
-                                <VStack align="start" spacing={0} flex={1}>
-                                  <Text fontSize="sm" fontWeight="bold">{item.description}</Text>
-                                  <Text fontSize="xs" color="gray.600">
-                                    {formatCurrency(item.amount)} - {getFrequencyLabel(item.frequency)}
-                                  </Text>
-                                </VStack>
-                                <IconButton
-                                  icon={<FiTrash2 />}
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="red"
-                                  onClick={() => removeExpenseItem(item.id)}
-                                />
-                              </HStack>
-                            ))}
-                          </VStack>
-                          
-                          {/* Total dépenses */}
-                          <Box width="100%" p={2} bg="red.100" borderRadius="md">
-                            <Text fontSize="sm" fontWeight="bold" color="red.700">
-                              Total mensuel: {formatCurrency(editingScenario.totalMonthlyExpenses || 0)}
-                            </Text>
-                          </Box>
-                        </VStack>
-                      </CardBody>
-                    </Card>
-                  </VStack>
-                </Grid>
               )}
-              
-              {/* Résumé du scénario */}
-              {editingScenario && (
-                <Card mt={4}>
-                  <CardBody>
-                    <SimpleGrid columns={4} spacing={4}>
-                      <Stat>
-                        <StatLabel>Recettes/mois</StatLabel>
-                        <StatNumber color="green.600">
-                          {formatCurrency(editingScenario.totalMonthlyIncome || 0)}
-                        </StatNumber>
-                      </Stat>
-                      <Stat>
-                        <StatLabel>Dépenses/mois</StatLabel>
-                        <StatNumber color="red.600">
-                          {formatCurrency(editingScenario.totalMonthlyExpenses || 0)}
-                        </StatNumber>
-                      </Stat>
-                      <Stat>
-                        <StatLabel>Résultat/mois</StatLabel>
-                        <StatNumber color={editingScenario.monthlyNet >= 0 ? "green.600" : "red.600"}>
-                          {formatCurrency(editingScenario.monthlyNet || 0)}
-                        </StatNumber>
-                      </Stat>
-                      <Stat>
-                        <StatLabel>Éléments</StatLabel>
-                        <StatNumber>
-                          {(editingScenario.incomeItems?.length || 0) + (editingScenario.expenseItems?.length || 0)}
-                        </StatNumber>
-                      </Stat>
-                    </SimpleGrid>
-                  </CardBody>
-                </Card>
-              )}
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onEditScenarioClose}>
-                Fermer
-              </Button>
-              <Button
-                colorScheme="teal"
-                onClick={() => runSimulation(editingScenario?.id)}
-                isLoading={loading}
-                leftIcon={<FiActivity />}
-                isDisabled={!editingScenario || editingScenario.itemsCount === 0}
-              >
-                Exécuter la simulation
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-
-        {/* Modal Résultats de Simulation */}
-        <Modal isOpen={isSimulationResultsOpen} onClose={onSimulationResultsClose} size="6xl">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>
-              <HStack>
-                <Text>Résultats: {simulationResults?.scenarioName}</Text>
-                <Badge colorScheme={simulationResults?.summary?.isPositive ? "green" : "red"}>
-                  {simulationResults?.summary?.isPositive ? "Positif" : "Déficitaire"}
-                </Badge>
-              </HStack>
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              {simulationResults && (
-                <VStack spacing={6}>
-                  {/* Résumé général */}
-                  <SimpleGrid columns={4} spacing={4} width="100%">
-                    <Card>
-                      <CardBody>
-                        <Stat>
-                          <StatLabel>Solde initial</StatLabel>
-                          <StatNumber>{formatCurrency(simulationResults.startingBalance)}</StatNumber>
-                        </Stat>
-                      </CardBody>
-                    </Card>
-                    <Card>
-                      <CardBody>
-                        <Stat>
-                          <StatLabel>Solde final</StatLabel>
-                          <StatNumber color={simulationResults.finalBalance >= 0 ? "green.600" : "red.600"}>
-                            {formatCurrency(simulationResults.finalBalance)}
-                          </StatNumber>
-                        </Stat>
-                      </CardBody>
-                    </Card>
-                    <Card>
-                      <CardBody>
-                        <Stat>
-                          <StatLabel>Évolution totale</StatLabel>
-                          <StatNumber color={simulationResults.totalChange >= 0 ? "green.600" : "red.600"}>
-                            <StatArrow type={simulationResults.totalChange >= 0 ? "increase" : "decrease"} />
-                            {formatCurrency(Math.abs(simulationResults.totalChange))}
-                          </StatNumber>
-                        </Stat>
-                      </CardBody>
-                    </Card>
-                    <Card>
-                      <CardBody>
-                        <Stat>
-                          <StatLabel>Résultat/mois</StatLabel>
-                          <StatNumber color={simulationResults.monthlyNet >= 0 ? "green.600" : "red.600"}>
-                            {formatCurrency(simulationResults.monthlyNet)}
-                          </StatNumber>
-                        </Stat>
-                      </CardBody>
-                    </Card>
-                  </SimpleGrid>
-
-                  {/* Projection mensuelle */}
-                  <Card width="100%">
-                    <CardHeader>
-                      <Heading size="sm">Évolution mensuelle</Heading>
-                    </CardHeader>
-                    <CardBody>
-                      <Box overflowX="auto">
-                        <Table variant="simple" size="sm">
-                          <Thead>
-                            <Tr>
-                              <Th>Mois</Th>
-                              <Th>Solde début</Th>
-                              <Th isNumeric>Recettes</Th>
-                              <Th isNumeric>Dépenses</Th>
-                              <Th isNumeric>Résultat</Th>
-                              <Th isNumeric>Solde fin</Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {simulationResults.projection.slice(0, 12).map((month) => (
-                              <Tr key={month.month}>
-                                <Td>Mois {month.month}</Td>
-                                <Td>{formatCurrency(month.startBalance)}</Td>
-                                <Td isNumeric color="green.600">+{formatCurrency(month.income)}</Td>
-                                <Td isNumeric color="red.600">-{formatCurrency(month.expenses)}</Td>
-                                <Td isNumeric color={month.net >= 0 ? "green.600" : "red.600"}>
-                                  {month.net >= 0 ? "+" : ""}{formatCurrency(month.net)}
-                                </Td>
-                                <Td isNumeric fontWeight="bold" color={month.endBalance >= 0 ? "green.600" : "red.600"}>
-                                  {formatCurrency(month.endBalance)}
-                                </Td>
-                              </Tr>
-                            ))}
-                          </Tbody>
-                        </Table>
-                      </Box>
-                      {simulationResults.projection.length > 12 && (
-                        <Text fontSize="sm" color="gray.500" mt={2} textAlign="center">
-                          ... et {simulationResults.projection.length - 12} mois supplémentaires
-                        </Text>
-                      )}
-                    </CardBody>
-                  </Card>
-
-                  {/* Alertes */}
-                  {simulationResults.summary.breakEvenMonth && (
-                    <Alert status="warning" width="100%">
-                      <AlertIcon />
-                      <Text>
-                        Attention: Le solde devient négatif au mois {simulationResults.summary.breakEvenMonth}
-                      </Text>
-                    </Alert>
-                  )}
-                </VStack>
-              )}
-            </ModalBody>
-            <ModalFooter>
-              <Button onClick={onSimulationResultsClose}>
-                Fermer
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      </VStack>
-    </Box>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onExpenseClose}>Annuler</Button>
+            <Button colorScheme="blue" leftIcon={<FiUpload />} onClick={handleExpenseSubmit} isDisabled={!canManageExpenses}>
+              Enregistrer la note
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </PageLayout>
   );
-};
-
-export default AdminFinance;
+}

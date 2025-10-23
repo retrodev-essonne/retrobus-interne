@@ -1,6 +1,5 @@
 import { apiClient } from './config.js';
 import { API_BASE_URL } from './config.js'; // ADD THIS IMPORT
-import { fetchJson } from '../apiClient.js';
 
 const MOCK = import.meta.env.VITE_FINANCE_MOCK === 'true';
 
@@ -604,10 +603,4 @@ export const financeAPI = {
       throw error;
     }
   },
-
-  // NEW API ENDPOINTS USING fetchJson
-  getBalance:        () => fetchJson('/api/finance/balance'),
-  getHistory:        () => fetchJson('/api/finance/balance/history'),
-  getScheduled:      () => fetchJson('/api/finance/scheduled-operations'),
-  getTransactions:   () => fetchJson('/api/finance/transactions'),
 };

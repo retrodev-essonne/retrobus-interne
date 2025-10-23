@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
 import Header from "./components/Header";
@@ -32,11 +32,10 @@ import SupportSite from "./pages/SupportSite";
 export default function App() {
   const { isAuthenticated } = useUser();
   const location = useLocation();
-
-  useEffect(() => {
-    if (import.meta.env.DEV) console.debug('🛣️ Current route:', location.pathname);
-  }, [location.pathname]);
-
+  
+  // Debug: afficher la route actuelle
+  console.log('🛣️ Current route:', location.pathname);
+  
   const showHeader = isAuthenticated && location.pathname !== '/login';
 
   return (

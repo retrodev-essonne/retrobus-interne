@@ -2,7 +2,7 @@
 import { Box, Button, Input, VStack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useUser } from '../context/UserContext';
-import { AuthAPI } from '../api/auth';
+import { login, memberLogin } from '../api/auth';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -12,22 +12,26 @@ export default function Login() {
   const navigate = useNavigate();
   const { setToken, setUser } = useUser();
 
-  const submit = async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const email = form.get('email');
-    const password = form.get('password');
-
+  const submit = async () => {
+    if (!username.trim() || !password.trim()) {
+      setErr('Champs requis.');
+      return;
+    }
+    setLoading(true);
+    setErr('');
     try {
-      const res = await AuthAPI.login({ email, password });
-      const tok = res?.token || res?.accessToken || res?.jwt;
-      if (!tok) throw new Error('Token manquant');
-      setToken(tok);
-      setUser(res.user);
-      navigate('/dashboard', { replace: true });
-    } catch (err) {
-      console.error('Login error:', err);
-      // TODO: afficher un message d’erreur
+      const id = username.trim();
+      const looksLikeMatricule = /^\d{4}-\d{3}$/i.test(id) || id.includes('@');
+      const data = looksLikeMatricule
+        ? await memberLogin(id, password)
+        : await login(id.toLowerCase(), password);
+      setToken(data.token);
+      setUser(data.user);
+      navigate('/dashboard');
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
