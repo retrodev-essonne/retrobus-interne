@@ -21,6 +21,7 @@ import {
   FiUnlock, FiRefreshCw, FiSettings, FiActivity, FiMail
 } from 'react-icons/fi';
 import { apiClient } from '../api/config';
+import { API_BASE_URL } from '../api/config';
 
 // Garde-fou: s'assurer que la réponse est bien du JSON
 const ensureJsonResponse = (response) => {
@@ -32,7 +33,7 @@ const ensureJsonResponse = (response) => {
 
 // Petits utilitaires pour essayer plusieurs chemins candidats (ex: '/site-users' puis '/api/site-users')
 const ENDPOINTS = {
-  siteUsers: ['site-users', 'api/site-users', 'users', 'api/v1/site-users', 'v1/site-users'],
+  siteUsers: ['api/site-users', 'site-users', 'users', 'api/v1/site-users', 'v1/site-users'],
   members: ['members', 'api/members', 'api/v1/members', 'v1/members'],
   siteUsersStats: ['site-users/stats', 'api/site-users/stats', 'api/v1/site-users/stats'],
   changelog: ['changelog', 'api/changelog', 'api/v1/changelog', 'v1/changelog']
@@ -58,8 +59,11 @@ const getMembersPath = () => clean(localStorage.getItem('rbe_api_members_path') 
 const getChangelogPath = () => clean(localStorage.getItem('rbe_api_changelog_path') || import.meta.env?.VITE_API_CHANGELOG_PATH);
 
 // Origins (priorité: spécifique ressource > globale > même origine)
-const getGlobalOrigin = () =>
-  (localStorage.getItem('rbe_api_origin') || import.meta.env?.VITE_API_ORIGIN || '').trim();
+const getGlobalOrigin = () => {
+  const baseEnv = (import.meta.env?.VITE_API_ORIGIN || '').trim();
+  const baseFromConfig = (/^https?:\/\//i.test(API_BASE_URL || '') ? API_BASE_URL : '').trim();
+  return (localStorage.getItem('rbe_api_origin') || baseEnv || baseFromConfig || '').replace(/\/+$/,'');
+};
 const getUsersOrigin = () =>
   (localStorage.getItem('rbe_api_site_users_origin') || import.meta.env?.VITE_API_SITE_USERS_ORIGIN || getGlobalOrigin() || '').trim();
 const getMembersOrigin = () =>
@@ -77,12 +81,13 @@ const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrid
     const parts = [clean(p)];
     if (suffix) parts.push(suffix);
     const rel = parts.filter(Boolean).join('/');
-    if (rel) list.add(rel);
-    // absolute with explicit origin (only if valid)
+    // absolute with explicit origin (first)
     if (overrideOrigin && isHttpOrigin(overrideOrigin)) {
       list.add(`${overrideOrigin.replace(/\/+$/,'')}/${rel}`);
     }
-    // absolute with same-origin
+    // relative (second)
+    if (rel) list.add(rel);
+    // absolute with same-origin (last)
     if (typeof window !== 'undefined' && window.location?.origin) {
       list.add(`${window.location.origin}/${rel}`);
     }
