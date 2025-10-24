@@ -33,10 +33,21 @@ const ensureJsonResponse = (response) => {
 
 // Petits utilitaires pour essayer plusieurs chemins candidats (ex: '/site-users' puis '/api/site-users')
 const ENDPOINTS = {
-  siteUsers: ['api/site-users', 'site-users', 'users', 'api/v1/site-users', 'v1/site-users'],
-  members: ['members', 'api/members', 'api/v1/members', 'v1/members'],
-  siteUsersStats: ['site-users/stats', 'api/site-users/stats', 'api/v1/site-users/stats'],
-  changelog: ['changelog', 'api/changelog', 'api/v1/changelog', 'v1/changelog']
+  // Priorité sur /api/* puis fallback sur variantes historiques
+  siteUsers: ['api/site-users', 'api/users', 'site-users', 'users'],
+  members: ['api/members', 'members', 'api/v1/members', 'v1/members'],
+  siteUsersStats: ['api/site-users/stats', 'api/users/stats', 'site-users/stats', 'users/stats'],
+  // Ajout de variantes fréquentes côté back
+  changelog: [
+    'api/changelog',
+    'api/site/changelog',
+    'api/website/changelog',
+    'changelog',
+    'site/changelog',
+    'website/changelog',
+    'api/changelogs',
+    'changelogs'
+  ]
 };
 const toUrls = (candidates) =>
   candidates
@@ -48,7 +59,7 @@ const toUrls = (candidates) =>
 const shouldFallback = (err) => {
   const status = err?.response?.status;
   const isHtml = (err?.response?.headers?.['content-type'] || '').toLowerCase().includes('text/html');
-  return status === 404 || isHtml || err?.message?.includes('page HTML');
+  return status === 404 || status === 405 || isHtml || err?.message?.includes('page HTML');
 };
 
 // === nouveau: résolveur de chemins basé sur .env et sur overrides runtime ===
@@ -76,26 +87,42 @@ const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrid
   const API_PREFIX = getApiPrefix();
   const list = new Set();
   const isHttpOrigin = (o) => /^https?:\/\//i.test(o || '');
+  const sameOrigin = (typeof window !== 'undefined' && window.location?.origin)
+    ? window.location.origin.replace(/\/+$/,'')
+    : '';
+  // Évite d'appeler le serveur Vite (localhost:5173) qui ne sert pas l’API → 404 HTML
+  const skipSameOrigin = !!sameOrigin && /localhost:5173$/i.test(sameOrigin);
 
-  const pushPath = (p) => {
-    const parts = [clean(p)];
+  const pushEntries = (relPath) => {
+    const parts = [clean(relPath)];
     if (suffix) parts.push(suffix);
     const rel = parts.filter(Boolean).join('/');
-    // absolute with explicit origin (first)
+    if (!rel) return;
+
+    // 1) absolute with explicit origin (first)
     if (overrideOrigin && isHttpOrigin(overrideOrigin)) {
       list.add(`${overrideOrigin.replace(/\/+$/,'')}/${rel}`);
     }
-    // relative (second)
-    if (rel) list.add(rel);
-    // absolute with same-origin (last)
-    if (typeof window !== 'undefined' && window.location?.origin) {
-      list.add(`${window.location.origin}/${rel}`);
+    // 2) relative (second)
+    list.add(rel);
+    // 3) absolute with same-origin (last, except in dev on Vite)
+    if (!skipSameOrigin && sameOrigin) {
+      list.add(`${sameOrigin}/${rel}`);
     }
   };
 
-  if (overridePath) pushPath(overridePath);
-  if (API_PREFIX) baseCandidates.forEach((p) => pushPath(`${API_PREFIX}/${p}`));
-  baseCandidates.forEach((p) => pushPath(p));
+  const pushPrefixedIfNeeded = (p) => {
+    if (!API_PREFIX) return;
+    const cleaned = clean(p);
+    // Évite double préfixe (/api/api/..., /v1/v1/..., /api/v1/ déjà fournis)
+    if (cleaned.startsWith(`${API_PREFIX}/`)) return;
+    pushEntries(`${API_PREFIX}/${cleaned}`);
+  };
+
+  if (overridePath) pushEntries(overridePath);
+  // Priorité: chemins bruts fournis, puis variantes préfixées
+  baseCandidates.forEach((p) => pushEntries(p));
+  baseCandidates.forEach((p) => pushPrefixedIfNeeded(p));
 
   return Array.from(list);
 };
@@ -1049,6 +1076,118 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
   );
 }
 
+// Petit panneau de configuration pour régler origin/prefix/paths & tester les endpoints
+function ApiConfigPanel({ onChanged }) {
+  const [origin, setOrigin] = useState(localStorage.getItem('rbe_api_origin') || '');
+  const [prefix, setPrefix] = useState(localStorage.getItem('rbe_api_prefix') || (import.meta.env?.VITE_API_PREFIX || ''));
+  const [usersPath, setUsersPath] = useState(localStorage.getItem('rbe_api_site_users_path') || (import.meta.env?.VITE_API_SITE_USERS_PATH || ''));
+  const [membersPath, setMembersPath] = useState(localStorage.getItem('rbe_api_members_path') || (import.meta.env?.VITE_API_MEMBERS_PATH || ''));
+  const [changelogPath, setChangelogPath] = useState(localStorage.getItem('rbe_api_changelog_path') || (import.meta.env?.VITE_API_CHANGELOG_PATH || ''));
+  const toast = useToast();
+
+  const save = () => {
+    const setOrRemove = (k, v) => (v && v.trim()) ? localStorage.setItem(k, v.trim()) : localStorage.removeItem(k);
+    setOrRemove('rbe_api_origin', origin);
+    setOrRemove('rbe_api_prefix', prefix);
+    setOrRemove('rbe_api_site_users_path', usersPath);
+    setOrRemove('rbe_api_members_path', membersPath);
+    setOrRemove('rbe_api_changelog_path', changelogPath);
+    toast({ title: 'Configuration enregistrée', status: 'success', duration: 2000 });
+    onChanged?.();
+  };
+
+  const resetAll = () => {
+    ['rbe_api_origin','rbe_api_prefix','rbe_api_site_users_path','rbe_api_members_path','rbe_api_changelog_path'].forEach(k => localStorage.removeItem(k));
+    setOrigin(''); setPrefix(''); setUsersPath(''); setMembersPath(''); setChangelogPath('');
+    toast({ title: 'Configuration réinitialisée', status: 'info', duration: 2000 });
+    onChanged?.();
+  };
+
+  const runTest = async (label, candidates) => {
+    try {
+      const res = await apiGet(candidates);
+      toast({
+        title: `${label}: OK`,
+        description: `Type: ${res.headers?.['content-type'] || 'inconnu'}`,
+        status: 'success',
+        duration: 3000
+      });
+    } catch (e) {
+      toast({
+        title: `${label}: KO`,
+        description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`,
+        status: 'error',
+        duration: 6000
+      });
+    }
+  };
+
+  return (
+    <VStack align="stretch" spacing={4}>
+      <Alert status="info">
+        <AlertIcon />
+        Ajustez l’origin/prefix/paths pour pointer vers vos routes réelles (Railway, prod, etc.). Utilisez “Tester” pour valider.
+      </Alert>
+
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+        <FormControl>
+          <FormLabel>API Origin (global)</FormLabel>
+          <Input placeholder="https://votre-api.exemple.com" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+          <Text fontSize="xs" color="gray.500">Ex: https://attractive-kindness-rbe-serveurs.up.railway.app</Text>
+        </FormControl>
+        <FormControl>
+          <FormLabel>API Prefix</FormLabel>
+          <Input placeholder="ex: api" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
+          <Text fontSize="xs" color="gray.500">Laissez vide si vos routes ne sont pas sous /api</Text>
+        </FormControl>
+      </SimpleGrid>
+
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+        <FormControl>
+          <FormLabel>Chemin Site Users</FormLabel>
+          <Input placeholder="ex: api/site-users" value={usersPath} onChange={(e) => setUsersPath(e.target.value)} />
+        </FormControl>
+        <FormControl>
+          <FormLabel>Chemin Members</FormLabel>
+          <Input placeholder="ex: api/members" value={membersPath} onChange={(e) => setMembersPath(e.target.value)} />
+        </FormControl>
+        <FormControl>
+          <FormLabel>Chemin Changelog</FormLabel>
+          <Input placeholder="ex: api/changelog" value={changelogPath} onChange={(e) => setChangelogPath(e.target.value)} />
+        </FormControl>
+      </SimpleGrid>
+
+      <HStack>
+        <Button colorScheme="blue" onClick={save}>Enregistrer</Button>
+        <Button variant="outline" onClick={resetAll}>Réinitialiser</Button>
+      </HStack>
+
+      <Divider />
+
+      <VStack align="stretch" spacing={3}>
+        <Text fontWeight="medium">Tests rapides</Text>
+        <HStack wrap="wrap" spacing={2}>
+          <Button size="sm" onClick={() => runTest('Changelog', buildCandidates(ENDPOINTS.changelog, getChangelogPath(), '', getChangelogOrigin()))}>
+            Tester Changelog
+          </Button>
+          <Button size="sm" onClick={() => runTest('Site Users', buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), '', getUsersOrigin()))}>
+            Tester Site Users
+          </Button>
+          <Button size="sm" onClick={() => runTest('Site Users Stats', buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), 'stats', getUsersOrigin()))}>
+            Tester Stats
+          </Button>
+          <Button size="sm" onClick={() => runTest('Members', buildCandidates(ENDPOINTS.members, getMembersPath(), '', getMembersOrigin()))}>
+            Tester Members
+          </Button>
+        </HStack>
+        <Text fontSize="xs" color="gray.500">
+          Astuce: si votre back expose /flashes/all, il est probable que vos autres routes soient sous /api/... également.
+        </Text>
+      </VStack>
+    </VStack>
+  );
+}
+
 // === COMPOSANT PRINCIPAL ===
 export default function SiteManagement() {
   const [changelogs, setChangelogs] = useState([]);
@@ -1378,90 +1517,16 @@ export default function SiteManagement() {
             </TabPanel>
 
             <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Text>Configuration générale du site (à développer)</Text>
-              </VStack>
+              {/* Remplace le placeholder par le panneau de configuration */}
+              <ApiConfigPanel onChanged={() => {
+                // après enregistrement, on peut relancer un chargement si nécessaire
+                // ex: fetchChangelogs(); mais on reste minimal ici
+              }}/>
             </TabPanel>
           </TabPanels>
         </Tabs>
 
-        {/* Modal placé hors des TabPanels pour éviter les ambiguïtés JSX */}
-        <Modal isOpen={isOpen} onClose={onClose} size="xl">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>
-              {selectedChangelog ? 'Modifier le changelog' : 'Nouveau changelog'}
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Titre</FormLabel>
-                  <Input
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Ex: Nouvelle version du site"
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel>Version</FormLabel>
-                  <Input
-                    value={formData.version}
-                    onChange={(e) => setFormData(prev => ({ ...prev, version: e.target.value }))}
-                    placeholder="Ex: 2.1.0"
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel>Date</FormLabel>
-                  <Input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Changements</FormLabel>
-                  <VStack spacing={2} align="stretch">
-                    {formData.changes.map((change, index) => (
-                      <HStack key={index}>
-                        <Input
-                          value={change}
-                          onChange={(e) => updateChange(index, e.target.value)}
-                          placeholder="Décrivez le changement..."
-                        />
-                        {formData.changes.length > 1 ? (
-                          <IconButton
-                            icon={<FaTrash />}
-                            size="sm"
-                            colorScheme="red"
-                            variant="ghost"
-                            onClick={() => removeChange(index)}
-                            aria-label="Supprimer"
-                          />
-                        ) : null}
-                      </HStack>
-                    ))}
-                    <Button size="sm" variant="ghost" onClick={addChange}>
-                      + Ajouter un changement
-                    </Button>
-                  </VStack>
-                </FormControl>
-              </VStack>
-            </ModalBody>
-
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onClose}>
-                Annuler
-              </Button>
-              <Button colorScheme="blue" onClick={handleSave}>
-                {selectedChangelog ? 'Mettre à jour' : 'Créer'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        {/* ...existing modal & rest... */}
       </VStack>
     </Container>
   );
