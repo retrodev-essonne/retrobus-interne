@@ -22,6 +22,197 @@ import {
 } from 'react-icons/fi';
 import { apiClient } from '../api/config';
 
+// Garde-fou: s'assurer que la réponse est bien du JSON
+const ensureJsonResponse = (response) => {
+  const ct = (response?.headers?.['content-type'] || '').toLowerCase();
+  if (!(ct.includes('application/json') || ct.includes('+json'))) {
+    throw new Error("Le serveur a renvoyé une page HTML au lieu de JSON. Vérifiez l'URL de l'API.");
+  }
+};
+
+// Petits utilitaires pour essayer plusieurs chemins candidats (ex: '/site-users' puis '/api/site-users')
+const ENDPOINTS = {
+  siteUsers: ['site-users', 'api/site-users', 'users', 'api/v1/site-users', 'v1/site-users'],
+  members: ['members', 'api/members', 'api/v1/members', 'v1/members'],
+  siteUsersStats: ['site-users/stats', 'api/site-users/stats', 'api/v1/site-users/stats'],
+  changelog: ['changelog', 'api/changelog', 'api/v1/changelog', 'v1/changelog']
+};
+const toUrls = (candidates) =>
+  candidates
+    .filter(Boolean)
+    .map((p) => {
+      const s = String(p);
+      return s.startsWith('http') ? s : `/${(s || '').replace(/^\/+|\/+$/g, '')}`;
+    });
+const shouldFallback = (err) => {
+  const status = err?.response?.status;
+  const isHtml = (err?.response?.headers?.['content-type'] || '').toLowerCase().includes('text/html');
+  return status === 404 || isHtml || err?.message?.includes('page HTML');
+};
+
+// === nouveau: résolveur de chemins basé sur .env et sur overrides runtime ===
+const clean = (s) => (s || '').replace(/^\/+|\/+$/g, '');
+const getApiPrefix = () => clean(localStorage.getItem('rbe_api_prefix') || import.meta.env?.VITE_API_PREFIX);
+const getUsersPath = () => clean(localStorage.getItem('rbe_api_site_users_path') || import.meta.env?.VITE_API_SITE_USERS_PATH);
+const getMembersPath = () => clean(localStorage.getItem('rbe_api_members_path') || import.meta.env?.VITE_API_MEMBERS_PATH);
+const getChangelogPath = () => clean(localStorage.getItem('rbe_api_changelog_path') || import.meta.env?.VITE_API_CHANGELOG_PATH);
+
+// Origins (priorité: spécifique ressource > globale > même origine)
+const getGlobalOrigin = () =>
+  (localStorage.getItem('rbe_api_origin') || import.meta.env?.VITE_API_ORIGIN || '').trim();
+const getUsersOrigin = () =>
+  (localStorage.getItem('rbe_api_site_users_origin') || import.meta.env?.VITE_API_SITE_USERS_ORIGIN || getGlobalOrigin() || '').trim();
+const getMembersOrigin = () =>
+  (localStorage.getItem('rbe_api_members_origin') || import.meta.env?.VITE_API_MEMBERS_ORIGIN || getGlobalOrigin() || '').trim();
+const getChangelogOrigin = () =>
+  (localStorage.getItem('rbe_api_changelog_origin') || import.meta.env?.VITE_API_CHANGELOG_ORIGIN || getGlobalOrigin() || '').trim();
+
+const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrideOrigin) => {
+  const suffix = clean(extraSuffix);
+  const API_PREFIX = getApiPrefix();
+  const list = new Set();
+  const isHttpOrigin = (o) => /^https?:\/\//i.test(o || '');
+
+  const pushPath = (p) => {
+    const parts = [clean(p)];
+    if (suffix) parts.push(suffix);
+    const rel = parts.filter(Boolean).join('/');
+    if (rel) list.add(rel);
+    // absolute with explicit origin (only if valid)
+    if (overrideOrigin && isHttpOrigin(overrideOrigin)) {
+      list.add(`${overrideOrigin.replace(/\/+$/,'')}/${rel}`);
+    }
+    // absolute with same-origin
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      list.add(`${window.location.origin}/${rel}`);
+    }
+  };
+
+  if (overridePath) pushPath(overridePath);
+  if (API_PREFIX) baseCandidates.forEach((p) => pushPath(`${API_PREFIX}/${p}`));
+  baseCandidates.forEach((p) => pushPath(p));
+
+  return Array.from(list);
+};
+
+// === helpers HTTP avec fallback ===
+const isAbsoluteUrl = (u) => /^https?:\/\//i.test(u || '');
+
+const fetchJson = async (method, url, data, config) => {
+  const headers = { Accept: 'application/json', ...(config?.headers || {}) };
+  const init = { method, headers };
+  if (data !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(data);
+  }
+  const resp = await fetch(url, init);
+  const resHeaders = { 'content-type': resp.headers.get('content-type') || '' };
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    const err = new Error(`HTTP ${resp.status}`);
+    err.response = { status: resp.status, headers: resHeaders, data: text };
+    throw err;
+  }
+
+  // Build a response-like object compatible with ensureJsonResponse + consumers
+  const result = { headers: resHeaders, data: undefined };
+  ensureJsonResponse(result);
+  result.data = await resp.json().catch(() => undefined);
+  return result;
+};
+
+const apiGet = async (candidates, config) => {
+  const urlsTried = [];
+  for (const url of toUrls(candidates)) {
+    try {
+      urlsTried.push(url);
+      const res = isAbsoluteUrl(url)
+        ? await fetchJson('GET', url, undefined, config)
+        : await apiClient.get(url, config);
+      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
+      return res;
+    } catch (e) {
+      if (!shouldFallback(e)) throw e;
+    }
+  }
+  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
+  error.urlsTried = urlsTried;
+  throw error;
+};
+const apiPost = async (candidates, data, config) => {
+  const urlsTried = [];
+  for (const url of toUrls(candidates)) {
+    try {
+      urlsTried.push(url);
+      const res = isAbsoluteUrl(url)
+        ? await fetchJson('POST', url, data, config)
+        : await apiClient.post(url, data, config);
+      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
+      return res;
+    } catch (e) {
+      if (!shouldFallback(e)) throw e;
+    }
+  }
+  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
+  error.urlsTried = urlsTried;
+  throw error;
+};
+const apiPut = async (candidates, data, config) => {
+  const urlsTried = [];
+  for (const url of toUrls(candidates)) {
+    try {
+      urlsTried.push(url);
+      const res = isAbsoluteUrl(url)
+        ? await fetchJson('PUT', url, data, config)
+        : await apiClient.put(url, data, config);
+      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
+      return res;
+    } catch (e) {
+      if (!shouldFallback(e)) throw e;
+    }
+  }
+  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
+  error.urlsTried = urlsTried;
+  throw error;
+};
+const apiPatch = async (candidates, data, config) => {
+  const urlsTried = [];
+  for (const url of toUrls(candidates)) {
+    try {
+      urlsTried.push(url);
+      const res = isAbsoluteUrl(url)
+        ? await fetchJson('PATCH', url, data, config)
+        : await apiClient.patch(url, data, config);
+      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
+      return res;
+    } catch (e) {
+      if (!shouldFallback(e)) throw e;
+    }
+  }
+  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
+  error.urlsTried = urlsTried;
+  throw error;
+};
+const apiDelete = async (candidates, config) => {
+  const urlsTried = [];
+  for (const url of toUrls(candidates)) {
+    try {
+      urlsTried.push(url);
+      const res = isAbsoluteUrl(url)
+        ? await fetchJson('DELETE', url, undefined, config)
+        : await apiClient.delete(url, config);
+      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
+      return res;
+    } catch (e) {
+      if (!shouldFallback(e)) throw e;
+    }
+  }
+  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
+  error.urlsTried = urlsTried;
+  throw error;
+};
+
 // === COMPOSANTS GESTION ACCÈS ===
 function AccessManagement() {
   const [users, setUsers] = useState([]);
@@ -55,21 +246,23 @@ function AccessManagement() {
     loadStats();
   }, []);
 
+  // Unifier sur apiClient + fallbacks
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/site-users`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data.users || []);
-      }
+      const response = await apiGet(
+        buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), '', getUsersOrigin())
+      );
+      const data = response.data;
+      setUsers(Array.isArray(data) ? data : (data?.users || []));
     } catch (error) {
       console.error('Erreur chargement utilisateurs:', error);
+      toast({
+        title: 'Erreur API',
+        description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
+        status: 'error',
+        duration: 5000
+      });
     } finally {
       setLoading(false);
     }
@@ -77,36 +270,45 @@ function AccessManagement() {
 
   const loadMembers = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/members?status=ACTIVE`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMembers(data.members || []);
-      }
+      const response = await apiGet(
+        buildCandidates(ENDPOINTS.members, getMembersPath(), '', getMembersOrigin()),
+        { params: { status: 'ACTIVE' } }
+      );
+      const data = response.data;
+      setMembers(Array.isArray(data) ? data : (data?.members || []));
     } catch (error) {
       console.error('Erreur chargement membres:', error);
+      toast({
+        title: 'Erreur API',
+        description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
+        status: 'error',
+        duration: 5000
+      });
     }
   };
 
   const loadStats = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/site-users/stats`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
+      const response = await apiGet(
+        buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), 'stats', getUsersOrigin())
+      );
+      setStats(response.data || {});
     } catch (error) {
       console.error('Erreur chargement stats:', error);
+      toast({
+        title: 'Erreur API',
+        description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
+        status: 'error',
+        duration: 5000
+      });
     }
+  };
+
+  // Callback central pour recharger toute la vue après une action
+  const reloadAll = () => {
+    loadUsers();
+    loadMembers();
+    loadStats();
   };
 
   // Filtrage des utilisateurs
@@ -238,7 +440,7 @@ function AccessManagement() {
               <Thead>
                 <Tr>
                   <Th>Utilisateur</Th>
-                  <Th>Identifiant</Th>
+                  <Th>Matricule</Th>
                   <Th>Rôle</Th>
                   <Th>Accès</Th>
                   <Th>Adhésion liée</Th>
@@ -274,9 +476,10 @@ function AccessManagement() {
       {/* Modals */}
       <CreateAccessModal
         isOpen={isCreateOpen}
-        onClose={onCreateClose}
+        onClose={() => { onCreateClose(); setSelectedUser(null); }}
         members={members}
-        onUserCreated={loadUsers}
+        user={selectedUser}
+        onUserSaved={reloadAll}
       />
       
       <LinkMemberModal
@@ -284,7 +487,7 @@ function AccessManagement() {
         onClose={onLinkClose}
         user={selectedUser}
         members={members}
-        onLinked={loadUsers}
+        onLinked={reloadAll}
       />
     </VStack>
   );
@@ -292,11 +495,31 @@ function AccessManagement() {
   // Handlers
   function handleEditUser(user) {
     setSelectedUser(user);
-    // Ouvrir modal d'édition
+    onCreateOpen();
   }
 
-  function handleToggleUserStatus(user) {
-    // Toggle actif/inactif
+  async function handleToggleUserStatus(user) {
+    try {
+      await apiPatch(
+        buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), `${user.id}`, getUsersOrigin()),
+        { isActive: !user.isActive }
+      );
+      toast({
+        title: 'Succès',
+        description: `Accès ${!user.isActive ? 'activé' : 'désactivé'}`,
+        status: 'success',
+        duration: 3000,
+      });
+      reloadAll();
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: 'Erreur',
+        description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`,
+        status: 'error',
+        duration: 4000,
+      });
+    }
   }
 
   function handleLinkToMember(user) {
@@ -305,7 +528,12 @@ function AccessManagement() {
   }
 
   function handleViewUserLogs(user) {
-    // Afficher logs de connexion
+    toast({
+      title: 'Info',
+      description: `Affichage des logs pour ${user.username} à venir`,
+      status: 'info',
+      duration: 3000,
+    });
   }
 }
 
@@ -403,8 +631,9 @@ function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs }) {
   );
 }
 
-// Modal de création d'accès
-function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
+// Modal de création/édition d'accès
+function CreateAccessModal({ isOpen, onClose, members, onUserSaved, user }) {
+  const isEdit = !!user;
   const [formData, setFormData] = useState({
     username: '',
     firstName: '',
@@ -420,40 +649,23 @@ function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
   const [loading, setLoading] = useState(false);
   const toast = useToast();
 
-  const handleSubmit = async () => {
-    try {
-      setLoading(true);
-      
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/site-users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(formData)
+  // Prefill on edit
+  useEffect(() => {
+    if (isEdit) {
+      setFormData({
+        username: user?.username || '',
+        firstName: user?.firstName || '',
+        lastName: user?.lastName || '',
+        email: user?.email || '',
+        role: user?.role || 'MEMBER',
+        hasInternalAccess: !!user?.hasInternalAccess,
+        hasExternalAccess: !!user?.hasExternalAccess,
+        linkedMemberId: user?.linkedMember?.id || '',
+        // en édition: ne régénère pas de mot de passe par défaut
+        generatePassword: false,
+        customPassword: ''
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Erreur de création');
-      }
-
-      const result = await response.json();
-      
-      toast({
-        title: "Accès créé",
-        description: result.temporaryPassword ? 
-          `Mot de passe temporaire: ${result.temporaryPassword}` :
-          "L'utilisateur a été créé avec succès",
-        status: "success",
-        duration: result.temporaryPassword ? 10000 : 5000,
-        isClosable: true
-      });
-
-      onUserCreated();
-      onClose();
-      
-      // Reset form
+    } else {
       setFormData({
         username: '',
         firstName: '',
@@ -466,13 +678,85 @@ function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
         generatePassword: true,
         customPassword: ''
       });
+    }
+  }, [isEdit, user, isOpen]);
 
+  const handleSubmit = async () => {
+    try {
+      setLoading(true);
+
+      // Construire le payload propre
+      const payload = {
+        username: formData.username,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        role: formData.role,
+        hasInternalAccess: formData.hasInternalAccess,
+        hasExternalAccess: formData.hasExternalAccess,
+        linkedMemberId: formData.linkedMemberId || null
+      };
+
+      if (!isEdit) {
+        // Création: gestion du mot de passe
+        payload.generatePassword = !!formData.generatePassword;
+        if (!formData.generatePassword && formData.customPassword) {
+          payload.customPassword = formData.customPassword;
+        }
+        const response = await apiPost(
+          buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), '', getUsersOrigin()),
+          payload
+        );
+        const data = response.data;
+        toast({
+          title: 'Accès créé',
+          description: data?.temporaryPassword
+            ? `Mot de passe temporaire: ${data.temporaryPassword}`
+            : "L'utilisateur a été créé avec succès",
+          status: 'success',
+          duration: data?.temporaryPassword ? 10000 : 5000,
+          isClosable: true
+        });
+      } else {
+        // Edition
+        if (formData.customPassword?.trim()) {
+          payload.password = formData.customPassword.trim();
+        }
+        await apiPut(
+          buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), `${user.id}`, getUsersOrigin()),
+          payload
+        );
+        toast({
+          title: 'Accès mis à jour',
+          description: "L'utilisateur a été mis à jour avec succès",
+          status: 'success',
+          duration: 3000
+        });
+      }
+
+      onUserSaved?.();
+      onClose();
+
+      // Reset form après action
+      setFormData({
+        username: '',
+        firstName: '',
+        lastName: '',
+        email: '',
+        role: 'MEMBER',
+        hasInternalAccess: true,
+        hasExternalAccess: false,
+        linkedMemberId: '',
+        generatePassword: true,
+        customPassword: ''
+      });
     } catch (error) {
+      console.error(error);
       toast({
-        title: "Erreur",
-        description: error.message,
-        status: "error",
-        duration: 5000
+        title: 'Erreur',
+        description: `${error?.response?.data?.message || error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
+        status: 'error',
+        duration: 6000
       });
     } finally {
       setLoading(false);
@@ -483,7 +767,7 @@ function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>🔐 Créer un accès aux sites</ModalHeader>
+        <ModalHeader>{isEdit ? '✏️ Modifier un accès aux sites' : '🔐 Créer un accès aux sites'}</ModalHeader>
         <ModalCloseButton />
         
         <ModalBody>
@@ -491,7 +775,9 @@ function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
             <Alert status="info">
               <AlertIcon />
               <Text fontSize="sm">
-                Créez un compte d'accès aux sites. Vous pourrez ensuite le lier à une adhésion existante.
+                {isEdit
+                  ? "Mettez à jour le profil d'accès. Le matricule est l'identifiant utilisé sur le site."
+                  : "Créez un compte d'accès aux sites. Le matricule est l'identifiant utilisé sur le site."}
               </Text>
             </Alert>
 
@@ -516,7 +802,7 @@ function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
             </SimpleGrid>
 
             <FormControl isRequired>
-              <FormLabel>Identifiant de connexion</FormLabel>
+              <FormLabel>Matricule (identifiant de connexion)</FormLabel>
               <Input
                 value={formData.username}
                 onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
@@ -587,31 +873,52 @@ function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
               </HStack>
             </VStack>
 
-            <Divider />
+            {!isEdit && (
+              <>
+                <Divider />
+                <VStack align="start" spacing={3} w="full">
+                  <Text fontWeight="medium">Mot de passe</Text>
+                  
+                  <HStack w="full" justify="space-between">
+                    <Text fontSize="sm">Générer automatiquement</Text>
+                    <Switch
+                      isChecked={formData.generatePassword}
+                      onChange={(e) => setFormData(prev => ({ ...prev, generatePassword: e.target.checked }))}
+                    />
+                  </HStack>
+                  
+                  {!formData.generatePassword && (
+                    <FormControl>
+                      <FormLabel>Mot de passe personnalisé</FormLabel>
+                      <Input
+                        type="password"
+                        value={formData.customPassword}
+                        onChange={(e) => setFormData(prev => ({ ...prev, customPassword: e.target.value }))}
+                        placeholder="Minimum 6 caractères"
+                      />
+                    </FormControl>
+                  )}
+                </VStack>
+              </>
+            )}
 
-            <VStack align="start" spacing={3} w="full">
-              <Text fontWeight="medium">Mot de passe</Text>
-              
-              <HStack w="full" justify="space-between">
-                <Text fontSize="sm">Générer automatiquement</Text>
-                <Switch
-                  isChecked={formData.generatePassword}
-                  onChange={(e) => setFormData(prev => ({ ...prev, generatePassword: e.target.checked }))}
-                />
-              </HStack>
-              
-              {!formData.generatePassword && (
-                <FormControl>
-                  <FormLabel>Mot de passe personnalisé</FormLabel>
-                  <Input
-                    type="password"
-                    value={formData.customPassword}
-                    onChange={(e) => setFormData(prev => ({ ...prev, customPassword: e.target.value }))}
-                    placeholder="Minimum 6 caractères"
-                  />
-                </FormControl>
-              )}
-            </VStack>
+            {isEdit && (
+              <>
+                <Divider />
+                <VStack align="start" spacing={3} w="full">
+                  <Text fontWeight="medium">Changer le mot de passe (optionnel)</Text>
+                  <FormControl>
+                    <FormLabel>Nouveau mot de passe</FormLabel>
+                    <Input
+                      type="password"
+                      value={formData.customPassword}
+                      onChange={(e) => setFormData(prev => ({ ...prev, customPassword: e.target.value }))}
+                      placeholder="Laissez vide pour ne pas changer"
+                    />
+                  </FormControl>
+                </VStack>
+              </>
+            )}
           </VStack>
         </ModalBody>
 
@@ -623,9 +930,9 @@ function CreateAccessModal({ isOpen, onClose, members, onUserCreated }) {
             colorScheme="blue" 
             onClick={handleSubmit}
             isLoading={loading}
-            loadingText="Création..."
+            loadingText={isEdit ? 'Enregistrement...' : 'Création...'}
           >
-            Créer l'accès
+            {isEdit ? 'Enregistrer' : "Créer l'accès"}
           </Button>
         </ModalFooter>
       </ModalContent>
@@ -652,20 +959,10 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
 
     try {
       setLoading(true);
-      
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/site-users/${user.id}/link-member`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ memberId: selectedMemberId })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Erreur de liaison');
-      }
+      await apiPost(
+        buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), `${user.id}/link-member`, getUsersOrigin()),
+        { memberId: selectedMemberId }
+      );
 
       toast({
         title: "Liaison créée",
@@ -674,16 +971,15 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
         duration: 3000
       });
 
-      onLinked();
+      onLinked?.();
       onClose();
       setSelectedMemberId('');
-
     } catch (error) {
       toast({
         title: "Erreur",
-        description: error.message,
+        description: `${error?.response?.data?.message || error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
         status: "error",
-        duration: 5000
+        duration: 6000
       });
     } finally {
       setLoading(false);
@@ -748,7 +1044,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
   );
 }
 
-// === COMPOSANT PRINCIPAL (existant + nouvel onglet) ===
+// === COMPOSANT PRINCIPAL ===
 export default function SiteManagement() {
   const [changelogs, setChangelogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -767,12 +1063,14 @@ export default function SiteManagement() {
   const fetchChangelogs = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/changelog');
-      
-      if (response.data && Array.isArray(response.data)) {
-        setChangelogs(response.data);
+      const response = await apiGet(
+        buildCandidates(ENDPOINTS.changelog, getChangelogPath(), '', getChangelogOrigin())
+      );
+      const data = response.data;
+      if (data && Array.isArray(data)) {
+        setChangelogs(data);
       } else {
-        console.warn('Réponse inattendue de l\'API:', response.data);
+        console.warn('Réponse inattendue de l\'API:', data);
         setChangelogs([]);
       }
     } catch (error) {
@@ -780,9 +1078,9 @@ export default function SiteManagement() {
       setChangelogs([]);
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les changelogs',
+        description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -888,7 +1186,10 @@ export default function SiteManagement() {
 
       if (selectedChangelog) {
         // Mise à jour
-        await apiClient.put(`/changelog/${selectedChangelog.id}`, payload);
+        await apiPut(
+          buildCandidates(ENDPOINTS.changelog, getChangelogPath(), `${selectedChangelog.id}`, getChangelogOrigin()),
+          payload
+        );
         toast({
           title: 'Succès',
           description: 'Changelog mis à jour avec succès',
@@ -898,7 +1199,10 @@ export default function SiteManagement() {
         });
       } else {
         // Création
-        await apiClient.post('/changelog', payload);
+        await apiPost(
+          buildCandidates(ENDPOINTS.changelog, getChangelogPath(), '', getChangelogOrigin()),
+          payload
+        );
         toast({
           title: 'Succès',
           description: 'Changelog créé avec succès',
@@ -914,22 +1218,23 @@ export default function SiteManagement() {
       console.error('Erreur lors de la sauvegarde:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de sauvegarder le changelog',
+        description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     }
   };
 
-  // Supprimer un changelog
   const handleDelete = async (id) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce changelog ?')) {
       return;
     }
 
     try {
-      await apiClient.delete(`/changelog/${id}`);
+      await apiDelete(
+        buildCandidates(ENDPOINTS.changelog, getChangelogPath(), `${id}`, getChangelogOrigin())
+      );
       toast({
         title: 'Succès',
         description: 'Changelog supprimé avec succès',
@@ -942,9 +1247,9 @@ export default function SiteManagement() {
       console.error('Erreur lors de la suppression:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de supprimer le changelog',
+        description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     }

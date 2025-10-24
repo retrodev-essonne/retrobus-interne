@@ -6,12 +6,9 @@ export const membersAPI = {
   async getAll() {
     try {
       console.log('🔍 Chargement des membres...');
-      
-      // Maintenant on utilise le bon endpoint
       const response = await apiClient.get('/api/members');
       console.log('✅ Membres chargés:', response);
       return response;
-      
     } catch (error) {
       console.error('❌ Erreur chargement membres:', error);
       throw new Error(`Impossible de charger les membres: ${error.message}`);
@@ -84,7 +81,7 @@ export const membersAPI = {
   async testConnectivity() {
     try {
       console.log('🔍 Test de connectivité API...');
-      const response = await apiClient.get('/health');
+      const response = await apiClient.get('/api/health');
       console.log('✅ API accessible:', response);
       return true;
     } catch (error) {
