@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Allow overriding API proxy target in dev with VITE_DEV_API_TARGET
+const DEV_API_TARGET = process.env.VITE_DEV_API_TARGET || 'https://api-retrobus-essonne.up.railway.app';
+const isHttps = DEV_API_TARGET.startsWith('https://');
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -9,10 +13,11 @@ export default defineConfig({
     cors: true,
     proxy: {
       '/api': {
-        target: 'https://api-retrobus-essonne.up.railway.app',
+        target: DEV_API_TARGET,
         changeOrigin: true,
-        secure: true,
+        secure: isHttps,
         configure: (proxy, _options) => {
+          console.log(`[vite] API proxy -> ${DEV_API_TARGET}`);
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);
           });

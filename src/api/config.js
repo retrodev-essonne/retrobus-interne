@@ -1,9 +1,6 @@
 ﻿// Configuration de base pour les API
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-
-if (!API_BASE_URL) {
-  throw new Error('API non configurée (VITE_API_URL manquante)');
-}
+// Si VITE_API_URL est absent, on utilise des URLs relatives (proxy Vite en dev)
+const API_BASE_URL = (import.meta?.env?.VITE_API_URL || '').replace(/\/+$/, '');
 
 // Headers par défaut
 const getDefaultHeaders = (options = {}) => ({

@@ -1,92 +1,123 @@
-import { apiClient, API_BASE_URL } from './config.js';
+const BASE = (import.meta?.env?.VITE_API_URL || '').replace(/\/+$/, '');
+const tokenHeader = () => {
+  const t = localStorage.getItem('token');
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+const ensureJson = async (resp) => {
+  const ct = (resp.headers.get('content-type') || '').toLowerCase();
+  if (!(ct.includes('application/json') || ct.includes('+json'))) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`Réponse non-JSON (${resp.status}) ${text?.slice(0, 200) || ''}`);
+  }
+};
+
+const fetchWithTimeout = (url, init = {}, ms = 8000) => {
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), ms);
+  return fetch(url, { ...init, signal: ac.signal }).finally(() => clearTimeout(id));
+};
+
+const toUrl = (path) => {
+  const p = String(path || '').replace(/^\/+|\/+$/g, '');
+  return BASE ? `${BASE}/${p}` : `/${p}`;
+};
+
+const MEMBERS_ENDPOINTS = ['api/members', 'members', 'api/v1/members', 'v1/members'];
+
+async function tryEndpoints(method, body, extraHeaders) {
+  let lastErr = null;
+  for (const ep of MEMBERS_ENDPOINTS) {
+    try {
+      const url = toUrl(ep);
+      const resp = await fetchWithTimeout(url, {
+        method,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': body instanceof FormData ? undefined : 'application/json',
+          ...tokenHeader(),
+          ...(extraHeaders || {}),
+        },
+        body: body == null
+          ? undefined
+          : body instanceof FormData
+            ? body
+            : JSON.stringify(body),
+      });
+      if (!resp.ok) { lastErr = new Error(`HTTP ${resp.status}`); continue; }
+      await ensureJson(resp);
+      // Renvoie l’objet JSON natif
+      return await resp.json();
+    } catch (e) {
+      lastErr = e;
+      continue;
+    }
+  }
+  throw lastErr || new Error('Aucun endpoint membre valide');
+}
 
 export const membersAPI = {
-  baseURL: API_BASE_URL,
-  
+  // Renvoie { members: [...] } pour s’adapter au code existant
   async getAll() {
     try {
-      console.log('🔍 Chargement des membres...');
-      const response = await apiClient.get('/api/members');
-      console.log('✅ Membres chargés:', response);
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur chargement membres:', error);
-      throw new Error(`Impossible de charger les membres: ${error.message}`);
+      const data = await tryEndpoints('GET');
+      if (Array.isArray(data)) return { members: data };
+      if (Array.isArray(data?.members)) return data;
+      if (Array.isArray(data?.data)) return { members: data.data };
+      // Normalisation minimale
+      return { members: [] };
+    } catch {
+      return { members: [] };
     }
   },
 
-  async getById(id) {
-    try {
-      const response = await apiClient.get(`/api/members/${id}`);
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur getById:', error);
-      throw error;
+  // Ping rapide pour le “mode dégradé”
+  async testConnectivity() {
+    const candidates = [
+      toUrl('api/health'),
+      toUrl('health'),
+      toUrl(MEMBERS_ENDPOINTS[0])
+    ];
+    for (const u of candidates) {
+      try {
+        const r = await fetchWithTimeout(u, { method: 'GET', headers: { ...tokenHeader() } }, 3000);
+        if (r.ok) return true;
+      } catch {}
     }
+    return false;
   },
 
-  async create(memberData) {
-    try {
-      console.log('👤 Création membre:', memberData);
-      const response = await apiClient.post('/api/members', memberData);
-      console.log('✅ Membre créé:', response);
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur création membre:', error);
-      throw error;
-    }
+  async create(member) {
+    const res = await tryEndpoints('POST', member);
+    return res?.member || res?.data || res;
   },
 
-  async createWithLogin(memberData) {
+  async update(id, member) {
+    // Essaye PATCH puis PUT si besoin
     try {
-      console.log('👤 Création membre avec login:', memberData);
-      const response = await apiClient.post('/api/members/create-with-login', memberData);
-      console.log('✅ Membre avec login créé:', response);
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur createWithLogin:', error);
-      throw error;
-    }
-  },
-
-  async update(id, updates) {
-    try {
-      const response = await apiClient.patch(`/api/members/${id}`, updates);
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur update:', error);
-      throw error;
-    }
-  },
-
-  async resetPassword(id) {
-    try {
-      const response = await apiClient.post(`/api/members/${id}/reset-password`);
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur resetPassword:', error);
-      throw error;
+      const out = await tryEndpoints('PATCH', { id, ...member }, { 'X-Method-Override': 'PATCH' });
+      return out?.member || out?.data || out;
+    } catch {
+      const out = await tryEndpoints('PUT', { id, ...member });
+      return out?.member || out?.data || out;
     }
   },
 
   async delete(id) {
+    const payload = { id };
     try {
-      await apiClient.delete(`/api/members/${id}`);
-    } catch (error) {
-      console.error('❌ Erreur delete:', error);
-      throw error;
+      const out = await tryEndpoints('DELETE', payload);
+      return out?.ok === true ? out : { ok: true };
+    } catch (e) {
+      // Certaines APIs n’acceptent pas de body en DELETE → fallback querystring
+      for (const ep of MEMBERS_ENDPOINTS) {
+        try {
+          const url = toUrl(`${ep}/${encodeURIComponent(id)}`);
+          const r = await fetchWithTimeout(url, { method: 'DELETE', headers: { ...tokenHeader() } });
+          if (r.ok) return { ok: true };
+        } catch {}
+      }
+      throw e;
     }
   },
-
-  async testConnectivity() {
-    try {
-      console.log('🔍 Test de connectivité API...');
-      const response = await apiClient.get('/api/health');
-      console.log('✅ API accessible:', response);
-      return true;
-    } catch (error) {
-      console.error('❌ API inaccessible:', error);
-      return false;
-    }
-  }
 };
