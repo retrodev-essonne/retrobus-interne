@@ -157,16 +157,13 @@ const AdminFinance = () => {
         setBalance(data.balance || 0);
         setLastBalanceUpdate(data.lastUpdate);
         setIsBalanceLocked(data.isLocked !== false);
-        setCanModifyBalance(data.canModify === true);
       } else {
         console.warn('⚠️ Solde non disponible, utilisation de 0');
         setBalance(0);
-        setCanModifyBalance(false);
       }
     } catch (error) {
       console.error('❌ Erreur chargement solde:', error);
       setBalance(0);
-      setCanModifyBalance(false);
     }
   };
 

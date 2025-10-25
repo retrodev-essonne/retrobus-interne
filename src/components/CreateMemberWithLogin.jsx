@@ -8,7 +8,8 @@ import {
 } from '@chakra-ui/react';
 import { USERS } from '../api/auth.js';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// Use relative URLs by default so Vite dev proxy can route calls; fall back to env when provided
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 const MEMBERSHIP_TYPES = {
   STANDARD: { label: 'Adhésion Standard', description: 'Adhésion classique avec accès aux activités' },
@@ -270,7 +271,7 @@ export default function CreateMemberWithLogin({ isOpen, onClose, onMemberCreated
           });
         } else {
           // Rattacher un membre existant
-          const response = await fetch(`${API_BASE_URL}/members/${suggestedMember.id}/add-login`, {
+          const response = await fetch(`${API_BASE_URL}/api/members/${suggestedMember.id}/add-login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -295,7 +296,7 @@ export default function CreateMemberWithLogin({ isOpen, onClose, onMemberCreated
         }
       } else {
         // Créer un nouveau membre
-        const response = await fetch(`${API_BASE_URL}/members/create-with-login`, {
+        const response = await fetch(`${API_BASE_URL}/api/members/create-with-login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

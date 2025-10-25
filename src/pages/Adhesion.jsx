@@ -13,7 +13,8 @@ import {
 import { useUser } from '../context/UserContext';
 import { USERS } from '../api/auth.js';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// Use relative URLs by default so Vite dev proxy can route calls; fall back to env when provided
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 const MEMBERSHIP_STATUS_CONFIG = {
   PENDING: { label: 'En attente', color: 'yellow', progress: 25 },
