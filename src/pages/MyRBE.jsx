@@ -91,7 +91,10 @@ export default function MyRBE() {
     <PageLayout
       title="Espace MyRBE"
       subtitle="Les outils d'administration RétroBus Essonne"
-      // utiliser le gradient par défaut pour harmoniser avec le dashboard
+      // style d'entête type Dashboard (carte gradient)
+      headerVariant="card"
+      // gradient proche du Dashboard
+      bgGradient="linear(to-r, blue.500, purple.600)"
       titleSize="xl"
       titleWeight="700"
       breadcrumbs={[

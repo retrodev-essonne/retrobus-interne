@@ -11,25 +11,34 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     cors: true,
-    proxy: {
-      '/api': {
+    proxy: (() => {
+      const common = {
         target: DEV_API_TARGET,
         changeOrigin: true,
         secure: isHttps,
         configure: (proxy, _options) => {
           console.log(`[vite] API proxy -> ${DEV_API_TARGET}`);
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-          });
-        },
-      }
-    }
+          proxy.on('error', (err, _req, _res) => console.log('proxy error', err));
+          proxy.on('proxyReq', (proxyReq, req, _res) => console.log('Sending Request to the Target:', req.method, req.url));
+          proxy.on('proxyRes', (proxyRes, req, _res) => console.log('Received Response from the Target:', proxyRes.statusCode, req.url));
+        }
+      };
+      // Proxy both legacy and new paths so we don't need '/api' prefixes
+      return {
+        '/api': { ...common },
+        '/events': { ...common },
+        '/vehicles': { ...common },
+        '/newsletter': { ...common },
+        '/finance': { ...common },
+        '/documents': { ...common },
+        '/members': { ...common },
+        '/site-users': { ...common },
+        '/changelog': { ...common },
+        '/flashes': { ...common },
+        '/stocks': { ...common },
+        '/public': { ...common },
+      };
+    })()
   },
   build: {
     outDir: 'dist'
