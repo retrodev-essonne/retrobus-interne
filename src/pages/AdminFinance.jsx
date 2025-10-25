@@ -457,7 +457,10 @@ const AdminFinance = () => {
         await loadBalanceHistory();
         await loadBalance();
       } else {
-        const errorData = await response.json();
+        // Safely parse error body (JSON or text/HTML)
+        const raw = await response.text().catch(() => '');
+        let errorData = {};
+        try { errorData = raw ? JSON.parse(raw) : {}; } catch { errorData = { message: raw?.slice(0, 200) || 'Erreur inconnue' }; }
         
         if (response.status === 403) {
           toast({
