@@ -111,8 +111,12 @@ const AdminFinance = () => {
   const { isOpen: isSimulationResultsOpen, onOpen: onSimulationResultsOpen, onClose: onSimulationResultsClose } = useDisclosure();
 
   // === API HELPERS ===
-  // Base API: env VITE_API_BASE_URL or dev fallback to http://localhost:3000
-  const API_BASE = (import.meta?.env?.VITE_API_BASE_URL || (window?.location?.port === '5173' ? 'http://localhost:3000' : '')).replace(/\/$/, '');
+  // Base API: prefer VITE_API_BASE_URL, then VITE_API_URL; fallback to relative (prod) or localhost:3000 in local dev
+  const API_BASE = (
+    import.meta?.env?.VITE_API_BASE_URL ||
+    import.meta?.env?.VITE_API_URL ||
+    (window?.location?.port === '5173' ? 'http://localhost:3000' : '')
+  ).replace(/\/$/, '');
   const apiUrl = (path) => `${API_BASE}${path}`;
 
   // === FONCTIONS DE CHARGEMENT ===
