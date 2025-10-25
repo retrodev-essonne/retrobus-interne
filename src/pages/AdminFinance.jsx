@@ -63,6 +63,14 @@ const AdminFinance = () => {
     frequency: 'MONTHLY',
     nextDate: new Date().toISOString().split('T')[0]
   });
+  const [selectedOperation, setSelectedOperation] = useState(null);
+  const [paymentPeriod, setPaymentPeriod] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentFile, setPaymentFile] = useState(null);
+  const [paymentsList, setPaymentsList] = useState([]);
   
   // États de configuration
   const [showBalanceConfig, setShowBalanceConfig] = useState(false);
@@ -118,6 +126,8 @@ const AdminFinance = () => {
   const { isOpen: isSimulationOpen, onOpen: onSimulationOpen, onClose: onSimulationClose } = useDisclosure();
   const { isOpen: isEditScenarioOpen, onOpen: onEditScenarioOpen, onClose: onEditScenarioClose } = useDisclosure();
   const { isOpen: isSimulationResultsOpen, onOpen: onSimulationResultsOpen, onClose: onSimulationResultsClose } = useDisclosure();
+  const { isOpen: isDeclarePaymentOpen, onOpen: onDeclarePaymentOpen, onClose: onDeclarePaymentClose } = useDisclosure();
+  const { isOpen: isPaymentsListOpen, onOpen: onPaymentsListOpen, onClose: onPaymentsListClose } = useDisclosure();
 
   // === API HELPERS ===
   // Base API: prefer same-origin relative in prod to avoid CORS; in local dev use VITE_API_* or localhost:3000
@@ -221,6 +231,26 @@ const AdminFinance = () => {
     } catch (error) {
       console.error('❌ Erreur chargement opérations programmées:', error);
       setScheduledOperations([]);
+    }
+  };
+
+  const loadPaymentsForOperation = async (operationId) => {
+    try {
+      const response = await fetch(apiUrl(`/api/finance/scheduled-operations/${operationId}/payments`), {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentsList(data.payments || []);
+      } else {
+        setPaymentsList([]);
+      }
+    } catch (e) {
+      console.error('❌ Erreur chargement paiements échéance:', e);
+      setPaymentsList([]);
     }
   };
 
@@ -790,6 +820,63 @@ const AdminFinance = () => {
         isClosable: true
       });
     }
+  };
+
+  const openDeclarePayment = (operation) => {
+    setSelectedOperation(operation);
+    setPaymentAmount(operation.amount || '');
+    const baseDate = operation.nextDate ? new Date(operation.nextDate) : new Date();
+    const period = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}`;
+    setPaymentPeriod(period);
+    setPaymentFile(null);
+    onDeclarePaymentOpen();
+  };
+
+  const submitPaymentDeclaration = async () => {
+    if (!selectedOperation) return;
+    if (!paymentPeriod || !/^\d{4}-\d{2}$/.test(paymentPeriod)) {
+      toast({ status: 'warning', title: 'Période invalide', description: 'Format attendu: YYYY-MM' });
+      return;
+    }
+    if (!paymentAmount || isNaN(parseFloat(paymentAmount))) {
+      toast({ status: 'warning', title: 'Montant invalide', description: 'Veuillez saisir un montant valide' });
+      return;
+    }
+    if (!paymentFile) {
+      toast({ status: 'warning', title: 'Pièce justificative requise', description: "Ajoutez l'attestation ou la photo" });
+      return;
+    }
+    try {
+      setLoading(true);
+      const form = new FormData();
+      form.append('period', paymentPeriod);
+      form.append('amount', String(parseFloat(paymentAmount)));
+      form.append('attachment', paymentFile);
+      const response = await fetch(apiUrl(`/api/finance/scheduled-operations/${selectedOperation.id}/payments`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: form
+      });
+      if (response.ok) {
+        toast({ status: 'success', title: 'Mensualité déclarée payée' });
+        onDeclarePaymentClose();
+        await loadScheduledOperations();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        toast({ status: 'error', title: 'Erreur', description: err.message || 'Déclaration impossible' });
+      }
+    } catch (e) {
+      console.error('❌ Erreur déclaration paiement:', e);
+      toast({ status: 'error', title: 'Erreur', description: 'Déclaration impossible' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openPaymentsList = async (operation) => {
+    setSelectedOperation(operation);
+    await loadPaymentsForOperation(operation.id);
+    onPaymentsListOpen();
   };
 
   // Charger les données au montage du composant
@@ -1555,6 +1642,7 @@ const AdminFinance = () => {
                             <Th>Fréquence</Th>
                             <Th>Prochaine date</Th>
                             <Th isNumeric>Montant</Th>
+                            <Th isNumeric>Payées</Th>
                             <Th>Statut</Th>
                             <Th>Actions</Th>
                           </Tr>
@@ -1578,6 +1666,9 @@ const AdminFinance = () => {
                                   {formatCurrency(Math.abs(operation.amount))}
                                 </Text>
                               </Td>
+                              <Td isNumeric>
+                                <Badge variant="subtle" colorScheme="blue">{operation.payments?.length || 0}</Badge>
+                              </Td>
                               <Td>
                                 <Switch
                                   isChecked={operation.isActive}
@@ -1596,6 +1687,8 @@ const AdminFinance = () => {
                                   />
                                   <MenuList>
                                     <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
+                                    <MenuItem onClick={() => openDeclarePayment(operation)}>Déclarer mensualité payée</MenuItem>
+                                    <MenuItem onClick={() => openPaymentsList(operation)}>Voir paiements</MenuItem>
                                     <MenuItem icon={<FiTrash2 />} color="red.500">
                                       Supprimer
                                     </MenuItem>
@@ -2067,6 +2160,86 @@ const AdminFinance = () => {
               >
                 Configurer le solde
               </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Modal Déclarer mensualité payée */}
+        <Modal isOpen={isDeclarePaymentOpen} onClose={onDeclarePaymentClose}>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Déclarer une mensualité payée</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={4} align="stretch">
+                <FormControl isRequired>
+                  <FormLabel>Période</FormLabel>
+                  <Input type="month" value={paymentPeriod} onChange={(e) => setPaymentPeriod(e.target.value)} />
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel>Montant (€)</FormLabel>
+                  <NumberInput value={paymentAmount} onChange={(v)=>setPaymentAmount(v)} precision={2} step={0.01}>
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel>Attestation / Photo</FormLabel>
+                  <Input type="file" accept="image/*,application/pdf" onChange={(e)=>setPaymentFile(e.target.files?.[0] || null)} />
+                  <Text fontSize="xs" color="gray.500" mt={1}>Pièce justificative obligatoire</Text>
+                </FormControl>
+              </VStack>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onDeclarePaymentClose}>Annuler</Button>
+              <Button colorScheme="green" onClick={submitPaymentDeclaration} isLoading={loading}>Déclarer</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Modal Liste des paiements d'une opération */}
+        <Modal isOpen={isPaymentsListOpen} onClose={onPaymentsListClose} size="xl">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Paiements — {selectedOperation?.description}</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              {paymentsList.length === 0 ? (
+                <Alert status="info"><AlertIcon />Aucun paiement enregistré</Alert>
+              ) : (
+                <Table size="sm" variant="simple">
+                  <Thead>
+                    <Tr>
+                      <Th>Période</Th>
+                      <Th>Payé le</Th>
+                      <Th isNumeric>Montant</Th>
+                      <Th>Justificatif</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {paymentsList.map((p)=> (
+                      <Tr key={p.id}>
+                        <Td>{p.period}</Td>
+                        <Td>{formatDate(p.paidAt)}</Td>
+                        <Td isNumeric>{formatCurrency(p.amount)}</Td>
+                        <Td>
+                          {p.attachment?.dataUrl ? (
+                            <Link href={p.attachment.dataUrl} target="_blank" color="blue.600">Ouvrir</Link>
+                          ) : (
+                            <Text fontSize="xs" color="gray.500">N/A</Text>
+                          )}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button onClick={onPaymentsListClose}>Fermer</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
