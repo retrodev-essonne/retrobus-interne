@@ -89,9 +89,11 @@ export default function MyRBE() {
 
   return (
     <PageLayout
-      title="🚌 Espace MyRBE"
-      subtitle="Accédez à tous les outils d'administration de l'association RétroBus Essonne"
-      bgGradient="linear(to-r, rbe.600, blue.600, purple.600)"
+      title="Espace MyRBE"
+      subtitle="Les outils d'administration RétroBus Essonne"
+      // utiliser le gradient par défaut pour harmoniser avec le dashboard
+      titleSize="xl"
+      titleWeight="700"
       breadcrumbs={[
         { label: "Dashboard", href: "/dashboard/home" },
         { label: "MyRBE", href: "/dashboard/myrbe" }
