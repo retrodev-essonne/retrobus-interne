@@ -1,40 +1,120 @@
-import { Box, Heading, Text, SimpleGrid, Stat, StatLabel, StatNumber, Card, CardBody } from "@chakra-ui/react";
+import React from "react";
+import {
+  SimpleGrid,
+  VStack,
+  HStack,
+  Button,
+  Icon,
+  Text,
+  Card,
+  CardBody,
+  Heading,
+  useColorModeValue
+} from "@chakra-ui/react";
+import { Link as RouterLink } from "react-router-dom";
+import { FiTool, FiTruck, FiPackage, FiLifeBuoy } from "react-icons/fi";
+import PageLayout from "../components/Layout/PageLayout";
+import ModernCard from "../components/Layout/ModernCard";
 
 export default function RetroBus() {
+  const accent = useColorModeValue("teal.600", "teal.300");
+
+  const quickLinks = [
+    {
+      title: "Parc véhicules",
+      description: "Consulter et gérer les véhicules",
+      to: "/dashboard/vehicules",
+      icon: FiTruck,
+      color: "teal"
+    },
+    {
+      title: "Stocks atelier",
+      description: "Pièces, consommables et équipements",
+      to: "/dashboard/stock-management",
+      icon: FiPackage,
+      color: "yellow"
+    },
+    {
+      title: "Support technique",
+      description: "Incidents et demandes d'amélioration",
+      to: "/dashboard/support",
+      icon: FiLifeBuoy,
+      color: "cyan"
+    }
+  ];
+
   return (
-    <Box p={6}>
-      <Heading size="lg">Bienvenue sur l’intranet RétroBus Essonne</Heading>
-      <Text mt={2} opacity={0.85}>
-        Vue d’ensemble de l’association et raccourcis utiles.
-      </Text>
+    <PageLayout
+      title="RétroBus"
+      subtitle="Mécanique, véhicules et maintenance"
+      headerVariant="card"
+      bgGradient="linear(to-r, teal.500, blue.600)"
+      titleSize="xl"
+      titleWeight="700"
+      breadcrumbs={[
+        { label: "Dashboard", href: "/dashboard/home" },
+        { label: "MyRBE", href: "/dashboard/myrbe" },
+        { label: "RétroBus", href: "/dashboard/retrobus" }
+      ]}
+      headerActions={
+        <HStack>
+          <Button as={RouterLink} to="/dashboard/vehicules" size="sm" leftIcon={<FiTruck />}>Véhicules</Button>
+          <Button as={RouterLink} to="/dashboard/stock-management" size="sm" leftIcon={<FiPackage />}>Stocks</Button>
+        </HStack>
+      }
+    >
+      <VStack spacing={8} align="stretch">
+        {/* Liens rapides sous forme de cartes modernes */}
+        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+          {quickLinks.map((c) => (
+            <ModernCard
+              key={c.title}
+              title={c.title}
+              description={c.description}
+              icon={c.icon}
+              color={c.color}
+              as={RouterLink}
+              to={c.to}
+            />
+          ))}
+        </SimpleGrid>
 
-      <SimpleGrid columns={{ base: 1, md: 3 }} gap={4} mt={6}>
-        <Card><CardBody>
-          <Stat>
-            <StatLabel>Véhicules</StatLabel>
-            <StatNumber>—</StatNumber>
-          </Stat>
-        </CardBody></Card>
+        {/* Placeholder d'aperçu rapide, sans logique pour l'instant */}
+        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+          <Card>
+            <CardBody>
+              <Heading size="sm" color={accent}>Véhicules actifs</Heading>
+              <Text mt={2} color="gray.600">À venir</Text>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <Heading size="sm" color={accent}>Opérations récentes</Heading>
+              <Text mt={2} color="gray.600">À venir</Text>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <Heading size="sm" color={accent}>Alertes maintenance</Heading>
+              <Text mt={2} color="gray.600">À venir</Text>
+            </CardBody>
+          </Card>
+        </SimpleGrid>
 
-        <Card><CardBody>
-          <Stat>
-            <StatLabel>Interventions à venir</StatLabel>
-            <StatNumber>—</StatNumber>
-          </Stat>
-        </CardBody></Card>
-
-        <Card><CardBody>
-          <Stat>
-            <StatLabel>Événements / sorties</StatLabel>
-            <StatNumber>—</StatNumber>
-          </Stat>
-        </CardBody></Card>
-      </SimpleGrid>
-
-      <Box mt={8}>
-        <Heading size="md">Actualités internes</Heading>
-        <Text mt={2} opacity={0.8}>Rien pour le moment — tu pourras lier ici un flux “actus RBE”.</Text>
-      </Box>
-    </Box>
+        {/* Bloc d'intro simple */}
+        <Card>
+          <CardBody>
+            <HStack spacing={3}>
+              <Icon as={FiTool} color={accent} />
+              <Heading size="sm">Espace atelier</Heading>
+            </HStack>
+            <Text mt={3} color="gray.600">
+              Cet espace regroupera prochainement les fonctions de suivi de maintenance, planification,
+              gestion des interventions et liens utiles pour l'équipe mécanique.
+            </Text>
+          </CardBody>
+        </Card>
+      </VStack>
+    </PageLayout>
   );
 }

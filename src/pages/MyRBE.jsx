@@ -11,12 +11,19 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import {
   FiDollarSign, FiSettings, FiCalendar, FiUsers, FiPackage,
-  FiMail, FiGlobe, FiInbox, FiLifeBuoy
+  FiMail, FiGlobe, FiInbox, FiLifeBuoy, FiTool
 } from "react-icons/fi";
 import PageLayout from '../components/Layout/PageLayout';
 import ModernCard from '../components/Layout/ModernCard';
 
 const cards = [
+  {
+    title: "RétroBus",
+    description: "Mécanique, véhicules et maintenance",
+    to: "/dashboard/retrobus",
+    icon: FiTool,
+    color: "teal"
+  },
   {
     title: "Gestion Financière",
     description: "Recettes, dépenses et opérations programmées",
