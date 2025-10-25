@@ -68,6 +68,7 @@ const AdminFinance = () => {
   const [showBalanceConfig, setShowBalanceConfig] = useState(false);
   const [configCode, setConfigCode] = useState('');
   const [newBalance, setNewBalance] = useState('');
+  const [balanceReason, setBalanceReason] = useState('');
   const [balanceHistory, setBalanceHistory] = useState([]);
   
   // États simulation
@@ -97,6 +98,14 @@ const AdminFinance = () => {
     amount: '',
     category: 'MAINTENANCE',
     frequency: 'MONTHLY'
+  });
+
+  // Notes de frais (Expense Reports)
+  const [expenseReports, setExpenseReports] = useState([]);
+  const [newExpenseReport, setNewExpenseReport] = useState({
+    description: '',
+    amount: '',
+    date: new Date().toISOString().split('T')[0]
   });
 
   // Toast
@@ -129,7 +138,8 @@ const AdminFinance = () => {
         loadTransactions(),
         loadScheduledOperations(),
         loadSimulationData(),
-        loadBalanceHistory()
+        loadBalanceHistory(),
+        loadExpenseReports()
       ]);
       
     } catch (error) {
@@ -258,6 +268,26 @@ const AdminFinance = () => {
     } catch (error) {
       console.error('❌ Erreur chargement historique:', error);
       setBalanceHistory([]);
+    }
+  };
+
+  const loadExpenseReports = async () => {
+    try {
+      const response = await fetch(apiUrl('/api/finance/expense-reports'), {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setExpenseReports(data.reports || []);
+      } else {
+        setExpenseReports([]);
+      }
+    } catch (e) {
+      console.error('❌ Erreur chargement notes de frais:', e);
+      setExpenseReports([]);
     }
   };
 
@@ -433,7 +463,7 @@ const AdminFinance = () => {
         body: JSON.stringify({
           code: configCode,
           newBalance: parseFloat(newBalance),
-          reason: `Mise à jour manuelle du solde par ${currentUser?.matricule} - ${new Date().toLocaleDateString('fr-FR')}`
+          reason: balanceReason?.trim() || `Mise à jour manuelle du solde par ${currentUser?.matricule || currentUser?.username || 'inconnu'} - ${new Date().toLocaleDateString('fr-FR')}`
         })
       });
 
@@ -442,6 +472,7 @@ const AdminFinance = () => {
         setBalance(data.newBalance);
         setConfigCode('');
         setNewBalance('');
+  setBalanceReason('');
         setShowBalanceConfig(false);
         onConfigClose();
         
@@ -499,6 +530,84 @@ const AdminFinance = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // CRUD Notes de frais
+  const createExpenseReport = async () => {
+    if (!newExpenseReport.description || !newExpenseReport.amount) {
+      toast({ status: 'warning', title: 'Champs requis', description: 'Description et montant sont obligatoires' });
+      return;
+    }
+    try {
+      setLoading(true);
+      const response = await fetch(apiUrl('/api/finance/expense-reports'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          description: newExpenseReport.description,
+          amount: parseFloat(newExpenseReport.amount),
+          date: newExpenseReport.date
+        })
+      });
+      if (response.ok) {
+        toast({ status: 'success', title: 'Note de frais ajoutée' });
+        setNewExpenseReport({ description: '', amount: '', date: new Date().toISOString().split('T')[0] });
+        await loadExpenseReports();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        toast({ status: 'error', title: 'Erreur', description: err.message || "Impossible d'ajouter la note de frais" });
+      }
+    } catch (e) {
+      console.error('❌ Erreur création note de frais:', e);
+      toast({ status: 'error', title: 'Erreur', description: "Impossible d'ajouter la note de frais" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateExpenseReportStatus = async (id, status) => {
+    try {
+      const response = await fetch(apiUrl(`/api/finance/expense-reports/${id}`), {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status })
+      });
+      if (response.ok) {
+        await loadExpenseReports();
+      } else {
+        toast({ status: 'error', title: 'Erreur', description: "Mise à jour du statut impossible" });
+      }
+    } catch (e) {
+      console.error('❌ Erreur MAJ statut note de frais:', e);
+      toast({ status: 'error', title: 'Erreur', description: "Mise à jour du statut impossible" });
+    }
+  };
+
+  const deleteExpenseReport = async (id) => {
+    try {
+      const response = await fetch(apiUrl(`/api/finance/expense-reports/${id}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        toast({ status: 'success', title: 'Note de frais supprimée' });
+        await loadExpenseReports();
+      } else {
+        toast({ status: 'error', title: 'Erreur', description: "Suppression impossible" });
+      }
+    } catch (e) {
+      console.error('❌ Erreur suppression note de frais:', e);
+      toast({ status: 'error', title: 'Erreur', description: "Suppression impossible" });
     }
   };
 
@@ -1091,6 +1200,32 @@ const AdminFinance = () => {
     }
   };
 
+  const downloadScenarioPdf = async (scenarioId, name = 'simulation') => {
+    try {
+      const response = await fetch(apiUrl(`/api/finance/simulations/${scenarioId}/report.pdf`), {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!response.ok) {
+        toast({ status: 'error', title: 'Export PDF', description: 'Échec de la génération du PDF' });
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safe = (name || 'simulation').replace(/[^a-z0-9-_]+/gi, '_');
+      a.download = `simulation-${safe}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ status: 'success', title: 'Export PDF', description: 'Téléchargement démarré' });
+    } catch (e) {
+      console.error('❌ Erreur export PDF:', e);
+      toast({ status: 'error', title: 'Export PDF', description: 'Erreur lors du téléchargement' });
+    }
+  };
+
   return (
     <Box p={6}>
       <VStack spacing={6} align="stretch">
@@ -1159,6 +1294,13 @@ const AdminFinance = () => {
                     <NumberDecrementStepper />
                   </NumberInputStepper>
                 </NumberInput>
+                <Input
+                  value={balanceReason}
+                  onChange={(e) => setBalanceReason(e.target.value)}
+                  placeholder="Motif de régularisation"
+                  width="280px"
+                  size="sm"
+                />
                 <Button
                   size="sm"
                   colorScheme="orange"
@@ -1473,16 +1615,99 @@ const AdminFinance = () => {
             {/* Onglet Notes de frais */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
-                <Heading size="md">Notes de frais</Heading>
-                <Alert status="info">
-                  <AlertIcon />
-                  <VStack align="start" spacing={2}>
-                    <Text fontWeight="bold">Module en construction</Text>
-                    <Text fontSize="sm">
-                      Soumission, validation et remboursement des notes de frais seront disponibles ici.
-                    </Text>
-                  </VStack>
-                </Alert>
+                <HStack justify="space-between">
+                  <Heading size="md">Notes de frais</Heading>
+                </HStack>
+
+                {/* Formulaire de création */}
+                <Card>
+                  <CardBody>
+                    <HStack spacing={3} align="end">
+                      <FormControl isRequired>
+                        <FormLabel>Description</FormLabel>
+                        <Input
+                          value={newExpenseReport.description}
+                          onChange={(e) => setNewExpenseReport(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Ex: Achat fournitures"
+                        />
+                      </FormControl>
+                      <FormControl isRequired width="220px">
+                        <FormLabel>Montant (€)</FormLabel>
+                        <NumberInput
+                          value={newExpenseReport.amount}
+                          onChange={(v) => setNewExpenseReport(prev => ({ ...prev, amount: v }))}
+                          precision={2}
+                          step={0.01}
+                        >
+                          <NumberInputField placeholder="0.00" />
+                          <NumberInputStepper>
+                            <NumberIncrementStepper />
+                            <NumberDecrementStepper />
+                          </NumberInputStepper>
+                        </NumberInput>
+                      </FormControl>
+                      <FormControl width="220px">
+                        <FormLabel>Date</FormLabel>
+                        <Input
+                          type="date"
+                          value={newExpenseReport.date}
+                          onChange={(e) => setNewExpenseReport(prev => ({ ...prev, date: e.target.value }))}
+                        />
+                      </FormControl>
+                      <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={createExpenseReport}>
+                        Ajouter
+                      </Button>
+                    </HStack>
+                  </CardBody>
+                </Card>
+
+                {/* Liste des notes de frais */}
+                {expenseReports.length === 0 ? (
+                  <Alert status="info">
+                    <AlertIcon />
+                    Aucune note de frais pour le moment
+                  </Alert>
+                ) : (
+                  <Card>
+                    <CardBody p={0}>
+                      <Table variant="simple" size="sm">
+                        <Thead>
+                          <Tr>
+                            <Th>Date</Th>
+                            <Th>Description</Th>
+                            <Th isNumeric>Montant</Th>
+                            <Th>Statut</Th>
+                            <Th>Actions</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {expenseReports.map((r) => (
+                            <Tr key={r.id}>
+                              <Td>{formatDate(r.date || r.createdAt)}</Td>
+                              <Td>{r.description}</Td>
+                              <Td isNumeric>{formatCurrency(r.amount)}</Td>
+                              <Td>
+                                <Badge colorScheme={
+                                  r.status === 'PAID' ? 'green' : r.status === 'APPROVED' ? 'blue' : r.status === 'REJECTED' ? 'red' : 'orange'
+                                }>
+                                  {r.status}
+                                </Badge>
+                              </Td>
+                              <Td>
+                                <HStack>
+                                  <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'APPROVED')} leftIcon={<FiCheck />} colorScheme="blue" variant="outline">Approuver</Button>
+                                  <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'PAID')} leftIcon={<FiDollarSign />} colorScheme="green" variant="outline">Payé</Button>
+                                  <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'REJECTED')} leftIcon={<FiX />} colorScheme="red" variant="outline">Rejeter</Button>
+                                  <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="xs" colorScheme="red" variant="ghost" onClick={() => deleteExpenseReport(r.id)} />
+                                </HStack>
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </CardBody>
+                  </Card>
+                )}
               </VStack>
             </TabPanel>
 
@@ -1560,8 +1785,17 @@ const AdminFinance = () => {
                                   >
                                     Exécuter
                                   </MenuItem>
+                                  <MenuItem 
+                                    icon={<FiDownload />}
+                                    onClick={() => downloadScenarioPdf(scenario.id, scenario.name)}
+                                    isDisabled={!isComplete}
+                                  >
+                                    Exporter PDF
+                                  </MenuItem>
                                   <Divider />
-                                  <MenuItem icon={<FiTrash2 />} color="red.500">
+                                  <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => {
+                                    if (confirm('Supprimer ce scénario ?')) deleteScenario(scenario.id);
+                                  }}>
                                     Supprimer
                                   </MenuItem>
                                 </MenuList>
@@ -2280,6 +2514,15 @@ const AdminFinance = () => {
                   </CardBody>
                 </Card>
               )}
+
+                <FormControl>
+                  <FormLabel>Motif de régularisation</FormLabel>
+                  <Input
+                    value={balanceReason}
+                    onChange={(e) => setBalanceReason(e.target.value)}
+                    placeholder="Ex: Correction comptable, ajustement bancaire, etc."
+                  />
+                </FormControl>
             </ModalBody>
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={onEditScenarioClose}>
