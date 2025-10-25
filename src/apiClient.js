@@ -1,4 +1,10 @@
-const API_BASE_URL = (import.meta.env?.VITE_API_URL || 'https://attractive-kindness-rbe-serveurs.up.railway.app').replace(/\/$/, '');
+// Prefer same-origin relative calls in prod to avoid CORS; use env or localhost only in local dev
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '5173');
+const API_BASE_URL = (
+  isLocal
+    ? (import.meta.env?.VITE_API_URL || 'http://localhost:3000')
+    : ''
+).replace(/\/$/, '');
 
 function buildAuthHeaders() {
   try {

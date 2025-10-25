@@ -111,11 +111,10 @@ const AdminFinance = () => {
   const { isOpen: isSimulationResultsOpen, onOpen: onSimulationResultsOpen, onClose: onSimulationResultsClose } = useDisclosure();
 
   // === API HELPERS ===
-  // Base API: prefer VITE_API_BASE_URL, then VITE_API_URL; fallback to relative (prod) or localhost:3000 in local dev
+  // Base API: prefer same-origin relative in prod to avoid CORS; in local dev use VITE_API_* or localhost:3000
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '5173');
   const API_BASE = (
-    import.meta?.env?.VITE_API_BASE_URL ||
-    import.meta?.env?.VITE_API_URL ||
-    (window?.location?.port === '5173' ? 'http://localhost:3000' : '')
+    isLocal ? (import.meta?.env?.VITE_API_BASE_URL || import.meta?.env?.VITE_API_URL || 'http://localhost:3000') : ''
   ).replace(/\/$/, '');
   const apiUrl = (path) => `${API_BASE}${path}`;
 
