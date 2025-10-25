@@ -20,7 +20,10 @@ const PageLayout = ({
   children, 
   headerActions,
   bgGradient,
-  maxW = "container.xl"
+  maxW = "container.xl",
+  // Styling overrides (optional)
+  titleSize = "2xl",
+  titleWeight = "800"
 }) => {
   const headerBg = useColorModeValue(
     bgGradient || "linear(to-r, rbe.600, rbe.800)",
@@ -72,8 +75,8 @@ const PageLayout = ({
             <VStack spacing={4} textAlign="center">
               <Heading 
                 as="h1" 
-                size="2xl" 
-                fontWeight="800" 
+                size={titleSize}
+                fontWeight={titleWeight}
                 letterSpacing="-0.025em"
                 textShadow="0 2px 4px rgba(0,0,0,0.1)"
               >
