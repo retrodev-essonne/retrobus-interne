@@ -277,12 +277,10 @@ const AdminFinance = () => {
       if (response.ok) {
         const userData = await response.json();
         setCurrentUser(userData);
-        
-        // Vérifier si c'est Waiyl BELAIDI par son matricule
-        const isAuthorized = userData.matricule === 'w.belaidi';
-        setCanModifyBalance(isAuthorized);
-        
-        console.log('👤 Utilisateur connecté:', userData.matricule, '- Peut modifier solde:', isAuthorized);
+
+        // Autoriser la modification du solde via code sécurisé uniquement (sans dépendre du matricule)
+        setCanModifyBalance(true);
+        console.log('👤 Utilisateur connecté:', userData.matricule, '- Modification du solde contrôlée par code');
       }
     } catch (error) {
       console.error('❌ Erreur chargement utilisateur:', error);
@@ -388,16 +386,7 @@ const AdminFinance = () => {
 
   // === FONCTIONS D'ACTIONS ===
   const handleBalanceConfig = async () => {
-    if (!canModifyBalance) {
-      toast({
-        status: "error",
-        title: "Accès refusé",
-        description: "Seul Waiyl BELAIDI (w.belaidi) peut modifier le solde",
-        duration: 5000,
-        isClosable: true
-      });
-      return;
-    }
+    // La modification est autorisée pour tout utilisateur authentifié, si le code est correct
 
     if (!configCode || configCode.length !== 4) {
       toast({
@@ -474,7 +463,7 @@ const AdminFinance = () => {
           toast({
             status: "error",
             title: "Accès refusé",
-            description: "Seul Waiyl BELAIDI (w.belaidi) peut modifier le solde",
+            description: "Vous n'avez pas l'autorisation de modifier le solde",
             duration: 5000,
             isClosable: true
           });

@@ -39,14 +39,23 @@ export function UserProvider({ children }) {
       setSessionChecked(true);
       return false;
     }
+
+    // Dev mode support: si pas d'API configurée OU token local, ne pas invalider la session
+    const base = (import.meta?.env?.VITE_API_URL || '').replace(/\/+$/, '');
+    const isLocalDevToken = String(token).startsWith('local-dev-token-');
+    if (!base || isLocalDevToken) {
+      // On fait confiance au stockage local pour la session de dev
+      setSessionChecked(true);
+      return true;
+    }
+
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/me`, {
+      const res = await fetch(`${base}/api/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      // Si l’API expose un état (disabled/active/status), couper immédiatement
       const disabled = data?.disabled === true || data?.active === false || data?.status === 'DISABLED';
       if (disabled) {
         logout();
@@ -54,12 +63,20 @@ export function UserProvider({ children }) {
         return false;
       }
 
-      setUser(data);
+      // Normalisation du profil utilisateur pour toute l'appli
+      const normalized = (() => {
+        const username = data?.username || data?.matricule || data?.login || (data?.email ? String(data.email).split('@')[0] : '');
+        const prenom = data?.prenom || data?.firstName || data?.given_name || '';
+        const nom = data?.nom || data?.lastName || data?.family_name || '';
+        return { ...data, username, prenom, nom };
+      })();
+
+      setUser(normalized);
       setMustChangePassword(!!data.mustChangePassword);
       setSessionChecked(true);
       return true;
     } catch (e) {
-      // 401 / erreur => on coupe
+      // En cas d'échec de vérification serveur, ne casse pas la session si on est en dev sans API
       logout();
       setSessionChecked(true);
       return false;

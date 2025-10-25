@@ -28,7 +28,6 @@ import Newsletter from "./pages/Newsletter";
 import Members from "./pages/Members";
 import MembersManagement from "./pages/MembersManagement";
 import SupportSite from "./pages/SupportSite";
-import RetroBus from "./pages/RetroBus";
 
 export default function App() {
   const { isAuthenticated } = useUser();
@@ -49,9 +48,8 @@ export default function App() {
         {/* Routes du dashboard principal */}
         <Route path="/dashboard/*" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/dashboard/home" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
-        <Route path="/dashboard/myrbe" element={<ProtectedRoute><MyRBE /></ProtectedRoute>} />
-        <Route path="/dashboard/myrbe/:parc" element={<ProtectedRoute><MyRBEActions /></ProtectedRoute>} />
-  <Route path="/dashboard/retrobus" element={<ProtectedRoute><RetroBus /></ProtectedRoute>} />
+  <Route path="/dashboard/myrbe" element={<ProtectedRoute><MyRBE /></ProtectedRoute>} />
+  <Route path="/dashboard/myrbe/:parc" element={<ProtectedRoute><MyRBEActions /></ProtectedRoute>} />
         
         {/* 🏦 Routes pour la gestion administrative et financière */}
         <Route path="/admin/finance" element={<ProtectedRoute><AdminFinance /></ProtectedRoute>} />

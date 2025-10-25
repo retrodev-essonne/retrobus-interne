@@ -26,6 +26,7 @@ export default defineConfig({
       // Proxy both legacy and new paths so we don't need '/api' prefixes
       return {
         '/api': { ...common },
+        '/auth': { ...common },
         '/events': { ...common },
         '/vehicles': { ...common },
         '/newsletter': { ...common },
