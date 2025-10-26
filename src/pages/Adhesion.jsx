@@ -49,6 +49,8 @@ export default function MyMembership() {
   const [createMode, setCreateMode] = useState(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const { isOpen: isPasswordModalOpen, onOpen: onPasswordModalOpen, onClose: onPasswordModalClose } = useDisclosure();
+  const { isOpen: isTerminateOpen, onOpen: onTerminateOpen, onClose: onTerminateClose } = useDisclosure();
+  const [terminateForm, setTerminateForm] = useState({ reason: '', notes: '', pv: null, resignation: null });
   const toast = useToast();
 
   // Détection du profil admin local
@@ -674,6 +676,11 @@ export default function MyMembership() {
                     <Button leftIcon={<FiDownload />} variant="outline">
                       Télécharger ma carte d'adhérent
                     </Button>
+                    {user?.roles?.includes('ADMIN') && (
+                      <Button colorScheme="red" variant="outline" onClick={onTerminateOpen}>
+                        Supprimer l'adhésion
+                      </Button>
+                    )}
                   </HStack>
                 </CardBody>
               </Card>
@@ -736,6 +743,78 @@ export default function MyMembership() {
             <Button colorScheme="blue" onClick={handlePasswordChange}>
               Modifier
             </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal suppression/fin d'adhésion */}
+      <Modal isOpen={isTerminateOpen} onClose={onTerminateClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Supprimer l'adhésion</ModalHeader>
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Alert status="warning">
+                <AlertIcon />
+                Cette action met fin à l'adhésion. L'accès site associé sera désactivé.
+              </Alert>
+              <FormControl isRequired>
+                <FormLabel>Motif</FormLabel>
+                <Select value={terminateForm.reason} onChange={(e)=>setTerminateForm(p=>({...p, reason:e.target.value}))}>
+                  <option value="">Choisir un motif...</option>
+                  <option value="FIN">Fin d'adhésion</option>
+                  <option value="NON_RECONDUITE">Non reconduite</option>
+                  <option value="EXCLUSION">Exclusion votée (joindre le PV)</option>
+                  <option value="DEMISSION">Démission (joindre PV et lettre de démission)</option>
+                </Select>
+              </FormControl>
+              <FormControl>
+                <FormLabel>Notes (optionnel)</FormLabel>
+                <Textarea value={terminateForm.notes} onChange={(e)=>setTerminateForm(p=>({...p, notes:e.target.value}))} />
+              </FormControl>
+              {terminateForm.reason === 'EXCLUSION' || terminateForm.reason === 'DEMISSION' ? (
+                <FormControl isRequired>
+                  <FormLabel>Procès-verbal (PDF/Image)</FormLabel>
+                  <Input type="file" accept="application/pdf,image/*" onChange={(e)=>setTerminateForm(p=>({...p, pv: e.target.files?.[0]||null}))} />
+                </FormControl>
+              ) : null}
+              {terminateForm.reason === 'DEMISSION' ? (
+                <FormControl isRequired>
+                  <FormLabel>Lettre de démission (PDF/Image)</FormLabel>
+                  <Input type="file" accept="application/pdf,image/*" onChange={(e)=>setTerminateForm(p=>({...p, resignation: e.target.files?.[0]||null}))} />
+                </FormControl>
+              ) : null}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack>
+              <Button variant="ghost" onClick={onTerminateClose}>Annuler</Button>
+              <Button colorScheme="red" onClick={async()=>{
+                try {
+                  if (!terminateForm.reason) { toast({title:'Motif requis', status:'error'}); return; }
+                  if (terminateForm.reason==='EXCLUSION' && !terminateForm.pv) { toast({title:'PV obligatoire', status:'error'}); return; }
+                  if (terminateForm.reason==='DEMISSION' && (!terminateForm.pv || !terminateForm.resignation)) { toast({title:'PV et lettre requis', status:'error'}); return; }
+                  const fd = new FormData();
+                  fd.append('reason', terminateForm.reason);
+                  if (terminateForm.notes) fd.append('notes', terminateForm.notes);
+                  if (terminateForm.pv) fd.append('pv', terminateForm.pv);
+                  if (terminateForm.resignation) fd.append('resignation', terminateForm.resignation);
+                  const resp = await fetch(`${API_BASE_URL}/api/members/${memberData?.id}/terminate`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                    body: fd
+                  });
+                  const data = await resp.json();
+                  if (!resp.ok) throw new Error(data?.error || 'Erreur de suppression');
+                  toast({ title:'Adhésion supprimée', status:'success', duration:3000 });
+                  onTerminateClose();
+                  // recharger les données adhérent
+                  fetchMemberData();
+                } catch (e) {
+                  toast({ title:'Erreur', description: e.message, status:'error' });
+                }
+              }}>Confirmer</Button>
+            </HStack>
           </ModalFooter>
         </ModalContent>
       </Modal>

@@ -675,7 +675,7 @@ function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs, onDelete })
         ) : (
           <Button size="xs" variant="outline" onClick={onLink}>
             <FiLink style={{ marginRight: '4px' }} />
-            Lier
+            Fusionner
           </Button>
         )}
       </Td>
@@ -1032,7 +1032,27 @@ function CreateAccessModal({ isOpen, onClose, members, onUserSaved, user }) {
 function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [availableMembers, setAvailableMembers] = useState(members || []);
   const toast = useToast();
+
+  useEffect(() => {
+    // Charge/rafraîchit la liste des adhérents à l'ouverture pour éviter un jeu de données obsolète
+    const fetchMembers = async () => {
+      try {
+        const response = await apiGet(
+          buildCandidates(ENDPOINTS.members, getMembersPath(), '', getMembersOrigin())
+        );
+        const data = response.data;
+        const list = Array.isArray(data) ? data : (data?.members || []);
+        setAvailableMembers(list);
+      } catch (e) {
+        console.warn('Chargement membres (fusion) échoué, utilisation des props existantes');
+        setAvailableMembers(members || []);
+      }
+    };
+    if (isOpen) fetchMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleLink = async () => {
     if (!selectedMemberId) {
@@ -1078,7 +1098,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>🔗 Lier à une adhésion</ModalHeader>
+        <ModalHeader>🔗 Fusionner avec une adhésion</ModalHeader>
         <ModalCloseButton />
         
         <ModalBody>
@@ -1086,7 +1106,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
             <Alert status="info">
               <AlertIcon />
               <Text fontSize="sm">
-                Lier l'accès de <strong>{user?.firstName} {user?.lastName}</strong> à une adhésion existante.
+                Fusionner l'accès de <strong>{user?.firstName} {user?.lastName}</strong> avec une adhésion existante.
               </Text>
             </Alert>
 
@@ -1097,7 +1117,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
                 onChange={(e) => setSelectedMemberId(e.target.value)}
                 placeholder="Choisir un membre..."
               >
-                {members
+                {(availableMembers || [])
                   .filter(member => !member.hasLinkedAccess) // Seulement les membres sans accès lié
                   .map(member => (
                     <option key={member.id} value={member.id}>
@@ -1111,6 +1131,20 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
                 Seuls les membres sans accès déjà lié sont affichés
               </Text>
             </FormControl>
+            <HStack w="full" justify="flex-end">
+              <Button size="sm" variant="outline" onClick={async ()=>{
+                try {
+                  const response = await apiGet(
+                    buildCandidates(ENDPOINTS.members, getMembersPath(), '', getMembersOrigin())
+                  );
+                  const data = response.data;
+                  setAvailableMembers(Array.isArray(data) ? data : (data?.members || []));
+                  toast({ title:'Liste mise à jour', status:'success', duration:2000 });
+                } catch (e) {
+                  toast({ title:'Erreur rafraîchissement', description:e.message, status:'error', duration:3000 });
+                }
+              }}>Actualiser</Button>
+            </HStack>
           </VStack>
         </ModalBody>
 
@@ -1122,9 +1156,9 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
             colorScheme="blue" 
             onClick={handleLink}
             isLoading={loading}
-            loadingText="Liaison..."
+            loadingText="Fusion..."
           >
-            Lier à l'adhésion
+            Fusionner
           </Button>
         </ModalFooter>
       </ModalContent>

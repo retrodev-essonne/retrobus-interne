@@ -18,7 +18,7 @@ import {
   FiSettings, FiLock, FiUnlock, FiRotateCcw, FiLogIn, FiLogOut
 } from 'react-icons/fi';
 import { membersAPI } from '../api/members.js';
-import CreateMemberWithLogin from '../components/CreateMemberWithLogin';
+import CreateMember from '../components/CreateMember';
 
 // === CONFIGURATIONS ===
 const MEMBERSHIP_STATUS = {
@@ -434,11 +434,9 @@ export default function MembersManagement() {
           <VStack align="start" spacing={1}>
             <Heading size="xl" display="flex" alignItems="center">
               <FiUsers style={{ marginRight: '12px' }} />
-              Gestion des Adhésions & Identifiants
+              Gestion des Adhésions
             </Heading>
-            <Text color="gray.600">
-              Gestion complète des membres avec création d'identifiants MyRBE
-            </Text>
+            <Text color="gray.600">Créer et gérer les adhérents (les identifiants sont gérés séparément)</Text>
           </VStack>
           
           <Button
@@ -574,7 +572,7 @@ export default function MembersManagement() {
       </VStack>
 
       {/* Modals */}
-      <CreateMemberWithLogin
+      <CreateMember
         isOpen={isCreateOpen}
         onClose={onCreateClose}
         onMemberCreated={handleMemberCreated}
