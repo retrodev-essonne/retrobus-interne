@@ -41,7 +41,7 @@ const MEMBER_ROLES = {
 };
 
 // === COMPOSANTS MODERNES ===
-function MemberCard({ member, onEdit, onLinkAccess, onTerminate }) {
+function MemberCard({ member, onEdit, onLinkAccess, onTerminate, onDeleteMember }) {
   const cardBg = useColorModeValue('white', 'gray.800');
   const statusConfig = MEMBERSHIP_STATUS[member.membershipStatus] || MEMBERSHIP_STATUS.PENDING;
   const roleConfig = MEMBER_ROLES[member.role] || MEMBER_ROLES.MEMBER;
@@ -91,6 +91,11 @@ function MemberCard({ member, onEdit, onLinkAccess, onTerminate }) {
               <MenuItem icon={<FiKey />} onClick={() => onLinkAccess(member)}>
                 Associer à un accès existant
               </MenuItem>
+              {member.membershipStatus === 'CANCELLED' && (
+                <MenuItem icon={<FiTrash2 />} onClick={() => onDeleteMember(member)} color="red.600">
+                  Effacer l'adhérent
+                </MenuItem>
+              )}
             </MenuList>
           </Menu>
         </Flex>
@@ -470,6 +475,28 @@ export default function MembersManagement() {
       toast({ title: 'Erreur', description: e.message, status: 'error' });
     }
   };
+
+  const handleDeleteMember = async (member) => {
+    try {
+      if (member.membershipStatus !== 'CANCELLED') {
+        toast({ title: "Résiliez d'abord l'adhésion", status: 'warning' });
+        return;
+      }
+      if (!window.confirm(`Effacer définitivement ${member.firstName} ${member.lastName} ?`)) return;
+      const resp = await fetch(apiUrl(`/api/members/${member.id}`), {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!resp.ok && resp.status !== 204) {
+        const data = await resp.json().catch(()=> ({}));
+        throw new Error(data?.error || 'Suppression impossible');
+      }
+      toast({ title: "Adhérent effacé", status: 'success' });
+      setMembers(prev => prev.filter(m => m.id !== member.id));
+    } catch (e) {
+      toast({ title: 'Erreur', description: e.message, status: 'error' });
+    }
+  };
   const handleMemberCreated = (newMember) => {
     setMembers(prev => [newMember, ...prev]);
     calculateStats([newMember, ...members]);
@@ -647,6 +674,7 @@ export default function MembersManagement() {
               onEdit={handleEdit}
               onLinkAccess={handleLinkAccess}
               onTerminate={handleTerminate}
+              onDeleteMember={handleDeleteMember}
             />
           ))}
         </SimpleGrid>
@@ -776,6 +804,7 @@ export default function MembersManagement() {
                   <option value="NON_RECONDUITE">Non reconduite</option>
                   <option value="EXCLUSION">Exclusion votée (joindre le PV)</option>
                   <option value="DEMISSION">Démission (joindre PV et lettre de démission)</option>
+                  <option value="INFORMATIQUE">INFORMATIQUE</option>
                 </Select>
               </FormControl>
               <FormControl>

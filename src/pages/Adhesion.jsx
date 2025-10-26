@@ -770,6 +770,7 @@ export default function MyMembership() {
                   <option value="NON_RECONDUITE">Non reconduite</option>
                   <option value="EXCLUSION">Exclusion votée (joindre le PV)</option>
                   <option value="DEMISSION">Démission (joindre PV et lettre de démission)</option>
+                  <option value="INFORMATIQUE">INFORMATIQUE</option>
                 </Select>
               </FormControl>
               <FormControl>
