@@ -457,13 +457,14 @@ function AccessManagement() {
             <Select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              maxW="200px"
+              maxW="220px"
             >
               <option value="ALL">Tous rôles</option>
-              <option value="ADMIN">Administrateur</option>
-              <option value="MODERATOR">Modérateur</option>
+              <option value="PRESIDENT">Président</option>
+              <option value="VICE_PRESIDENT">Vice-Président</option>
+              <option value="TRESORIER">Trésorier</option>
+              <option value="SECRETAIRE_GENERAL">Secrétaire Général</option>
               <option value="MEMBER">Membre</option>
-              <option value="GUEST">Invité</option>
             </Select>
             
             <Select
@@ -624,12 +625,21 @@ function AccessManagement() {
 
 // Composant ligne utilisateur
 function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs, onDelete }) {
+  const ROLE_LABELS = {
+    PRESIDENT: 'Président',
+    VICE_PRESIDENT: 'Vice-Président',
+    TRESORIER: 'Trésorier',
+    SECRETAIRE_GENERAL: 'Secrétaire Général',
+    MEMBER: 'Membre'
+  };
+
   const getRoleColor = (role) => {
     const colors = {
-      'ADMIN': 'red',
-      'MODERATOR': 'purple',
-      'MEMBER': 'blue',
-      'GUEST': 'gray'
+      PRESIDENT: 'red',
+      VICE_PRESIDENT: 'pink',
+      TRESORIER: 'green',
+      SECRETAIRE_GENERAL: 'purple',
+      MEMBER: 'blue'
     };
     return colors[role] || 'gray';
   };
@@ -649,7 +659,7 @@ function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs, onDelete })
       </Td>
       <Td>
         <Badge colorScheme={getRoleColor(user.role)} size="sm">
-          {user.role}
+          {ROLE_LABELS[user.role] || user.role}
         </Badge>
       </Td>
       <Td>
@@ -917,10 +927,11 @@ function CreateAccessModal({ isOpen, onClose, members, onUserSaved, user }) {
                 value={formData.role}
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
               >
+                <option value="PRESIDENT">Président</option>
+                <option value="VICE_PRESIDENT">Vice-Président</option>
+                <option value="TRESORIER">Trésorier</option>
+                <option value="SECRETAIRE_GENERAL">Secrétaire Général</option>
                 <option value="MEMBER">Membre</option>
-                <option value="MODERATOR">Modérateur</option>
-                <option value="ADMIN">Administrateur</option>
-                <option value="GUEST">Invité</option>
               </Select>
             </FormControl>
 

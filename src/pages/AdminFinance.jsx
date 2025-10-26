@@ -325,6 +325,7 @@ const AdminFinance = () => {
   // Ajouter l'état manquant pour les droits utilisateur
   const [canModifyBalance, setCanModifyBalance] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const isTreasurer = (currentUser?.roles || []).some(r => String(r).toUpperCase() === 'TRESORIER');
 
   const loadUserInfo = async () => {
     try {
@@ -1904,7 +1905,7 @@ const AdminFinance = () => {
                             <Th>Description</Th>
                             <Th isNumeric>Montant</Th>
                             <Th>Statut</Th>
-                            <Th>Actions</Th>
+                            {isTreasurer && <Th>Actions</Th>}
                           </Tr>
                         </Thead>
                         <Tbody>
@@ -1920,14 +1921,16 @@ const AdminFinance = () => {
                                   {r.status}
                                 </Badge>
                               </Td>
-                              <Td>
-                                <HStack>
-                                  <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'APPROVED')} leftIcon={<FiCheck />} colorScheme="blue" variant="outline">Approuver</Button>
-                                  <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'PAID')} leftIcon={<FiDollarSign />} colorScheme="green" variant="outline">Payé</Button>
-                                  <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'REJECTED')} leftIcon={<FiX />} colorScheme="red" variant="outline">Rejeter</Button>
-                                  <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="xs" colorScheme="red" variant="ghost" onClick={() => deleteExpenseReport(r.id)} />
-                                </HStack>
-                              </Td>
+                              {isTreasurer && (
+                                <Td>
+                                  <HStack>
+                                    <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'APPROVED')} leftIcon={<FiCheck />} colorScheme="blue" variant="outline">Approuver</Button>
+                                    <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'PAID')} leftIcon={<FiDollarSign />} colorScheme="green" variant="outline">Payé</Button>
+                                    <Button size="xs" onClick={() => updateExpenseReportStatus(r.id, 'REJECTED')} leftIcon={<FiX />} colorScheme="red" variant="outline">Rejeter</Button>
+                                    <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="xs" colorScheme="red" variant="ghost" onClick={() => deleteExpenseReport(r.id)} />
+                                  </HStack>
+                                </Td>
+                              )}
                             </Tr>
                           ))}
                         </Tbody>
