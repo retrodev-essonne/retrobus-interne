@@ -145,7 +145,7 @@ export default function SupportSite() {
 
   const fetchReports = async () => {
     try {
-      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
       const res = await fetch(`${base}/api/retro-reports`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -171,7 +171,7 @@ export default function SupportSite() {
       return;
     }
     try {
-      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
       const fd = new FormData();
       fd.append('title', reportFormData.title);
       fd.append('description', reportFormData.description);
@@ -207,7 +207,7 @@ export default function SupportSite() {
       return;
     }
     try {
-      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
       const payload = {
         message: commentFormData.message,
         author: user?.name || 'Administrateur',
@@ -243,7 +243,7 @@ export default function SupportSite() {
 
   const handleStatusChange = async (reportId, newStatus) => {
     try {
-      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
       let res = await fetch(`${base}/api/retro-reports/${reportId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json','Authorization': `Bearer ${localStorage.getItem('token')}` },
@@ -268,7 +268,7 @@ export default function SupportSite() {
   const handleDeleteReport = async (reportId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce RétroReport ?')) return;
     try {
-      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
       const res = await fetch(`${base}/api/retro-reports/${reportId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
       if (!res.ok) throw new Error('delete failed');
       await fetchReports();
