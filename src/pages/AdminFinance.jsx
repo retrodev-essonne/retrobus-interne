@@ -426,6 +426,8 @@ const AdminFinance = () => {
   // Helpers manquants pour fréquences
   const getFrequencyMultiplier = (frequency) => {
     switch (frequency) {
+      case 'SEMI_ANNUAL': return 0.5; // tous les 6 mois, en moyenne
+      case 'ONE_SHOT': return 0; // ponctuel, pas d'impact mensuel récurrent
       case 'WEEKLY': return 4.33;
       case 'QUARTERLY': return 1 / 3;
       case 'YEARLY': return 1 / 12;
@@ -436,6 +438,8 @@ const AdminFinance = () => {
 
   const getFrequencyLabel = (frequency) => {
     switch (frequency) {
+      case 'ONE_SHOT': return 'Ponctuel';
+      case 'SEMI_ANNUAL': return 'Semestriel (6 mois)';
       case 'WEEKLY': return 'Hebdomadaire';
       case 'QUARTERLY': return 'Trimestriel';
       case 'YEARLY': return 'Annuel';
@@ -2532,6 +2536,8 @@ const AdminFinance = () => {
                               value={newIncomeItem.frequency}
                               onChange={(e) => setNewIncomeItem(prev => ({ ...prev, frequency: e.target.value }))}
                             >
+                              <option value="ONE_SHOT">Ponctuel</option>
+                              <option value="SEMI_ANNUAL">Semestriel (6 mois)</option>
                               <option value="MONTHLY">Mensuel</option>
                               <option value="QUARTERLY">Trimestriel</option>
                               <option value="YEARLY">Annuel</option>
@@ -2608,6 +2614,8 @@ const AdminFinance = () => {
                               value={newExpenseItem.frequency}
                               onChange={(e) => setNewExpenseItem(prev => ({ ...prev, frequency: e.target.value }))}
                             >
+                              <option value="ONE_SHOT">Ponctuel</option>
+                              <option value="SEMI_ANNUAL">Semestriel (6 mois)</option>
                               <option value="MONTHLY">Mensuel</option>
                               <option value="QUARTERLY">Trimestriel</option>
                               <option value="YEARLY">Annuel</option>
