@@ -41,7 +41,7 @@ const MEMBER_ROLES = {
 };
 
 // === COMPOSANTS MODERNES ===
-function MemberCard({ member, onEdit, onViewLogs, onToggleLogin, onResetPassword, onTerminate }) {
+function MemberCard({ member, onEdit, onLinkAccess, onTerminate }) {
   const cardBg = useColorModeValue('white', 'gray.800');
   const statusConfig = MEMBERSHIP_STATUS[member.membershipStatus] || MEMBERSHIP_STATUS.PENDING;
   const roleConfig = MEMBER_ROLES[member.role] || MEMBER_ROLES.MEMBER;
@@ -88,33 +88,9 @@ function MemberCard({ member, onEdit, onViewLogs, onToggleLogin, onResetPassword
               <MenuItem icon={<FiUserX />} onClick={() => onTerminate(member)} color="red.500">
                 Terminer l'adhésion
               </MenuItem>
-              
-              {member.matricule && (
-                <>
-                  <MenuItem 
-                    icon={<FiActivity />} 
-                    onClick={() => onViewLogs(member)}
-                  >
-                    Logs de connexion
-                  </MenuItem>
-                  
-                  <MenuItem 
-                    icon={member.loginEnabled ? <FiLock /> : <FiUnlock />}
-                    onClick={() => onToggleLogin(member)}
-                    color={member.loginEnabled ? 'orange.500' : 'green.500'}
-                  >
-                    {member.loginEnabled ? 'Désactiver accès' : 'Activer accès'}
-                  </MenuItem>
-                  
-                  <MenuItem 
-                    icon={<FiRotateCcw />}
-                    onClick={() => onResetPassword(member)}
-                    color="purple.500"
-                  >
-                    Réinitialiser mot de passe
-                  </MenuItem>
-                </>
-              )}
+              <MenuItem icon={<FiKey />} onClick={() => onLinkAccess(member)}>
+                Associer à un accès existant
+              </MenuItem>
             </MenuList>
           </Menu>
         </Flex>
@@ -276,6 +252,12 @@ export default function MembersManagement() {
   const [editData, setEditData] = useState(null);
   const [terminateMember, setTerminateMember] = useState(null);
   const [terminateForm, setTerminateForm] = useState({ reason: '', notes: '', pv: null, resignation: null });
+  const {
+    isOpen: isLinkOpen,
+    onOpen: onLinkOpen,
+    onClose: onLinkClose
+  } = useDisclosure();
+  const [linkForm, setLinkForm] = useState({ username: '', email: '' });
 
   // === CHARGEMENT DES DONNÉES ===
   useEffect(() => {
@@ -427,10 +409,7 @@ export default function MembersManagement() {
     }
   };
 
-  const handleViewLogs = (member) => {
-    setSelectedMember(member);
-    onLogsOpen();
-  };
+  // Logs de connexion ont été retirés de la gestion des adhésions
 
   const handleEdit = (member) => {
     setSelectedMember(member);
@@ -495,6 +474,34 @@ export default function MembersManagement() {
     setMembers(prev => [newMember, ...prev]);
     calculateStats([newMember, ...members]);
     onCreateClose();
+  };
+
+  const handleLinkAccess = (member) => {
+    setSelectedMember(member);
+    setLinkForm({ username: '', email: '' });
+    onLinkOpen();
+  };
+
+  const confirmLinkAccess = async () => {
+    try {
+      if (!selectedMember) return;
+      if (!linkForm.username && !linkForm.email) {
+        toast({ title: 'Renseignez matricule ou email', status: 'warning' });
+        return;
+      }
+      const resp = await fetch(apiUrl(`/api/members/${selectedMember.id}/link-access`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ username: linkForm.username || undefined, email: linkForm.email || undefined })
+      });
+      const data = await resp.json().catch(()=> ({}));
+      if (!resp.ok) throw new Error(data?.error || 'Échec de l’association');
+      toast({ title: 'Accès associé', status: 'success' });
+      await loadMembers();
+      onLinkClose();
+    } catch (e) {
+      toast({ title: 'Erreur', description: e.message, status: 'error' });
+    }
   };
 
   if (loading) {
@@ -638,9 +645,7 @@ export default function MembersManagement() {
               key={member.id}
               member={member}
               onEdit={handleEdit}
-              onViewLogs={handleViewLogs}
-              onToggleLogin={handleToggleLogin}
-              onResetPassword={handleResetPassword}
+              onLinkAccess={handleLinkAccess}
               onTerminate={handleTerminate}
             />
           ))}
@@ -661,11 +666,34 @@ export default function MembersManagement() {
         onMemberCreated={handleMemberCreated}
       />
       
-      <ConnectionLogsModal
-        isOpen={isLogsOpen}
-        onClose={onLogsClose}
-        member={selectedMember}
-      />
+      {/* Connexion logs déplacés vers Gestion des accès */}
+
+      {/* Link existing access modal */}
+      <Modal isOpen={isLinkOpen} onClose={onLinkClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Associer à un accès existant</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Alert status="info"><AlertIcon />La création d’accès se fait dans "Gestion des accès". Ici, vous pouvez lier un accès existant (fusion).</Alert>
+              <FormControl>
+                <FormLabel>Matricule (username)</FormLabel>
+                <Input value={linkForm.username} onChange={(e)=>setLinkForm(p=>({...p, username: e.target.value}))} placeholder="ex: jd2025" />
+              </FormControl>
+              <FormControl>
+                <FormLabel>Email</FormLabel>
+                <Input type="email" value={linkForm.email} onChange={(e)=>setLinkForm(p=>({...p, email: e.target.value}))} placeholder="utilisateur@domaine.fr" />
+              </FormControl>
+              <Text fontSize="sm" color="gray.600">Renseignez au moins l’un des deux champs.</Text>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onLinkClose}>Annuler</Button>
+            <Button colorScheme="blue" onClick={confirmLinkAccess}>Associer</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Edit member modal */}
       <Modal isOpen={isEditOpen} onClose={onEditClose} size="xl">
