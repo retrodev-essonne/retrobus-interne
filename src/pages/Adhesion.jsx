@@ -676,7 +676,11 @@ export default function MyMembership() {
                     <Button leftIcon={<FiDownload />} variant="outline">
                       Télécharger ma carte d'adhérent
                     </Button>
-                    {user?.roles?.includes('ADMIN') && (
+                    {(() => {
+                      const roles = (user?.roles || []).map(r => String(r).toUpperCase());
+                      const hasBureauRole = roles.some(r => ['PRESIDENT','VICE_PRESIDENT','TRESORIER','SECRETAIRE_GENERAL'].includes(r));
+                      return hasBureauRole;
+                    })() && (
                       <Button colorScheme="red" variant="outline" onClick={onTerminateOpen}>
                         Supprimer l'adhésion
                       </Button>

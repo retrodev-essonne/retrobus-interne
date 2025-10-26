@@ -20,6 +20,10 @@ import {
 import { membersAPI } from '../api/members.js';
 import CreateMember from '../components/CreateMember';
 
+// API base builder with relative fallback
+const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const apiUrl = (p) => apiBase ? `${apiBase}${p}` : p;
+
 // === CONFIGURATIONS ===
 const MEMBERSHIP_STATUS = {
   PENDING: { label: 'En attente', color: 'yellow', icon: FiClock },
@@ -37,7 +41,7 @@ const MEMBER_ROLES = {
 };
 
 // === COMPOSANTS MODERNES ===
-function MemberCard({ member, onEdit, onViewLogs, onToggleLogin, onResetPassword }) {
+function MemberCard({ member, onEdit, onViewLogs, onToggleLogin, onResetPassword, onTerminate }) {
   const cardBg = useColorModeValue('white', 'gray.800');
   const statusConfig = MEMBERSHIP_STATUS[member.membershipStatus] || MEMBERSHIP_STATUS.PENDING;
   const roleConfig = MEMBER_ROLES[member.role] || MEMBER_ROLES.MEMBER;
@@ -80,6 +84,9 @@ function MemberCard({ member, onEdit, onViewLogs, onToggleLogin, onResetPassword
             <MenuList>
               <MenuItem icon={<FiEdit />} onClick={() => onEdit(member)}>
                 Modifier
+              </MenuItem>
+              <MenuItem icon={<FiUserX />} onClick={() => onTerminate(member)} color="red.500">
+                Terminer l'adhésion
               </MenuItem>
               
               {member.matricule && (
@@ -150,7 +157,7 @@ function ConnectionLogsModal({ isOpen, onClose, member }) {
   const loadConnectionLogs = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/members/${member.id}/connection-logs`, {
+      const response = await fetch(apiUrl(`/api/members/${member.id}/connection-logs`), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -251,8 +258,24 @@ export default function MembersManagement() {
     onClose: onLogsClose 
   } = useDisclosure();
 
+  const {
+    isOpen: isEditOpen,
+    onOpen: onEditOpen,
+    onClose: onEditClose
+  } = useDisclosure();
+
+  const {
+    isOpen: isTerminateOpen,
+    onOpen: onTerminateOpen,
+    onClose: onTerminateClose
+  } = useDisclosure();
+
   const toast = useToast();
   const cardBg = useColorModeValue('white', 'gray.800');
+
+  const [editData, setEditData] = useState(null);
+  const [terminateMember, setTerminateMember] = useState(null);
+  const [terminateForm, setTerminateForm] = useState({ reason: '', notes: '', pv: null, resignation: null });
 
   // === CHARGEMENT DES DONNÉES ===
   useEffect(() => {
@@ -318,7 +341,7 @@ export default function MembersManagement() {
     try {
       const action = member.loginEnabled ? 'disable' : 'enable';
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/members/${member.id}/toggle-login`, {
+      const response = await fetch(apiUrl(`/api/members/${member.id}/toggle-login`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -373,7 +396,7 @@ export default function MembersManagement() {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/members/${member.id}/reset-password`, {
+      const response = await fetch(apiUrl(`/api/members/${member.id}/reset-password`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -409,6 +432,65 @@ export default function MembersManagement() {
     onLogsOpen();
   };
 
+  const handleEdit = (member) => {
+    setSelectedMember(member);
+    setEditData({ ...member });
+    onEditOpen();
+  };
+
+  const saveEdit = async () => {
+    try {
+      if (!selectedMember) return;
+      const allowed = ['firstName','lastName','email','phone','address','city','postalCode','membershipType','membershipStatus','paymentAmount','paymentMethod','newsletter','notes'];
+      const payload = {};
+      for (const k of allowed) if (k in editData) payload[k] = editData[k];
+      const resp = await fetch(apiUrl(`/api/members/${selectedMember.id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json().catch(()=> ({}));
+      if (!resp.ok) throw new Error(data?.error || 'Échec de la mise à jour');
+      const updated = data.member || data;
+      setMembers(prev => prev.map(m => m.id === selectedMember.id ? { ...m, ...updated } : m));
+      toast({ title: 'Membre mis à jour', status: 'success' });
+      onEditClose();
+    } catch (e) {
+      toast({ title: 'Erreur', description: e.message, status: 'error' });
+    }
+  };
+
+  const handleTerminate = (member) => {
+    setTerminateMember(member);
+    setTerminateForm({ reason: '', notes: '', pv: null, resignation: null });
+    onTerminateOpen();
+  };
+
+  const confirmTerminate = async () => {
+    try {
+      if (!terminateMember) return;
+      if (!terminateForm.reason) { toast({ title: 'Motif requis', status: 'error' }); return; }
+      if (terminateForm.reason === 'EXCLUSION' && !terminateForm.pv) { toast({ title: 'PV obligatoire', status: 'error' }); return; }
+      if (terminateForm.reason === 'DEMISSION' && (!terminateForm.pv || !terminateForm.resignation)) { toast({ title: 'PV et lettre obligatoires', status: 'error' }); return; }
+      const fd = new FormData();
+      fd.append('reason', terminateForm.reason);
+      if (terminateForm.notes) fd.append('notes', terminateForm.notes);
+      if (terminateForm.pv) fd.append('pv', terminateForm.pv);
+      if (terminateForm.resignation) fd.append('resignation', terminateForm.resignation);
+      const resp = await fetch(apiUrl(`/api/members/${terminateMember.id}/terminate`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: fd
+      });
+      const data = await resp.json().catch(()=> ({}));
+      if (!resp.ok) throw new Error(data?.error || 'Échec de la résiliation');
+      toast({ title: "Adhésion terminée", status: 'success' });
+      await loadMembers();
+      onTerminateClose();
+    } catch (e) {
+      toast({ title: 'Erreur', description: e.message, status: 'error' });
+    }
+  };
   const handleMemberCreated = (newMember) => {
     setMembers(prev => [newMember, ...prev]);
     calculateStats([newMember, ...members]);
@@ -555,10 +637,11 @@ export default function MembersManagement() {
             <MemberCard
               key={member.id}
               member={member}
-              onEdit={(member) => console.log('Edit:', member)}
+              onEdit={handleEdit}
               onViewLogs={handleViewLogs}
               onToggleLogin={handleToggleLogin}
               onResetPassword={handleResetPassword}
+              onTerminate={handleTerminate}
             />
           ))}
         </SimpleGrid>
@@ -583,6 +666,114 @@ export default function MembersManagement() {
         onClose={onLogsClose}
         member={selectedMember}
       />
+
+      {/* Edit member modal */}
+      <Modal isOpen={isEditOpen} onClose={onEditClose} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Modifier le membre</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {editData && (
+              <VStack align="stretch" spacing={4}>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl>
+                    <FormLabel>Prénom</FormLabel>
+                    <Input value={editData.firstName || ''} onChange={(e)=>setEditData(p=>({...p, firstName: e.target.value}))} />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Nom</FormLabel>
+                    <Input value={editData.lastName || ''} onChange={(e)=>setEditData(p=>({...p, lastName: e.target.value}))} />
+                  </FormControl>
+                </SimpleGrid>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl>
+                    <FormLabel>Email</FormLabel>
+                    <Input type="email" value={editData.email || ''} onChange={(e)=>setEditData(p=>({...p, email: e.target.value}))} />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Téléphone</FormLabel>
+                    <Input value={editData.phone || ''} onChange={(e)=>setEditData(p=>({...p, phone: e.target.value}))} />
+                  </FormControl>
+                </SimpleGrid>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl>
+                    <FormLabel>Statut</FormLabel>
+                    <Select value={editData.membershipStatus || 'ACTIVE'} onChange={(e)=>setEditData(p=>({...p, membershipStatus: e.target.value}))}>
+                      <option value="PENDING">En attente</option>
+                      <option value="ACTIVE">Actif</option>
+                      <option value="EXPIRED">Expiré</option>
+                      <option value="SUSPENDED">Suspendu</option>
+                      <option value="CANCELLED">Annulé</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Type d'adhésion</FormLabel>
+                    <Select value={editData.membershipType || 'STANDARD'} onChange={(e)=>setEditData(p=>({...p, membershipType: e.target.value}))}>
+                      <option value="STANDARD">Standard</option>
+                      <option value="FAMILY">Famille</option>
+                      <option value="STUDENT">Étudiant</option>
+                      <option value="HONORARY">Honneur</option>
+                    </Select>
+                  </FormControl>
+                </SimpleGrid>
+                <FormControl>
+                  <FormLabel>Notes</FormLabel>
+                  <Textarea value={editData.notes || ''} onChange={(e)=>setEditData(p=>({...p, notes: e.target.value}))} />
+                </FormControl>
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onEditClose}>Annuler</Button>
+            <Button colorScheme="blue" onClick={saveEdit}>Enregistrer</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Terminate membership modal */}
+      <Modal isOpen={isTerminateOpen} onClose={onTerminateClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Terminer l'adhésion</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Alert status="warning"><AlertIcon />Cette action met fin à l'adhésion. L'accès site associé sera désactivé.</Alert>
+              <FormControl isRequired>
+                <FormLabel>Motif</FormLabel>
+                <Select value={terminateForm.reason} onChange={(e)=>setTerminateForm(p=>({...p, reason:e.target.value}))}>
+                  <option value="">Choisir un motif...</option>
+                  <option value="FIN">Fin d'adhésion</option>
+                  <option value="NON_RECONDUITE">Non reconduite</option>
+                  <option value="EXCLUSION">Exclusion votée (joindre le PV)</option>
+                  <option value="DEMISSION">Démission (joindre PV et lettre de démission)</option>
+                </Select>
+              </FormControl>
+              <FormControl>
+                <FormLabel>Notes (optionnel)</FormLabel>
+                <Textarea value={terminateForm.notes} onChange={(e)=>setTerminateForm(p=>({...p, notes:e.target.value}))} />
+              </FormControl>
+              {(terminateForm.reason === 'EXCLUSION' || terminateForm.reason === 'DEMISSION') && (
+                <FormControl isRequired>
+                  <FormLabel>Procès-verbal (PDF/Image)</FormLabel>
+                  <Input type="file" accept="application/pdf,image/*" onChange={(e)=>setTerminateForm(p=>({...p, pv: e.target.files?.[0]||null}))} />
+                </FormControl>
+              )}
+              {terminateForm.reason === 'DEMISSION' && (
+                <FormControl isRequired>
+                  <FormLabel>Lettre de démission (PDF/Image)</FormLabel>
+                  <Input type="file" accept="application/pdf,image/*" onChange={(e)=>setTerminateForm(p=>({...p, resignation: e.target.files?.[0]||null}))} />
+                </FormControl>
+              )}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onTerminateClose}>Annuler</Button>
+            <Button colorScheme="red" onClick={confirmTerminate}>Confirmer</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Container>
   );
 }
