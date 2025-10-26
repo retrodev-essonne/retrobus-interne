@@ -61,7 +61,8 @@ const AdminFinance = () => {
     amount: '',
     description: '',
     frequency: 'MONTHLY',
-    nextDate: new Date().toISOString().split('T')[0]
+    nextDate: new Date().toISOString().split('T')[0],
+    totalAmount: ''
   });
   const [selectedOperation, setSelectedOperation] = useState(null);
   const [paymentPeriod, setPaymentPeriod] = useState(() => {
@@ -741,7 +742,8 @@ const AdminFinance = () => {
         },
         body: JSON.stringify({
           ...newScheduled,
-          amount: parseFloat(newScheduled.amount)
+          amount: parseFloat(newScheduled.amount),
+          totalAmount: newScheduled.totalAmount !== '' && newScheduled.totalAmount !== null ? parseFloat(newScheduled.totalAmount) : undefined
         })
       });
 
@@ -759,7 +761,8 @@ const AdminFinance = () => {
           amount: '',
           description: '',
           frequency: 'MONTHLY',
-          nextDate: new Date().toISOString().split('T')[0]
+          nextDate: new Date().toISOString().split('T')[0],
+          totalAmount: ''
         });
         
         onScheduledClose();
@@ -787,6 +790,29 @@ const AdminFinance = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteScheduledOperation = async (id) => {
+    try {
+      if (!confirm('Supprimer cette opération programmée et tous ses paiements ?')) return;
+      const response = await fetch(apiUrl(`/api/finance/scheduled-operations/${id}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        toast({ status: 'success', title: 'Opération supprimée' });
+        await loadScheduledOperations();
+      } else {
+        const err = await response.json().catch(()=>({}));
+        toast({ status: 'error', title: 'Erreur', description: err.message || 'Suppression impossible' });
+      }
+    } catch (e) {
+      console.error('❌ Erreur suppression opération programmée:', e);
+      toast({ status: 'error', title: 'Erreur', description: 'Suppression impossible' });
     }
   };
 
@@ -1596,7 +1622,7 @@ const AdminFinance = () => {
                                   />
                                   <MenuList>
                                     <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500">
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteScheduledOperation(operation.id)}>
                                       Supprimer
                                     </MenuItem>
                                   </MenuList>
@@ -1749,6 +1775,9 @@ const AdminFinance = () => {
                                 <Th isNumeric>Montant</Th>
                                 <Th isNumeric>Payées (année)</Th>
                                 <Th isNumeric>Restant (année)</Th>
+                                <Th isNumeric>Restant total</Th>
+                                <Th isNumeric>Mensualités restantes</Th>
+                                <Th>Fin estimée</Th>
                                 <Th>Actions</Th>
                               </Tr>
                             </Thead>
@@ -1770,10 +1799,32 @@ const AdminFinance = () => {
                                       <Text color="gray.500">N/A</Text>
                                     )}
                                   </Td>
+                                  <Td isNumeric>
+                                    {op.remainingTotalAmount != null ? (
+                                      <Text fontWeight="bold">{formatCurrency(op.remainingTotalAmount)}</Text>
+                                    ) : (
+                                      <Text color="gray.500">—</Text>
+                                    )}
+                                  </Td>
+                                  <Td isNumeric>
+                                    {op.monthsRemainingTotal != null ? (
+                                      <Badge colorScheme="purple">{op.monthsRemainingTotal}</Badge>
+                                    ) : (
+                                      <Text color="gray.500">—</Text>
+                                    )}
+                                  </Td>
+                                  <Td>
+                                    {op.estimatedEndDate ? (
+                                      <Text>{formatDate(op.estimatedEndDate)}</Text>
+                                    ) : (
+                                      <Text color="gray.500">—</Text>
+                                    )}
+                                  </Td>
                                   <Td>
                                     <HStack>
                                       <Button size="xs" onClick={() => openDeclarePayment(op)}>Déclarer payé</Button>
                                       <Button size="xs" variant="outline" onClick={() => openPaymentsList(op)}>Voir paiements</Button>
+                                      <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="xs" variant="ghost" colorScheme="red" onClick={() => deleteScheduledOperation(op.id)} />
                                     </HStack>
                                   </Td>
                                 </Tr>
@@ -2474,6 +2525,23 @@ const AdminFinance = () => {
                     value={newScheduled.nextDate}
                     onChange={(e) => setNewScheduled(prev => ({ ...prev, nextDate: e.target.value }))}
                   />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Total à amortir (optionnel)</FormLabel>
+                  <NumberInput
+                    value={newScheduled.totalAmount}
+                    onChange={(value) => setNewScheduled(prev => ({ ...prev, totalAmount: value }))}
+                    precision={2}
+                    step={0.01}
+                  >
+                    <NumberInputField placeholder="Ex: 4000.00" />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                  <Text fontSize="xs" color="gray.500">Permet de calculer le nombre de mensualités restantes et la date de fin estimée.</Text>
                 </FormControl>
               </VStack>
             </ModalBody>
