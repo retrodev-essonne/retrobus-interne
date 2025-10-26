@@ -329,12 +329,29 @@ function AccessManagement() {
       setStats(response.data || {});
     } catch (error) {
       console.error('Erreur chargement stats:', error);
-      toast({
-        title: 'Erreur API',
-        description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
-        status: 'error',
-        duration: 5000
-      });
+      // Fallback: calculer des stats locales à partir de la liste d'utilisateurs si dispo
+      if (Array.isArray(users) && users.length > 0) {
+        const totalUsers = users.length;
+        const activeUsers = users.filter(u => u.isActive).length;
+        const linkedUsers = users.filter(u => !!u.linkedMember).length;
+        const since = Date.now() - 24 * 60 * 60 * 1000;
+        const recentLogins = users.filter(u => u.lastLoginAt && new Date(u.lastLoginAt).getTime() >= since).length;
+        setStats({ totalUsers, activeUsers, linkedUsers, recentLogins });
+        // Optionnel: information non bloquante au lieu d'une erreur
+        toast({
+          title: 'Stats calculées localement',
+          description: 'Endpoint /site-users/stats indisponible, valeurs estimées à partir des utilisateurs chargés.',
+          status: 'info',
+          duration: 4000
+        });
+      } else {
+        toast({
+          title: 'Erreur API',
+          description: `${error.message}${error.urlsTried ? ` • Testé: ${error.urlsTried.join(', ')}` : ''}`,
+          status: 'error',
+          duration: 5000
+        });
+      }
     }
   };
 
