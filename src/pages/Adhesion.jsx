@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, HStack, Text, Card, CardHeader, CardBody, Badge, 
-  Heading, SimpleGrid, Button, Center, Alert, AlertIcon, 
-  Divider, Progress, useToast, Modal, ModalOverlay, ModalContent, 
-  ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel, 
-  Input, useDisclosure, Textarea, Switch, Spinner, Select
+  Box, VStack, HStack, Text, Card, CardHeader, CardBody, Badge,
+  Heading, SimpleGrid, Button, Center, Alert, AlertIcon,
+  Divider, Progress, useToast, Modal, ModalOverlay, ModalContent,
+  ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel,
+  Input, useDisclosure, Textarea, Switch, Spinner, Select,
+  Tabs, TabList, TabPanels, Tab, TabPanel,
+  Table, Thead, Tbody, Tr, Th, Td, IconButton
 } from '@chakra-ui/react';
 import { 
   FiUser, FiCreditCard, FiCalendar, FiMail, FiPhone, 
@@ -47,6 +49,8 @@ export default function MyMembership() {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState({});
   const [createMode, setCreateMode] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const { isOpen: isPasswordModalOpen, onOpen: onPasswordModalOpen, onClose: onPasswordModalClose } = useDisclosure();
   const { isOpen: isTerminateOpen, onOpen: onTerminateOpen, onClose: onTerminateClose } = useDisclosure();
@@ -81,6 +85,14 @@ export default function MyMembership() {
   useEffect(() => {
     fetchMemberData();
   }, []);
+
+  useEffect(() => {
+    if (memberData && memberData.id) {
+      fetchDocuments();
+    } else {
+      setDocuments([]);
+    }
+  }, [memberData?.id]);
 
   // Améliorer la fonction fetchMemberData
   const fetchMemberData = async () => {
@@ -260,6 +272,43 @@ export default function MyMembership() {
     }
   };
 
+  const fetchDocuments = async () => {
+    try {
+      setDocsLoading(true);
+      const resp = await fetch(`${API_BASE_URL}/api/members/me/documents`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!resp.ok) throw new Error('Chargement des documents impossible');
+      const data = await resp.json();
+      setDocuments(data?.documents || []);
+    } catch (e) {
+      console.error('Docs error', e);
+      setDocuments([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
+
+  const handleDownload = async (doc) => {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/documents/${doc.id}/download`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!resp.ok) throw new Error('Téléchargement impossible');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.fileName || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast({ status: 'error', title: 'Erreur', description: e.message });
+    }
+  };
+
   const handleCancelEdit = () => {
     setEditMode(false);
     setCreateMode(false);
@@ -407,260 +456,328 @@ export default function MyMembership() {
                 </Box>
               </Alert>
             )}
+            {/* Onglets d'information */}
+            <Tabs variant="enclosed" colorScheme="blue">
+              <TabList>
+                <Tab>Informations personnelles</Tab>
+                <Tab>Informations Adhérent</Tab>
+                <Tab>Documents d'adhésions</Tab>
+              </TabList>
+              <TabPanels>
+                {/* Tab 1: Informations personnelles */}
+                <TabPanel px={0}>
+                  <Card>
+                    <CardHeader>
+                      <Heading size="md">Informations personnelles</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <VStack spacing={4} align="stretch">
+                        {editMode ? (
+                          <>
+                            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                              <FormControl isRequired>
+                                <FormLabel>Prénom</FormLabel>
+                                <Input
+                                  value={editData.firstName || ''}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, firstName: e.target.value }))}
+                                />
+                              </FormControl>
+                              <FormControl isRequired>
+                                <FormLabel>Nom</FormLabel>
+                                <Input
+                                  value={editData.lastName || ''}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, lastName: e.target.value }))}
+                                />
+                              </FormControl>
+                              <FormControl>
+                                <FormLabel>Email</FormLabel>
+                                <Input
+                                  type="email"
+                                  value={editData.email || ''}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
+                                />
+                              </FormControl>
+                              <FormControl>
+                                <FormLabel>Téléphone</FormLabel>
+                                <Input
+                                  value={editData.phone || ''}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, phone: e.target.value }))}
+                                />
+                              </FormControl>
+                            </SimpleGrid>
 
-            {/* Statut d'adhésion */}
-            <Card>
-              <CardHeader>
-                <Heading size="md">Statut de l'Adhésion</Heading>
-              </CardHeader>
-              <CardBody>
-                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
-                  <Box>
-                    <Text fontSize="sm" color="gray.600" mb={2}>Statut actuel</Text>
-                    <Badge colorScheme={getStatusColor(memberData.membershipStatus)} fontSize="md" p={2}>
-                      {statusConfig.label}
-                    </Badge>
-                    <Progress 
-                      value={statusConfig.progress} 
-                      colorScheme={getStatusColor(memberData.membershipStatus)}
-                      mt={2}
-                      size="sm"
-                    />
-                  </Box>
-                  
-                  <Box>
-                    <Text fontSize="sm" color="gray.600" mb={2}>Type d'adhésion</Text>
-                    <Text fontWeight="bold">
-                      {MEMBERSHIP_TYPES[memberData.membershipType] || memberData.membershipType}
-                    </Text>
-                  </Box>
-                  
-                  <Box>
-                    <Text fontSize="sm" color="gray.600" mb={2}>Matricule</Text>
-                    <Text fontWeight="bold" color="blue.600">
-                      {memberData.matricule}
-                    </Text>
-                    <Text fontSize="xs" color="gray.500">
-                      Utilisé pour se connecter au site
-                    </Text>
-                  </Box>
+                            <FormControl>
+                              <FormLabel>Adresse</FormLabel>
+                              <Input
+                                value={editData.address || ''}
+                                onChange={(e) => setEditData(prev => ({ ...prev, address: e.target.value }))}
+                              />
+                            </FormControl>
 
-                  <Box>
-                    <Text fontSize="sm" color="gray.600" mb={2}>Numéro d'adhérent</Text>
-                    <Text fontWeight="bold" color="purple.600">
-                      {memberData.memberNumber}
-                    </Text>
-                    <Text fontSize="xs" color="gray.500">
-                      Numéro unique d'adhésion
-                    </Text>
-                  </Box>
-                </SimpleGrid>
-              </CardBody>
-            </Card>
+                            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                              <FormControl>
+                                <FormLabel>Code postal</FormLabel>
+                                <Input
+                                  value={editData.postalCode || ''}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, postalCode: e.target.value }))}
+                                />
+                              </FormControl>
+                              <FormControl>
+                                <FormLabel>Ville</FormLabel>
+                                <Input
+                                  value={editData.city || ''}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, city: e.target.value }))}
+                                />
+                              </FormControl>
+                            </SimpleGrid>
 
-            {/* Informations personnelles */}
-            <Card>
-              <CardHeader>
-                <Heading size="md">Informations personnelles</Heading>
-              </CardHeader>
-              <CardBody>
-                <VStack spacing={4} align="stretch">
-                  {editMode ? (
-                    <>
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <FormControl isRequired>
-                          <FormLabel>Prénom</FormLabel>
-                          <Input
-                            value={editData.firstName || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, firstName: e.target.value }))}
-                          />
-                        </FormControl>
-                        <FormControl isRequired>
-                          <FormLabel>Nom</FormLabel>
-                          <Input
-                            value={editData.lastName || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, lastName: e.target.value }))}
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel>Email</FormLabel>
-                          <Input
-                            type="email"
-                            value={editData.email || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel>Téléphone</FormLabel>
-                          <Input
-                            value={editData.phone || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, phone: e.target.value }))}
-                          />
-                        </FormControl>
-                      </SimpleGrid>
+                            <FormControl>
+                              <FormLabel>Date de naissance</FormLabel>
+                              <Input
+                                type="date"
+                                value={editData.birthDate ? editData.birthDate.split('T')[0] : ''}
+                                onChange={(e) => setEditData(prev => ({ ...prev, birthDate: e.target.value }))}
+                              />
+                            </FormControl>
+                          </>
+                        ) : (
+                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+                            <Box>
+                              <HStack mb={4}>
+                                <FiUser />
+                                <Box>
+                                  <Text fontSize="sm" color="gray.600">Nom complet</Text>
+                                  <Text fontWeight="bold">{memberData.firstName} {memberData.lastName}</Text>
+                                </Box>
+                              </HStack>
+                              {memberData.email && (
+                                <HStack mb={4}>
+                                  <FiMail />
+                                  <Box>
+                                    <Text fontSize="sm" color="gray.600">Email</Text>
+                                    <Text fontWeight="bold">{memberData.email}</Text>
+                                  </Box>
+                                </HStack>
+                              )}
+                              {memberData.phone && (
+                                <HStack mb={4}>
+                                  <FiPhone />
+                                  <Box>
+                                    <Text fontSize="sm" color="gray.600">Téléphone</Text>
+                                    <Text fontWeight="bold">{memberData.phone}</Text>
+                                  </Box>
+                                </HStack>
+                              )}
+                            </Box>
+                            <Box>
+                              {(memberData.address || memberData.city) && (
+                                <HStack mb={4}>
+                                  <FiMapPin />
+                                  <Box>
+                                    <Text fontSize="sm" color="gray.600">Adresse</Text>
+                                    <Text fontWeight="bold">
+                                      {memberData.address && `${memberData.address}, `}
+                                      {memberData.postalCode} {memberData.city}
+                                    </Text>
+                                  </Box>
+                                </HStack>
+                              )}
+                              {memberData.birthDate && (
+                                <HStack mb={4}>
+                                  <FiCalendar />
+                                  <Box>
+                                    <Text fontSize="sm" color="gray.600">Date de naissance</Text>
+                                    <Text fontWeight="bold">{new Date(memberData.birthDate).toLocaleDateString('fr-FR')}</Text>
+                                  </Box>
+                                </HStack>
+                              )}
+                            </Box>
+                          </SimpleGrid>
+                        )}
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                </TabPanel>
 
-                      <FormControl>
-                        <FormLabel>Adresse</FormLabel>
-                        <Input
-                          value={editData.address || ''}
-                          onChange={(e) => setEditData(prev => ({ ...prev, address: e.target.value }))}
-                        />
-                      </FormControl>
-
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <FormControl>
-                          <FormLabel>Code postal</FormLabel>
-                          <Input
-                            value={editData.postalCode || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, postalCode: e.target.value }))}
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel>Ville</FormLabel>
-                          <Input
-                            value={editData.city || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, city: e.target.value }))}
-                          />
-                        </FormControl>
-                      </SimpleGrid>
-
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <FormControl>
-                          <FormLabel>Date de naissance</FormLabel>
-                          <Input
-                            type="date"
-                            value={editData.birthDate ? editData.birthDate.split('T')[0] : ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, birthDate: e.target.value }))}
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel>Type d'adhésion</FormLabel>
-                          <Select
-                            value={editData.membershipType || 'STANDARD'}
-                            onChange={(e) => setEditData(prev => ({ ...prev, membershipType: e.target.value }))}
-                          >
-                            {Object.entries(MEMBERSHIP_TYPES).map(([key, label]) => (
-                              <option key={key} value={key}>{label}</option>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </SimpleGrid>
-
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <FormControl>
-                          <FormLabel>Montant cotisation (€)</FormLabel>
-                          <Input
-                            type="number"
-                            value={editData.paymentAmount || ''}
-                            onChange={(e) => setEditData(prev => ({ ...prev, paymentAmount: e.target.value }))}
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel>Mode de paiement</FormLabel>
-                          <Select
-                            value={editData.paymentMethod || 'CASH'}
-                            onChange={(e) => setEditData(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                          >
-                            {Object.entries(PAYMENT_METHODS).map(([key, label]) => (
-                              <option key={key} value={key}>{label}</option>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </SimpleGrid>
-
-                      <FormControl display="flex" alignItems="center">
-                        <FormLabel htmlFor="newsletter" mb="0">Newsletter</FormLabel>
-                        <Switch
-                          id="newsletter"
-                          isChecked={editData.newsletter}
-                          onChange={(e) => setEditData(prev => ({ ...prev, newsletter: e.target.checked }))}
-                        />
-                      </FormControl>
-
-                      <FormControl>
-                        <FormLabel>Notes</FormLabel>
-                        <Textarea
-                          value={editData.notes || ''}
-                          onChange={(e) => setEditData(prev => ({ ...prev, notes: e.target.value }))}
-                          placeholder="Notes personnelles..."
-                        />
-                      </FormControl>
-                    </>
-                  ) : (
-                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-                      <Box>
-                        <HStack mb={4}>
-                          <FiUser />
+                {/* Tab 2: Infos Adhérent */}
+                <TabPanel px={0}>
+                  <VStack spacing={6} align="stretch">
+                    <Card>
+                      <CardHeader>
+                        <Heading size="md">Statut de l'Adhésion</Heading>
+                      </CardHeader>
+                      <CardBody>
+                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
                           <Box>
-                            <Text fontSize="sm" color="gray.600">Nom complet</Text>
-                            <Text fontWeight="bold">{memberData.firstName} {memberData.lastName}</Text>
+                            <Text fontSize="sm" color="gray.600" mb={2}>Statut actuel</Text>
+                            <Badge colorScheme={getStatusColor(memberData.membershipStatus)} fontSize="md" p={2}>
+                              {statusConfig.label}
+                            </Badge>
+                            <Progress value={statusConfig.progress} colorScheme={getStatusColor(memberData.membershipStatus)} mt={2} size="sm" />
                           </Box>
-                        </HStack>
-                        
-                        {memberData.email && (
-                          <HStack mb={4}>
-                            <FiMail />
-                            <Box>
-                              <Text fontSize="sm" color="gray.600">Email</Text>
-                              <Text fontWeight="bold">{memberData.email}</Text>
-                            </Box>
-                          </HStack>
-                        )}
-                        
-                        {memberData.phone && (
-                          <HStack mb={4}>
-                            <FiPhone />
-                            <Box>
-                              <Text fontSize="sm" color="gray.600">Téléphone</Text>
-                              <Text fontWeight="bold">{memberData.phone}</Text>
-                            </Box>
-                          </HStack>
-                        )}
-                      </Box>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600" mb={2}>Type d'adhésion</Text>
+                            <Text fontWeight="bold">{MEMBERSHIP_TYPES[memberData.membershipType] || memberData.membershipType}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600" mb={2}>Matricule</Text>
+                            <Text fontWeight="bold" color="blue.600">{memberData.matricule}</Text>
+                            <Text fontSize="xs" color="gray.500">Utilisé pour se connecter au site</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600" mb={2}>Numéro d'adhérent</Text>
+                            <Text fontWeight="bold" color="purple.600">{memberData.memberNumber}</Text>
+                            <Text fontSize="xs" color="gray.500">Numéro unique d'adhésion</Text>
+                          </Box>
+                        </SimpleGrid>
+                      </CardBody>
+                    </Card>
 
-                      <Box>
-                        {(memberData.address || memberData.city) && (
-                          <HStack mb={4}>
-                            <FiMapPin />
+                    <Card>
+                      <CardHeader>
+                        <Heading size="md">Détails d'adhésion</Heading>
+                      </CardHeader>
+                      <CardBody>
+                        {editMode ? (
+                          <VStack spacing={4} align="stretch">
+                            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                              <FormControl>
+                                <FormLabel>Type d'adhésion</FormLabel>
+                                <Select
+                                  value={editData.membershipType || 'STANDARD'}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, membershipType: e.target.value }))}
+                                >
+                                  {Object.entries(MEMBERSHIP_TYPES).map(([key, label]) => (
+                                    <option key={key} value={key}>{label}</option>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                              <FormControl>
+                                <FormLabel>Montant cotisation (€)</FormLabel>
+                                <Input
+                                  type="number"
+                                  value={editData.paymentAmount || ''}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, paymentAmount: e.target.value }))}
+                                />
+                              </FormControl>
+                            </SimpleGrid>
+                            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                              <FormControl>
+                                <FormLabel>Mode de paiement</FormLabel>
+                                <Select
+                                  value={editData.paymentMethod || 'CASH'}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                                >
+                                  {Object.entries(PAYMENT_METHODS).map(([key, label]) => (
+                                    <option key={key} value={key}>{label}</option>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                              <FormControl display="flex" alignItems="center">
+                                <FormLabel htmlFor="newsletter" mb="0">Newsletter</FormLabel>
+                                <Switch
+                                  id="newsletter"
+                                  isChecked={editData.newsletter}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, newsletter: e.target.checked }))}
+                                />
+                              </FormControl>
+                            </SimpleGrid>
+                            <FormControl>
+                              <FormLabel>Notes</FormLabel>
+                              <Textarea
+                                value={editData.notes || ''}
+                                onChange={(e) => setEditData(prev => ({ ...prev, notes: e.target.value }))}
+                                placeholder="Notes personnelles..."
+                              />
+                            </FormControl>
+                          </VStack>
+                        ) : (
+                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
                             <Box>
-                              <Text fontSize="sm" color="gray.600">Adresse</Text>
-                              <Text fontWeight="bold">
-                                {memberData.address && `${memberData.address}, `}
-                                {memberData.postalCode} {memberData.city}
-                              </Text>
+                              {memberData.paymentAmount && (
+                                <HStack mb={4}>
+                                  <FiCreditCard />
+                                  <Box>
+                                    <Text fontSize="sm" color="gray.600">Cotisation</Text>
+                                    <Text fontWeight="bold">{memberData.paymentAmount}€ ({PAYMENT_METHODS[memberData.paymentMethod] || memberData.paymentMethod})</Text>
+                                  </Box>
+                                </HStack>
+                              )}
+                              <HStack mb={4}>
+                                <FiUser />
+                                <Box>
+                                  <Text fontSize="sm" color="gray.600">Type</Text>
+                                  <Text fontWeight="bold">{MEMBERSHIP_TYPES[memberData.membershipType] || memberData.membershipType}</Text>
+                                </Box>
+                              </HStack>
                             </Box>
-                          </HStack>
-                        )}
-                        
-                        {memberData.birthDate && (
-                          <HStack mb={4}>
-                            <FiCalendar />
                             <Box>
-                              <Text fontSize="sm" color="gray.600">Date de naissance</Text>
-                              <Text fontWeight="bold">
-                                {new Date(memberData.birthDate).toLocaleDateString('fr-FR')}
-                              </Text>
+                              <HStack mb={4}>
+                                <FiKey />
+                                <Box>
+                                  <Text fontSize="sm" color="gray.600">Matricule</Text>
+                                  <Text fontWeight="bold" color="blue.600">{memberData.matricule}</Text>
+                                </Box>
+                              </HStack>
+                              <HStack mb={4}>
+                                <FiKey />
+                                <Box>
+                                  <Text fontSize="sm" color="gray.600">Numéro d'adhérent</Text>
+                                  <Text fontWeight="bold" color="purple.600">{memberData.memberNumber}</Text>
+                                </Box>
+                              </HStack>
                             </Box>
-                          </HStack>
+                          </SimpleGrid>
                         )}
+                      </CardBody>
+                    </Card>
+                  </VStack>
+                </TabPanel>
 
-                        {memberData.paymentAmount && (
-                          <HStack mb={4}>
-                            <FiCreditCard />
-                            <Box>
-                              <Text fontSize="sm" color="gray.600">Cotisation</Text>
-                              <Text fontWeight="bold">
-                                {memberData.paymentAmount}€ ({PAYMENT_METHODS[memberData.paymentMethod] || memberData.paymentMethod})
-                              </Text>
-                            </Box>
-                          </HStack>
-                        )}
-                      </Box>
-                    </SimpleGrid>
-                  )}
-                </VStack>
-              </CardBody>
-            </Card>
+                {/* Tab 3: Documents d'adhésions */}
+                <TabPanel px={0}>
+                  <Card>
+                    <CardHeader>
+                      <Heading size="md">Documents d'adhésions</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      {docsLoading ? (
+                        <Center><Spinner /></Center>
+                      ) : documents.length === 0 ? (
+                        <Text color="gray.600">Aucun document pour le moment.</Text>
+                      ) : (
+                        <Table size="sm">
+                          <Thead>
+                            <Tr>
+                              <Th>Fichier</Th>
+                              <Th>Type</Th>
+                              <Th>Ajouté le</Th>
+                              <Th>Expiration</Th>
+                              <Th>Statut</Th>
+                              <Th></Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {documents.map((d) => (
+                              <Tr key={d.id}>
+                                <Td>{d.fileName}</Td>
+                                <Td>{d.documentType || '-'}</Td>
+                                <Td>{d.uploadedAt ? new Date(d.uploadedAt).toLocaleString('fr-FR') : '-'}</Td>
+                                <Td>{d.expiryDate ? new Date(d.expiryDate).toLocaleDateString('fr-FR') : '-'}</Td>
+                                <Td><Badge>{d.status || 'PENDING'}</Badge></Td>
+                                <Td textAlign="right">
+                                  <Button size="sm" leftIcon={<FiDownload />} onClick={() => handleDownload(d)}>Télécharger</Button>
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      )}
+                    </CardBody>
+                  </Card>
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
 
             {/* Actions */}
             {!editMode && (
