@@ -1,8 +1,9 @@
 // Prefer same-origin relative calls in prod to avoid CORS; use env or localhost only in local dev
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '5173');
+// In local dev, default to relative to go through Vite proxy (configured to 3001) unless explicitly overridden
 const API_BASE_URL = (
   isLocal
-    ? (import.meta.env?.VITE_API_URL || 'http://localhost:3000')
+    ? (import.meta.env?.VITE_API_URL || '')
     : ''
 ).replace(/\/$/, '');
 

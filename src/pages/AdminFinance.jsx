@@ -133,9 +133,9 @@ const AdminFinance = () => {
   // === API HELPERS ===
   // Base API: prefer same-origin relative in prod to avoid CORS; in local dev use VITE_API_* or localhost:3000
   const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '5173');
-  const API_BASE = (
-    isLocal ? (import.meta?.env?.VITE_API_BASE_URL || import.meta?.env?.VITE_API_URL || 'http://localhost:3000') : ''
-  ).replace(/\/$/, '');
+  // In local dev, prefer relative URLs to go through Vite proxy unless explicit env is provided
+  const RAW_BASE = isLocal ? (import.meta?.env?.VITE_API_BASE_URL || import.meta?.env?.VITE_API_URL || '') : '';
+  const API_BASE = String(RAW_BASE || '').replace(/\/$/, '');
   const apiUrl = (path) => `${API_BASE}${path}`;
 
   // === FONCTIONS DE CHARGEMENT ===
