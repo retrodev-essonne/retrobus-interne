@@ -10,7 +10,6 @@ import DashboardHome from "./pages/DashboardHome";
 import MyRBE from "./pages/MyRBE";
 import MyRBEActions from "./pages/MyRBEActions";
 import AdminFinance from "./pages/AdminFinance";
-import AdminGeneral from "./pages/AdminGeneral";
 import Vehicules from "./pages/Vehicules";
 import VehiculeShow from "./pages/VehiculeShow";
 import Evenements from "./pages/Evenements";
@@ -51,17 +50,9 @@ export default function App() {
   <Route path="/dashboard/myrbe" element={<ProtectedRoute><MyRBE /></ProtectedRoute>} />
   <Route path="/dashboard/myrbe/:parc" element={<ProtectedRoute><MyRBEActions /></ProtectedRoute>} />
         
-        {/* 🏦 Routes pour la gestion administrative et financière */}
+        {/* 💰 Route gestion financière */}
         <Route path="/admin/finance" element={<ProtectedRoute><AdminFinance /></ProtectedRoute>} />
-
-        {/* Nouvelle route officielle Administration */}
-        <Route path="/admin/administration" element={<ProtectedRoute><AdminGeneral /></ProtectedRoute>} />
-
-        {/* Ancien alias → redirection vers la nouvelle */}
-        <Route
-          path="/admin/administrative"
-          element={<ProtectedRoute><Navigate to="/admin/administration" replace /></ProtectedRoute>}
-        />
+        
         
         {/* Nouvelle page Support du site */}
         <Route path="/dashboard/support" element={<ProtectedRoute><SupportSite /></ProtectedRoute>} />

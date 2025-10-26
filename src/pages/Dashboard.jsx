@@ -9,6 +9,7 @@ import AddVehicule from './VehiculeAdd';
 import VehiculeShow from './VehiculeShow';
 import MyRBE from './MyRBE';
 import MyRBEActions from './MyRBEActions';
+import RetroBus from './RetroBus';
 import DashboardHome from './DashboardHome';
 import RetroMail from './Retromail';
 
@@ -17,7 +18,7 @@ export default function Dashboard() {
     <Box>
       <Routes>
         <Route index element={<DashboardHome />} />
-        <Route path="retrobus" element={<Navigate to="." replace />} />
+  <Route path="retrobus" element={<RetroBus />} />
         <Route path="vehicules" element={<Vehicules />} />
         <Route path="vehicules/ajouter" element={<RequireCreator><AddVehicule /></RequireCreator>} />
         <Route path="vehicules/:parc" element={<VehiculeShow />} />

@@ -29,15 +29,7 @@ const cards = [
     description: "Recettes, dépenses et opérations programmées",
     to: "/admin/finance",
     icon: FiDollarSign,
-    color: "rbe",
-    badge: { label: "Nouveau", color: "green" }
-  },
-  {
-    title: "Gestion Administrative",
-    description: "Adhésions, tâches et gestion générale",
-    to: "/admin/administration",
-    icon: FiSettings,
-    color: "orange"
+    color: "rbe"
   },
   {
     title: "Gestion des Événements",
