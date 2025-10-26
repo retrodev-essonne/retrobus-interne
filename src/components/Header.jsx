@@ -4,7 +4,8 @@ import {
   IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton,
   ModalBody, ModalFooter, Textarea, Switch, FormControl, FormLabel, Button,
   useDisclosure, useToast, HStack, Badge, VStack, Stack, Select,
-  Tooltip, VisuallyHidden
+  Tooltip, VisuallyHidden, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton,
+  DrawerHeader, DrawerBody, Divider, useBreakpointValue
 } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
@@ -28,8 +29,10 @@ const CATEGORY = {
   POS: { key: "POS", label: "Flash Positif", color: { bg: "green.50", border: "green.300", text: "green.900", accent: "#16a34a" } },
 };
 
-const HEADER_H = "80px";
-const LOGO_H   = "110px";
+const HEADER_H_M = "56px";
+const HEADER_H_D = "80px";
+const LOGO_H_M   = "52px";
+const LOGO_H_D   = "110px";
 
 const ANN_KEY = "rbe:announcements";
 const DISMISS_KEY_PREFIX = "rbe:announcements:dismissed:";
@@ -103,6 +106,8 @@ export default function Header() {
 
   const manage = useDisclosure();
   const viewer = useDisclosure();
+  const navDrawer = useDisclosure();
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   const [flashes, setFlashes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -282,7 +287,7 @@ export default function Header() {
 
   return (
     <Box as="header" w="100%" bg="white" position="sticky" top="0" zIndex="1000" borderBottom="1px solid #3a3a3aff">
-      <Box position="relative" h={HEADER_H} overflow="visible">
+      <Box position="relative" h={{ base: HEADER_H_M, md: HEADER_H_D }} overflow="visible">
         {/* Dégradé fluide (derrière le logo) */}
         <Box
           position="absolute"
@@ -306,77 +311,125 @@ export default function Header() {
         <Image
           src={logo}
           alt="RétroBus Essonne Intranet"
-          height={LOGO_H}
+          height={{ base: LOGO_H_M, md: LOGO_H_D }}
           objectFit="contain"
           position="absolute"
-          left="20px"
+          left={{ base: 3, md: 5 }}
           top="50%"
           transform="translateY(-50%)"
           zIndex={2}
           draggable={false}
         />
 
-        {/* cloche + prénom à droite */}
+        {/* Actions à droite */}
         <Box position="absolute" right={{ base: 2, md: 6 }} top="50%" transform="translateY(-50%)" zIndex={2}>
-          <HStack spacing={2}>
-            {/* Bell visible to all */}
-            <Tooltip label={unreadCount ? `${unreadCount} flash(s) non lu(s)` : "Aucun flash"}>
-              <IconButton
-                aria-label="Voir les flashs"
-                icon={<BellIcon />}
-                size="sm"
-                variant="ghost"
-                color="white"
-                onClick={() => viewer.onOpen()}
-                title="Voir les flashs"
-              />
-            </Tooltip>
-
-            {/* small badge count */}
-            {unreadCount > 0 && (
-              <Badge colorScheme="red" variant="solid" ml="-2.5" zIndex={3}>
-                {unreadCount}
-              </Badge>
-            )}
-
-            {/* Megaphone — only admin can manage */}
-            <Tooltip label={isAdmin ? "Gérer les flashs" : "Vous n'êtes pas autorisé"}>
-              <span>
+          {isMobile ? (
+            <IconButton
+              aria-label="Menu"
+              icon={
+                <Box as="span" display="inline-block" w="18px" h="2px" bg="white" position="relative" _before={{content:'""',position:'absolute',w:'18px',h:'2px',bg:'white',top:'-6px',left:0}} _after={{content:'""',position:'absolute',w:'18px',h:'2px',bg:'white',top:'6px',left:0}} />
+              }
+              size="sm"
+              variant="ghost"
+              color="white"
+              onClick={navDrawer.onOpen}
+              title="Ouvrir le menu"
+            />
+          ) : (
+            <HStack spacing={2}>
+              {/* Bell visible to all */}
+              <Tooltip label={unreadCount ? `${unreadCount} flash(s) non lu(s)` : "Aucun flash"}>
                 <IconButton
-                  aria-label="Annonces (gestion)"
-                  icon={<MegaphoneIcon />}
+                  aria-label="Voir les flashs"
+                  icon={<BellIcon />}
                   size="sm"
                   variant="ghost"
                   color="white"
-                  onClick={() => { if (isAdmin) manage.onOpen(); }}
-                  title="Annonces"
-                  isDisabled={!isAdmin}
+                  onClick={() => viewer.onOpen()}
+                  title="Voir les flashs"
                 />
-              </span>
-            </Tooltip>
+              </Tooltip>
 
-            <Menu>
-              <MenuButton as={Button} colorScheme="red">
-                Bonjour, {prenom || 'Utilisateur'}
-              </MenuButton>
-              <MenuList>
-                <MenuItem as={RouterLink} to="/adhesion">
-                  Mon Adhésion
-                </MenuItem>
-                <MenuItem as={RouterLink} to="/retromail">
-                  RétroMail
-                </MenuItem>
-                <MenuItem onClick={handleLogout} color="red.500">
-                  Déconnexion
-                </MenuItem>
-              </MenuList>
-            </Menu>
-          </HStack>
+              {/* small badge count */}
+              {unreadCount > 0 && (
+                <Badge colorScheme="red" variant="solid" ml="-2.5" zIndex={3}>
+                  {unreadCount}
+                </Badge>
+              )}
+
+              {/* Megaphone — only admin can manage */}
+              <Tooltip label={isAdmin ? "Gérer les flashs" : "Vous n'êtes pas autorisé"}>
+                <span>
+                  <IconButton
+                    aria-label="Annonces (gestion)"
+                    icon={<MegaphoneIcon />}
+                    size="sm"
+                    variant="ghost"
+                    color="white"
+                    onClick={() => { if (isAdmin) manage.onOpen(); }}
+                    title="Annonces"
+                    isDisabled={!isAdmin}
+                  />
+                </span>
+              </Tooltip>
+
+              <Menu>
+                <MenuButton as={Button} colorScheme="red">
+                  Bonjour, {prenom || 'Utilisateur'}
+                </MenuButton>
+                <MenuList>
+                  <MenuItem as={RouterLink} to="/adhesion">
+                    Mon Adhésion
+                  </MenuItem>
+                  <MenuItem as={RouterLink} to="/retromail">
+                    RétroMail
+                  </MenuItem>
+                  <MenuItem onClick={handleLogout} color="red.500">
+                    Déconnexion
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+            </HStack>
+          )}
         </Box>
       </Box>
 
-      {/* Barre de navigation */}
-      <Navigation />
+      {/* Barre de navigation (cachée sur mobile) */}
+      <Box display={{ base: 'none', md: 'block' }}>
+        <Navigation />
+      </Box>
+
+      {/* Drawer mobile navigation */}
+      <Drawer isOpen={navDrawer.isOpen} onClose={navDrawer.onClose} placement="right">
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader bg="var(--rbe-red)" color="white">
+            <Text fontWeight="bold">👋 Bonjour {prenom || 'Utilisateur'}</Text>
+            {unreadCount > 0 && (
+              <Text fontSize="sm" color="whiteAlpha.800">{unreadCount} flash(s) non lu(s)</Text>
+            )}
+          </DrawerHeader>
+          <DrawerBody p={0}>
+            <VStack align="stretch" spacing={0}>
+              <Button as={RouterLink} to="/dashboard" variant="ghost" justifyContent="flex-start" onClick={navDrawer.onClose} py={4} px={5}>Accueil</Button>
+              <Button as={RouterLink} to="/dashboard/vehicules" variant="ghost" justifyContent="flex-start" onClick={navDrawer.onClose} py={4} px={5}>Véhicules</Button>
+              <Button as={RouterLink} to="/dashboard/evenements" variant="ghost" justifyContent="flex-start" onClick={navDrawer.onClose} py={4} px={5}>Événements</Button>
+              <Button as={RouterLink} to="/dashboard/myrbe" variant="ghost" justifyContent="flex-start" onClick={navDrawer.onClose} py={4} px={5}>MyRBE</Button>
+              <Button as={RouterLink} to="/dashboard/retromerch" variant="ghost" justifyContent="flex-start" onClick={navDrawer.onClose} py={4} px={5}>RétroMerch</Button>
+              <Divider />
+              <Button onClick={() => { viewer.onOpen(); navDrawer.onClose(); }} variant="ghost" justifyContent="flex-start" py={4} px={5}>Voir les flashs</Button>
+              {isAdmin && (
+                <Button onClick={() => { manage.onOpen(); navDrawer.onClose(); }} variant="ghost" justifyContent="flex-start" py={4} px={5}>Gérer les flashs</Button>
+              )}
+              <Divider />
+              <Button as={RouterLink} to="/adhesion" variant="ghost" justifyContent="flex-start" onClick={navDrawer.onClose} py={4} px={5}>Mon Adhésion</Button>
+              <Button as={RouterLink} to="/retromail" variant="ghost" justifyContent="flex-start" onClick={navDrawer.onClose} py={4} px={5}>RétroMail</Button>
+              <Button onClick={() => { navDrawer.onClose(); handleLogout(); }} colorScheme="red" justifyContent="flex-start" variant="ghost" py={4} px={5}>Déconnexion</Button>
+            </VStack>
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
 
       {/* Banners: render only urgent (INFO) active flashes as site banners */}
       <Box>
