@@ -1511,6 +1511,7 @@ const AdminFinance = () => {
           <TabList>
             <Tab>💳 Transactions</Tab>
             <Tab>⏰ Échéanciers</Tab>
+            <Tab>🏦 Paiements programmés</Tab>
             {/* Nouvel onglet Notes de frais */}
             <Tab>🧾 Notes de frais</Tab>
             <Tab>🧮 Simulations</Tab>
@@ -1671,7 +1672,7 @@ const AdminFinance = () => {
                                 </Text>
                               </Td>
                               <Td isNumeric>
-                                <Badge variant="subtle" colorScheme="blue">{operation.payments?.length || 0}</Badge>
+                                <Badge variant="subtle" colorScheme="blue">{operation.paymentsCount ?? (operation.payments?.length || 0) }</Badge>
                               </Td>
                               <Td>
                                 <Switch
@@ -1705,6 +1706,84 @@ const AdminFinance = () => {
                       </Table>
                     </CardBody>
                   </Card>
+                )}
+              </VStack>
+            </TabPanel>
+
+            {/* Onglet Paiements programmés (mensuels) */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <HStack justify="space-between">
+                  <Heading size="md">Paiements programmés (mensuels)</Heading>
+                  <Button
+                    leftIcon={<FiPlus />}
+                    colorScheme="purple"
+                    onClick={onScheduledOpen}
+                    size="sm"
+                  >
+                    Ajouter un prélèvement
+                  </Button>
+                </HStack>
+
+                {loading ? (
+                  <Box textAlign="center" p={8}>
+                    <Spinner size="lg" />
+                    <Text mt={2}>Chargement...</Text>
+                  </Box>
+                ) : (
+                  (() => {
+                    const list = scheduledOperations.filter(op => op.type === 'SCHEDULED_PAYMENT' && String(op.frequency||'').toUpperCase() === 'MONTHLY');
+                    return list.length === 0 ? (
+                      <Alert status="info">
+                        <AlertIcon />
+                        Aucun paiement mensuel programmé
+                      </Alert>
+                    ) : (
+                      <Card>
+                        <CardBody p={0}>
+                          <Table variant="simple">
+                            <Thead>
+                              <Tr>
+                                <Th>Description</Th>
+                                <Th>Prochaine date</Th>
+                                <Th isNumeric>Montant</Th>
+                                <Th isNumeric>Payées (année)</Th>
+                                <Th isNumeric>Restant (année)</Th>
+                                <Th>Actions</Th>
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {list.map((op, idx) => (
+                                <Tr key={op.id || idx}>
+                                  <Td>{op.description}</Td>
+                                  <Td>{formatDate(op.nextDate)}</Td>
+                                  <Td isNumeric>
+                                    <Text color="red.600" fontWeight="bold">- {formatCurrency(Math.abs(op.amount))}</Text>
+                                  </Td>
+                                  <Td isNumeric>
+                                    <Badge variant="subtle" colorScheme="blue">{op.paymentsCount ?? 0}</Badge>
+                                  </Td>
+                                  <Td isNumeric>
+                                    {op.remainingAmountYear != null ? (
+                                      <Text fontWeight="bold">{formatCurrency(op.remainingAmountYear)}</Text>
+                                    ) : (
+                                      <Text color="gray.500">N/A</Text>
+                                    )}
+                                  </Td>
+                                  <Td>
+                                    <HStack>
+                                      <Button size="xs" onClick={() => openDeclarePayment(op)}>Déclarer payé</Button>
+                                      <Button size="xs" variant="outline" onClick={() => openPaymentsList(op)}>Voir paiements</Button>
+                                    </HStack>
+                                  </Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        </CardBody>
+                      </Card>
+                    );
+                  })()
                 )}
               </VStack>
             </TabPanel>
