@@ -915,56 +915,7 @@ export default function AdminGeneral() {
 
       <AdminStats data={adminData} loading={false} />
 
-      {/* Remplacer l'ancien bloc <Tabs>...</Tabs> par ce bloc simple */}
-      <VStack spacing={6} align="stretch">
-        <HStack justify="space-between">
-          <VStack align="start" spacing={1}>
-            <Heading size="md">🌐 Gestion du Site Web</Heading>
-            <Text fontSize="sm" color="gray.600">Configuration et maintenance du site web public</Text>
-          </VStack>
-          <Button leftIcon={<FiGlobe />} colorScheme="blue">Accéder au site</Button>
-        </HStack>
-
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-          <Card bg={cardBg}>
-            <CardHeader>
-              <Heading size="sm">📄 Pages et contenu</Heading>
-            </CardHeader>
-            <CardBody>
-              <VStack spacing={3} align="stretch">
-                <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
-                  Modifier la page d'accueil
-                </Button>
-                <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
-                  Gérer les événements
-                </Button>
-                <Button leftIcon={<FiEdit3 />} size="sm" variant="outline">
-                  Mettre à jour "À propos"
-                </Button>
-              </VStack>
-            </CardBody>
-          </Card>
-
-          <Card bg={cardBg}>
-            <CardHeader>
-              <Heading size="sm">⚙️ Configuration</Heading>
-            </CardHeader>
-            <CardBody>
-              <VStack spacing={3} align="stretch">
-                <Button leftIcon={<FiBell />} size="sm" variant="outline">
-                  Notifications Flash
-                </Button>
-                <Button leftIcon={<FiMail />} size="sm" variant="outline">
-                  Configuration Newsletter
-                </Button>
-                <Button leftIcon={<FiSettings />} size="sm" variant="outline">
-                  Paramètres généraux
-                </Button>
-              </VStack>
-            </CardBody>
-          </Card>
-        </SimpleGrid>
-      </VStack>
+      {/* Bloc Gestion du site web déplacé vers la page "Gestion du site" (onglet Configuration) */}
 
       {/* Modal pour commenter un RétroReport */}
       <Modal isOpen={isCommentOpen} onClose={onCommentClose} size="md">

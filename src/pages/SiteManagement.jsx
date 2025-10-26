@@ -1190,6 +1190,7 @@ function ApiConfigPanel({ onChanged }) {
 
 // === COMPOSANT PRINCIPAL ===
 export default function SiteManagement() {
+  const cardBg = useColorModeValue('white', 'gray.800');
   const [changelogs, setChangelogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedChangelog, setSelectedChangelog] = useState(null);
@@ -1517,11 +1518,46 @@ export default function SiteManagement() {
             </TabPanel>
 
             <TabPanel>
-              {/* Remplace le placeholder par le panneau de configuration */}
-              <ApiConfigPanel onChanged={() => {
-                // après enregistrement, on peut relancer un chargement si nécessaire
-                // ex: fetchChangelogs(); mais on reste minimal ici
-              }}/>
+              {/* Outils de gestion du site web (déplacés depuis Gestion Administrative) */}
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+                <Card bg={cardBg}>
+                  <CardHeader>
+                    <Heading size="sm">📄 Pages et contenu</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack spacing={3} align="stretch">
+                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
+                        Modifier la page d'accueil
+                      </Button>
+                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
+                        Gérer les événements
+                      </Button>
+                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
+                        Mettre à jour "À propos"
+                      </Button>
+                    </VStack>
+                  </CardBody>
+                </Card>
+
+                <Card bg={cardBg}>
+                  <CardHeader>
+                    <Heading size="sm">⚙️ Configuration</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack spacing={3} align="stretch">
+                      <Button leftIcon={<FiBell />} size="sm" variant="outline">
+                        Notifications Flash
+                      </Button>
+                      <Button leftIcon={<FiMail />} size="sm" variant="outline">
+                        Configuration Newsletter
+                      </Button>
+                      <Button leftIcon={<FiSettings />} size="sm" variant="outline">
+                        Paramètres généraux
+                      </Button>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              </SimpleGrid>
             </TabPanel>
           </TabPanels>
         </Tabs>
