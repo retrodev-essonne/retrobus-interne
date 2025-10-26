@@ -34,7 +34,14 @@ const ensureJsonResponse = (response) => {
 // Petits utilitaires pour essayer plusieurs chemins candidats (ex: '/site-users' puis '/api/site-users')
 const ENDPOINTS = {
   // Priorité sur /api/* puis fallback sur variantes historiques
-  siteUsers: ['api/site-users', 'api/users', 'site-users', 'users'],
+  siteUsers: [
+    'api/site-users',
+    'api/users',
+    'site-users',
+    'users',
+    // Fallback statique si aucune API n'est disponible
+    'data/site-users.json'
+  ],
   members: ['api/members', 'members', 'api/v1/members', 'v1/members'],
   siteUsersStats: ['api/site-users/stats', 'api/users/stats', 'site-users/stats', 'users/stats'],
   // Ajout de variantes fréquentes côté back
