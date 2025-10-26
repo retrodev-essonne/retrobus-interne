@@ -18,7 +18,7 @@ import {
 import { 
   FiEdit, FiTrash2, FiPlus, FiUsers, FiKey, FiEye, FiShield,
   FiUserCheck, FiUserX, FiLink, FiSearch, FiGlobe, FiLock,
-  FiUnlock, FiRefreshCw, FiSettings, FiActivity, FiMail
+  FiUnlock, FiRefreshCw, FiSettings, FiActivity, FiMail, FiBell
 } from 'react-icons/fi';
 import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
@@ -46,7 +46,9 @@ const ENDPOINTS = {
     'site/changelog',
     'website/changelog',
     'api/changelogs',
-    'changelogs'
+    'changelogs',
+    // Fallback statique servi par l'app interne (placer le fichier dans public/data/changelog.json)
+    'data/changelog.json'
   ]
 };
 const toUrls = (candidates) =>
