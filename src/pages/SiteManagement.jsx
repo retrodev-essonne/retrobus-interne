@@ -516,6 +516,7 @@ function AccessManagement() {
                     onToggleStatus={() => handleToggleUserStatus(user)}
                     onLink={() => handleLinkToMember(user)}
                     onViewLogs={() => handleViewUserLogs(user)}
+                    onDelete={() => handleDeleteUser(user)}
                   />
                 ))}
               </Tbody>
@@ -593,10 +594,36 @@ function AccessManagement() {
       duration: 3000,
     });
   }
+
+  async function handleDeleteUser(user) {
+    if (!window.confirm(`Supprimer définitivement l'accès de ${user.firstName} ${user.lastName} (${user.username}) ?`)) {
+      return;
+    }
+    try {
+      await apiDelete(
+        buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), `${user.id}`, getUsersOrigin())
+      );
+      toast({
+        title: 'Accès supprimé',
+        description: `L\'utilisateur ${user.username} a été supprimé`,
+        status: 'success',
+        duration: 3000,
+      });
+      reloadAll();
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: 'Erreur',
+        description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`,
+        status: 'error',
+        duration: 4000,
+      });
+    }
+  }
 }
 
 // Composant ligne utilisateur
-function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs }) {
+function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs, onDelete }) {
   const getRoleColor = (role) => {
     const colors = {
       'ADMIN': 'red',
@@ -681,6 +708,9 @@ function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs }) {
               color={user.isActive ? 'red.500' : 'green.500'}
             >
               {user.isActive ? 'Désactiver' : 'Activer'}
+            </MenuItem>
+            <MenuItem icon={<FiTrash2 />} onClick={onDelete} color="red.600">
+              Supprimer
             </MenuItem>
           </MenuList>
         </Menu>
