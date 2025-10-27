@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import ForcePasswordChange from '../components/ForcePasswordChange';
 
 const UserContext = createContext(null);
@@ -15,6 +15,13 @@ export function UserProvider({ children }) {
   const [sessionChecked, setSessionChecked] = useState(false);
   const isAuthenticated = !!token;
 
+  // Member profile (self)
+  const [member, setMember] = useState(null);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError, setMemberError] = useState(null); // 404, 401, 500, 'network', etc.
+  const [memberApiBase, setMemberApiBase] = useState(null); // null => relative same-origin, string => absolute base
+  const lastMemberFetchRef = useRef(0);
+
   useEffect(() => {
     if (token) localStorage.setItem('token', token);
     else localStorage.removeItem('token');
@@ -28,6 +35,9 @@ export function UserProvider({ children }) {
   const logout = () => {
     setToken('');
     setUser(null);
+    setMember(null);
+    setMemberError(null);
+    setMemberApiBase(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
@@ -83,6 +93,58 @@ export function UserProvider({ children }) {
     }
   };
 
+  const apiCandidates = () => {
+    const base = (import.meta?.env?.VITE_API_URL || '').replace(/\/+$/, '');
+    const arr = [];
+    if (base) arr.push(base);
+    arr.push(''); // same-origin
+    return arr;
+  };
+
+  const refreshMember = async () => {
+    if (!token) { setMember(null); setMemberError('no-token'); return null; }
+    // simple throttle to avoid spamming
+    const now = Date.now();
+    if (now - lastMemberFetchRef.current < 500) {
+      return member;
+    }
+    lastMemberFetchRef.current = now;
+
+    setMemberLoading(true);
+    setMemberError(null);
+    try {
+      const candidates = apiCandidates();
+      let ok = false;
+      let lastStatus = null;
+      for (const base of candidates) {
+        try {
+          const res = await fetch(`${base}/api/members/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          lastStatus = res.status;
+          if (res.ok) {
+            const data = await res.json();
+            setMember(data);
+            setMemberApiBase(base || null);
+            ok = true;
+            break;
+          }
+        } catch (e) {
+          lastStatus = 'network';
+          continue;
+        }
+      }
+      if (!ok) {
+        setMember(null);
+        setMemberError(lastStatus);
+        return null;
+      }
+      return member;
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
   // Revalidation au chargement
   useEffect(() => {
     // On ne bloque pas le démarrage si pas de token
@@ -92,8 +154,13 @@ export function UserProvider({ children }) {
 
   // Revalidation quand le token change
   useEffect(() => {
-    if (token) ensureSession();
-    else setSessionChecked(true);
+    if (token) {
+      ensureSession().then((ok) => {
+        if (ok) refreshMember();
+      });
+    } else {
+      setSessionChecked(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -133,8 +200,14 @@ export function UserProvider({ children }) {
       // NEW: exposer le statut de session et l’action
       sessionChecked,
       ensureSession,
+      // Member self profile
+      member,
+      memberLoading,
+      memberError,
+      memberApiBase,
+      refreshMember,
     }),
-    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, matricule, sessionChecked]
+    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, matricule, sessionChecked, member, memberLoading, memberError, memberApiBase]
   );
 
   return (

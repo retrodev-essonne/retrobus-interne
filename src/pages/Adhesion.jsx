@@ -43,7 +43,7 @@ const PAYMENT_METHODS = {
 };
 
 export default function MyMembership() {
-  const { user } = useUser();
+  const { user, member: ctxMember, memberLoading: ctxMemberLoading, memberError: ctxMemberError, memberApiBase: ctxApiBase, refreshMember } = useUser();
   const [memberData, setMemberData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastError, setLastError] = useState(null);
@@ -56,14 +56,26 @@ export default function MyMembership() {
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const { isOpen: isPasswordModalOpen, onOpen: onPasswordModalOpen, onClose: onPasswordModalClose } = useDisclosure();
   const { isOpen: isTerminateOpen, onOpen: onTerminateOpen, onClose: onTerminateClose } = useDisclosure();
+  const { isOpen: isLinkOpen, onOpen: onLinkOpen, onClose: onLinkClose } = useDisclosure();
   const [terminateForm, setTerminateForm] = useState({ reason: '', notes: '', pv: null, resignation: null });
+  const [linking, setLinking] = useState(false);
+  const [linkMembers, setLinkMembers] = useState([]);
+  const [linkSelectedId, setLinkSelectedId] = useState('');
   const toast = useToast();
 
   // Plus de détection de profil admin local: tout vient de l'API
 
   useEffect(() => {
-    fetchMemberData();
+    // Primarily rely on context; still keep local states for edit form
+    refreshMember();
   }, []);
+
+  useEffect(() => {
+    setMemberData(ctxMember || null);
+    setLoading(ctxMemberLoading);
+    setLastError(ctxMemberError);
+    setApiBase(ctxApiBase || null);
+  }, [ctxMember, ctxMemberLoading, ctxMemberError, ctxApiBase]);
 
   useEffect(() => {
     if (memberData && memberData.id) {
@@ -75,55 +87,8 @@ export default function MyMembership() {
 
   // Chargement du profil adhérent depuis l'API uniquement
   const fetchMemberData = async () => {
-    try {
-      setLoading(true);
-      setLastError(null);
-
-      const candidates = [];
-      if (API_BASE_URL) candidates.push(API_BASE_URL);
-      // Always try same-origin as fallback
-      candidates.push('');
-
-      let found = null;
-      let lastStatus = null;
-      for (const base of candidates) {
-        try {
-          const resp = await fetch(`${base}/api/members/me`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          });
-          lastStatus = resp.status;
-          if (resp.ok) {
-            const info = await resp.json();
-            setMemberData({ ...info, isAdminAccount: false });
-            setEditData(info);
-            setApiBase(base || null);
-            found = base;
-            break;
-          }
-        } catch (e) {
-          // network/CORS error
-          lastStatus = 'network-error';
-          continue;
-        }
-      }
-
-      if (!found) {
-        setMemberData(null);
-        setLastError(lastStatus);
-      }
-    } catch (error) {
-      console.error('Erreur chargement membre:', error);
-      toast({
-        title: "Erreur de chargement",
-        description: "Impossible de charger les informations d'adhésion",
-        status: "error",
-        duration: 5000
-      });
-      setMemberData(null);
-      setLastError('exception');
-    } finally {
-      setLoading(false);
-    }
+    // Keep a manual refresh route for the Retry button
+    await refreshMember();
   };
 
   const handleEditProfile = () => {
@@ -138,19 +103,24 @@ export default function MyMembership() {
       if (!editData.firstName || !editData.lastName) {
         throw new Error('Prénom et nom requis');
       }
-      // Sauvegarde via API uniquement
-      const response = await fetch(`${API_BASE_URL}/api/members/me`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(editData)
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(()=>({}));
-        throw new Error(error.error || 'Erreur de sauvegarde');
+      // Sauvegarde via API avec fallback sur la base détectée
+      const bases = [apiBase ?? '', API_BASE_URL || ''];
+      let response = null;
+      for (const b of bases) {
+        try {
+          const r = await fetch(`${b}/api/members/me`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(editData)
+          });
+          if (r.ok) { response = r; break; }
+        } catch {}
+      }
+      if (!response) {
+        throw new Error('Erreur de sauvegarde');
       }
 
       const updatedData = await response.json();
@@ -377,6 +347,28 @@ export default function MyMembership() {
               </Text>
               <HStack mt={3}>
                 <Button size="sm" onClick={fetchMemberData}>Réessayer</Button>
+                {(() => {
+                  const roles = (user?.roles || []).map(r => String(r).toUpperCase());
+                  const canLink = roles.some(r => ['ADMIN','PRESIDENT','VICE_PRESIDENT','TRESORIER','SECRETAIRE_GENERAL'].includes(r));
+                  if (!canLink) return null;
+                  return (
+                    <Button size="sm" variant="outline" onClick={async()=>{
+                  try {
+                    setLinking(true);
+                    const bases = [apiBase ?? '', API_BASE_URL || ''];
+                    let data = null;
+                    for (const b of bases) {
+                      try {
+                        const r = await fetch(`${b}/api/members?limit=500`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+                        if (r.ok) { data = await r.json(); break; }
+                      } catch {}
+                    }
+                    setLinkMembers(data?.members || []);
+                    onLinkOpen();
+                  } finally { setLinking(false); }
+                    }} isLoading={linking}>Associer mon compte</Button>
+                  );
+                })()}
               </HStack>
             </Box>
           </Alert>
@@ -909,13 +901,19 @@ export default function MyMembership() {
                   if (terminateForm.notes) fd.append('notes', terminateForm.notes);
                   if (terminateForm.pv) fd.append('pv', terminateForm.pv);
                   if (terminateForm.resignation) fd.append('resignation', terminateForm.resignation);
-                  const resp = await fetch(`${API_BASE_URL}/api/members/${memberData?.id}/terminate`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                    body: fd
-                  });
-                  const data = await resp.json();
-                  if (!resp.ok) throw new Error(data?.error || 'Erreur de suppression');
+                  let resp = null; let data = null;
+                  for (const b of [apiBase ?? '', API_BASE_URL || '']) {
+                    try {
+                      const r = await fetch(`${b}/api/members/${memberData?.id}/terminate`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                        body: fd
+                      });
+                      if (r.ok) { resp = r; data = await r.json(); break; }
+                      else { data = await r.json().catch(()=>({})); }
+                    } catch {}
+                  }
+                  if (!resp) throw new Error(data?.error || 'Erreur de suppression');
                   toast({ title:'Adhésion supprimée', status:'success', duration:3000 });
                   onTerminateClose();
                   // recharger les données adhérent
@@ -924,6 +922,55 @@ export default function MyMembership() {
                   toast({ title:'Erreur', description: e.message, status:'error' });
                 }
               }}>Confirmer</Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal: Associer mon compte admin à un adhérent */}
+      <Modal isOpen={isLinkOpen} onClose={onLinkClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Associer mon compte à un adhérent</ModalHeader>
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <Text fontSize="sm" color="gray.600">Sélectionnez l’adhérent correspondant à votre compte afin d’activer la page Mon Adhésion.</Text>
+              <FormControl>
+                <FormLabel>Adhérent</FormLabel>
+                <Select value={linkSelectedId} onChange={(e)=>setLinkSelectedId(e.target.value)} placeholder="Choisir…">
+                  {linkMembers.map(m => (
+                    <option key={m.id} value={m.id}>{m.lastName?.toUpperCase()} {m.firstName} — {m.email} {m.memberNumber ? `(${m.memberNumber})` : ''}</option>
+                  ))}
+                </Select>
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack>
+              <Button variant="ghost" onClick={onLinkClose}>Annuler</Button>
+              <Button colorScheme="blue" isDisabled={!linkSelectedId} onClick={async()=>{
+                try {
+                  setLinking(true);
+                  let ok = false; let err = null;
+                  for (const b of [apiBase ?? '', API_BASE_URL || '']) {
+                    try {
+                      const r = await fetch(`${b}/api/members/${linkSelectedId}/link-access`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                        body: JSON.stringify({ username: (user?.username || '').toLowerCase() })
+                      });
+                      const d = await r.json().catch(()=>({}));
+                      if (r.ok) { ok = true; break; } else { err = d?.error || 'Erreur de liaison'; }
+                    } catch {}
+                  }
+                  if (!ok) throw new Error(err || 'Erreur de liaison');
+                  toast({ status:'success', title:'Compte associé' });
+                  onLinkClose();
+                  await refreshMember();
+                } catch (e) {
+                  toast({ status:'error', title:'Échec', description: e.message });
+                } finally { setLinking(false); }
+              }}>Associer</Button>
             </HStack>
           </ModalFooter>
         </ModalContent>
