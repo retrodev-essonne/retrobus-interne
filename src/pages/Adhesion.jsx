@@ -46,6 +46,8 @@ export default function MyMembership() {
   const { user } = useUser();
   const [memberData, setMemberData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lastError, setLastError] = useState(null);
+  const [apiBase, setApiBase] = useState(null); // null => relative, string => absolute base
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState({});
   // Le profil ne se crée pas côté utilisateur: pas de mode création
@@ -75,16 +77,39 @@ export default function MyMembership() {
   const fetchMemberData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/members/me`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.ok) {
-        const memberInfo = await response.json();
-        setMemberData({ ...memberInfo, isAdminAccount: false });
-        setEditData(memberInfo);
-      } else {
-        // 404: profil non lié/créé côté admin
+      setLastError(null);
+
+      const candidates = [];
+      if (API_BASE_URL) candidates.push(API_BASE_URL);
+      // Always try same-origin as fallback
+      candidates.push('');
+
+      let found = null;
+      let lastStatus = null;
+      for (const base of candidates) {
+        try {
+          const resp = await fetch(`${base}/api/members/me`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          });
+          lastStatus = resp.status;
+          if (resp.ok) {
+            const info = await resp.json();
+            setMemberData({ ...info, isAdminAccount: false });
+            setEditData(info);
+            setApiBase(base || null);
+            found = base;
+            break;
+          }
+        } catch (e) {
+          // network/CORS error
+          lastStatus = 'network-error';
+          continue;
+        }
+      }
+
+      if (!found) {
         setMemberData(null);
+        setLastError(lastStatus);
       }
     } catch (error) {
       console.error('Erreur chargement membre:', error);
@@ -95,6 +120,7 @@ export default function MyMembership() {
         duration: 5000
       });
       setMemberData(null);
+      setLastError('exception');
     } finally {
       setLoading(false);
     }
@@ -145,12 +171,22 @@ export default function MyMembership() {
   const fetchDocuments = async () => {
     try {
       setDocsLoading(true);
-      const resp = await fetch(`${API_BASE_URL}/api/members/me/documents`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!resp.ok) throw new Error('Chargement des documents impossible');
-      const data = await resp.json();
-      setDocuments(data?.documents || []);
+      const bases = [apiBase ?? '', API_BASE_URL || ''];
+      let ok = false;
+      for (const b of bases) {
+        try {
+          const resp = await fetch(`${b}/api/members/me/documents`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            setDocuments(data?.documents || []);
+            ok = true;
+            break;
+          }
+        } catch {}
+      }
+      if (!ok) throw new Error('Chargement des documents impossible');
     } catch (e) {
       console.error('Docs error', e);
       setDocuments([]);
@@ -161,10 +197,17 @@ export default function MyMembership() {
 
   const handleDownload = async (doc) => {
     try {
-      const resp = await fetch(`${API_BASE_URL}/api/documents/${doc.id}/download`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!resp.ok) throw new Error('Téléchargement impossible');
+      const bases = [apiBase ?? '', API_BASE_URL || ''];
+      let resp = null;
+      for (const b of bases) {
+        try {
+          const r = await fetch(`${b}/api/documents/${doc.id}/download`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          });
+          if (r.ok) { resp = r; break; }
+        } catch {}
+      }
+      if (!resp) throw new Error('Téléchargement impossible');
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -319,7 +362,22 @@ export default function MyMembership() {
             <AlertIcon />
             <Box>
               <Text fontWeight="bold">Profil adhérent introuvable</Text>
-              <Text fontSize="sm">Votre profil n'est pas encore lié. Merci de contacter un administrateur pour l'associer depuis la Gestion des Adhérents.</Text>
+              <Text fontSize="sm">
+                {lastError === 401 ? (
+                  'Vous n’êtes pas autorisé. Veuillez vous reconnecter.'
+                ) : lastError === 404 ? (
+                  'Votre profil n’est pas encore lié. Merci de contacter un administrateur pour l’associer depuis la Gestion des Adhérents.'
+                ) : lastError === 500 ? (
+                  'Erreur serveur lors de la récupération du profil.'
+                ) : lastError === 'network-error' ? (
+                  'Impossible de joindre l’API. Réseau ou CORS ? Essayez à nouveau.'
+                ) : (
+                  'Votre profil n\'est pas encore lié. Merci de contacter un administrateur pour l\'associer depuis la Gestion des Adhérents.'
+                )}
+              </Text>
+              <HStack mt={3}>
+                <Button size="sm" onClick={fetchMemberData}>Réessayer</Button>
+              </HStack>
             </Box>
           </Alert>
         )}
