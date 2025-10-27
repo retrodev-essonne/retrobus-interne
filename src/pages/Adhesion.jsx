@@ -13,7 +13,7 @@ import {
   FiMapPin, FiKey, FiEdit, FiDownload, FiSave, FiX, FiPlus 
 } from 'react-icons/fi';
 import { useUser } from '../context/UserContext';
-import { USERS } from '../api/auth.js';
+// NOTE: Profil adhérent est géré côté serveur (créé depuis l'admin MyRBE)
 
 // Use relative URLs by default so Vite dev proxy can route calls; fall back to env when provided
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -48,7 +48,7 @@ export default function MyMembership() {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState({});
-  const [createMode, setCreateMode] = useState(false);
+  // Le profil ne se crée pas côté utilisateur: pas de mode création
   const [documents, setDocuments] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -57,30 +57,7 @@ export default function MyMembership() {
   const [terminateForm, setTerminateForm] = useState({ reason: '', notes: '', pv: null, resignation: null });
   const toast = useToast();
 
-  // Détection du profil admin local
-  const detectAdminProfile = () => {
-    if (!user?.matricule) return null;
-    
-    // Chercher dans les comptes admin
-    const adminAccount = USERS[user.matricule];
-    if (adminAccount) {
-      return {
-        matricule: user.matricule,
-        firstName: adminAccount.prenom,
-        lastName: adminAccount.nom,
-        role: 'ADMIN',
-        membershipType: 'HONORARY',
-        membershipStatus: 'ACTIVE',
-        hasInternalAccess: true,
-        hasExternalAccess: true,
-        loginEnabled: true,
-        isAdminAccount: true,
-        roles: adminAccount.roles
-      };
-    }
-    
-    return null;
-  };
+  // Plus de détection de profil admin local: tout vient de l'API
 
   useEffect(() => {
     fetchMemberData();
@@ -94,58 +71,20 @@ export default function MyMembership() {
     }
   }, [memberData?.id]);
 
-  // Améliorer la fonction fetchMemberData
+  // Chargement du profil adhérent depuis l'API uniquement
   const fetchMemberData = async () => {
     try {
       setLoading(true);
-      
-      // D'abord essayer les données locales admin
-      const adminProfile = detectAdminProfile();
-      if (adminProfile) {
-        console.log('🔑 Profil admin détecté:', adminProfile);
-        
-        // Chercher si un profil adhérent existe pour cet admin
-        const savedProfiles = JSON.parse(localStorage.getItem('adminProfiles') || '[]');
-        const existingProfile = savedProfiles.find(p => p.adminMatricule === user.matricule);
-        
-        if (existingProfile) {
-          console.log('✅ Profil adhérent local trouvé:', existingProfile);
-          setMemberData(existingProfile);
-          setEditData(existingProfile);
-          setCreateMode(false);
-        } else {
-          console.log('ℹ️ Pas de profil adhérent, affichage données admin de base');
-          setMemberData(adminProfile);
-          setEditData(adminProfile);
-          setCreateMode(true); // Proposer de créer le profil adhérent
-        }
+      const response = await fetch(`${API_BASE_URL}/api/members/me`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (response.ok) {
+        const memberInfo = await response.json();
+        setMemberData({ ...memberInfo, isAdminAccount: false });
+        setEditData(memberInfo);
       } else {
-        // Essayer l'API pour les membres normaux
-        console.log('👤 Tentative chargement profil membre via API');
-        
-        const response = await fetch(`${API_BASE_URL}/api/members/me`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (response.ok) {
-          const memberInfo = await response.json();
-          console.log('✅ Profil membre chargé via API:', memberInfo);
-          setMemberData({
-            ...memberInfo,
-            // S'assurer que les informations affichées sont correctes
-            matricule: memberInfo.matricule, // Identifiant de connexion
-            memberNumber: memberInfo.memberNumber, // Numéro d'adhérent
-            isAdminAccount: false
-          });
-          setEditData(memberInfo);
-          setCreateMode(false);
-        } else {
-          console.log('❌ Erreur API ou membre non trouvé');
-          setMemberData(null);
-          setCreateMode(true);
-        }
+        // 404: profil non lié/créé côté admin
+        setMemberData(null);
       }
     } catch (error) {
       console.error('Erreur chargement membre:', error);
@@ -156,7 +95,6 @@ export default function MyMembership() {
         duration: 5000
       });
       setMemberData(null);
-      setCreateMode(true);
     } finally {
       setLoading(false);
     }
@@ -164,103 +102,35 @@ export default function MyMembership() {
 
   const handleEditProfile = () => {
     setEditMode(true);
-    setCreateMode(false);
     setEditData({ ...memberData });
   };
 
-  const handleCreateProfile = () => {
-    const adminProfile = detectAdminProfile();
-    if (adminProfile) {
-      setEditData({
-        ...adminProfile,
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        postalCode: '',
-        birthDate: '',
-        paymentAmount: '',
-        paymentMethod: 'CASH',
-        newsletter: true,
-        notes: `Profil adhérent pour l'admin ${adminProfile.matricule}`
-      });
-      setEditMode(true);
-      setCreateMode(true);
-    }
-  };
+  // Plus de création locale de profil côté utilisateur
 
   const handleSaveProfile = async () => {
     try {
       if (!editData.firstName || !editData.lastName) {
         throw new Error('Prénom et nom requis');
       }
+      // Sauvegarde via API uniquement
+      const response = await fetch(`${API_BASE_URL}/api/members/me`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(editData)
+      });
 
-      if (memberData?.isAdminAccount || createMode) {
-        // Sauvegarde locale pour les admins
-        console.log('💾 Sauvegarde locale du profil admin');
-        
-        const profileToSave = {
-          ...editData,
-          id: memberData?.id || `admin-${Date.now()}`,
-          memberNumber: memberData?.memberNumber || `ADM-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`,
-          createdAt: memberData?.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          isLinkedToAdmin: true,
-          adminMatricule: user.matricule
-        };
-
-        // Sauvegarder localement
-        const savedProfiles = JSON.parse(localStorage.getItem('adminProfiles') || '[]');
-        const existingIndex = savedProfiles.findIndex(p => p.adminMatricule === user.matricule);
-        
-        if (existingIndex >= 0) {
-          savedProfiles[existingIndex] = profileToSave;
-        } else {
-          savedProfiles.push(profileToSave);
-        }
-        
-        localStorage.setItem('adminProfiles', JSON.stringify(savedProfiles));
-        
-        setMemberData(profileToSave);
-        setEditMode(false);
-        setCreateMode(false);
-        
-        toast({
-          status: 'success',
-          title: 'Profil sauvegardé',
-          description: 'Profil adhérent sauvegardé localement',
-          duration: 3000
-        });
-
-      } else {
-        // Sauvegarde via API pour les membres normaux
-        console.log('📡 Sauvegarde via API');
-        
-        const response = await fetch(`${API_BASE_URL}/api/members/me`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(editData)
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Erreur de sauvegarde');
-        }
-
-        const updatedData = await response.json();
-        setMemberData(updatedData);
-        setEditMode(false);
-        
-        toast({
-          status: 'success',
-          title: 'Profil mis à jour',
-          description: 'Vos informations ont été sauvegardées',
-          duration: 3000
-        });
+      if (!response.ok) {
+        const error = await response.json().catch(()=>({}));
+        throw new Error(error.error || 'Erreur de sauvegarde');
       }
+
+      const updatedData = await response.json();
+      setMemberData(updatedData);
+      setEditMode(false);
+      toast({ status: 'success', title: 'Profil mis à jour', description: 'Vos informations ont été sauvegardées', duration: 3000 });
       
     } catch (error) {
       toast({
@@ -311,7 +181,6 @@ export default function MyMembership() {
 
   const handleCancelEdit = () => {
     setEditMode(false);
-    setCreateMode(false);
     setEditData({ ...memberData });
   };
 
@@ -428,12 +297,7 @@ export default function MyMembership() {
             <FiUser style={{ marginRight: '8px' }} />
             Mon Adhésion
           </Heading>
-          
-          {!memberData && !createMode ? (
-            <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={handleCreateProfile}>
-              Créer mon profil adhérent
-            </Button>
-          ) : editMode ? (
+          {editMode ? (
             <HStack>
               <Button leftIcon={<FiSave />} colorScheme="green" onClick={handleSaveProfile}>
                 Sauvegarder
@@ -449,37 +313,20 @@ export default function MyMembership() {
           )}
         </HStack>
 
-        {/* Message pour création de profil */}
-        {createMode && !editMode && (
-          <Alert status="info">
+        {/* Si le profil n'existe pas côté serveur */}
+        {!memberData && (
+          <Alert status="warning">
             <AlertIcon />
             <Box>
-              <Text fontWeight="bold">Profil adhérent non trouvé</Text>
-              <Text fontSize="sm">
-                Vous pouvez créer votre profil adhérent pour accéder aux informations de cotisation et aux services membres.
-              </Text>
-              <Button size="sm" mt={2} onClick={handleCreateProfile}>
-                Créer mon profil adhérent
-              </Button>
+              <Text fontWeight="bold">Profil adhérent introuvable</Text>
+              <Text fontSize="sm">Votre profil n'est pas encore lié. Merci de contacter un administrateur pour l'associer depuis la Gestion des Adhérents.</Text>
             </Box>
           </Alert>
         )}
 
         {memberData && (
           <>
-            {/* Alerte si profil local */}
-            {memberData.isAdminAccount && (
-              <Alert status="info">
-                <AlertIcon />
-                <Box>
-                  <Text fontWeight="bold">Compte administrateur</Text>
-                  <Text fontSize="sm">
-                    Vous êtes connecté avec un compte admin. 
-                    {memberData.isLinkedToAdmin ? ' Votre profil adhérent est géré localement.' : ' Créez votre profil adhérent pour accéder aux fonctionnalités membre.'}
-                  </Text>
-                </Box>
-              </Alert>
-            )}
+            {/* Plus de mode profil local admin */}
             {/* Onglets d'information */}
             <Tabs variant="enclosed" colorScheme="blue">
               <TabList>
