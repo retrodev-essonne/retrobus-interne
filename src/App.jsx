@@ -27,6 +27,7 @@ import Newsletter from "./pages/Newsletter";
 import Members from "./pages/Members";
 import MembersManagement from "./pages/MembersManagement";
 import SupportSite from "./pages/SupportSite";
+import RetroMerch from "./pages/RetroMerch";
 
 export default function App() {
   const { isAuthenticated } = useUser();
@@ -71,6 +72,8 @@ export default function App() {
         {/* 🌐 Gestion du site et contenu */}
         <Route path="/dashboard/site-management" element={<ProtectedRoute><SiteManagement /></ProtectedRoute>} />
         <Route path="/dashboard/flash-management" element={<ProtectedRoute><FlashManagement /></ProtectedRoute>} />
+  {/* 🛒 RétroMerch (administration) */}
+  <Route path="/dashboard/retromerch" element={<ProtectedRoute><RetroMerch /></ProtectedRoute>} />
         
         {/* 📦 Gestion des stocks */}
         <Route path="/dashboard/stock-management" element={<ProtectedRoute><StockManagement /></ProtectedRoute>} />
