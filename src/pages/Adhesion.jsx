@@ -382,6 +382,30 @@ export default function MyMembership() {
     );
   }
 
+  // Helpers dates et échéances
+  const formatDate = (d) => {
+    try {
+      const dt = typeof d === 'string' ? new Date(d) : d;
+      return dt ? dt.toLocaleDateString('fr-FR') : '-';
+    } catch {
+      return '-';
+    }
+  };
+  const addYears = (date, years) => {
+    const d = new Date(date.getTime());
+    d.setFullYear(d.getFullYear() + years);
+    return d;
+  };
+  const daysBetween = (a, b) => Math.ceil((b.getTime() - a.getTime()) / (1000*60*60*24));
+
+  const startDate = memberData?.membershipStartDate ? new Date(memberData.membershipStartDate) : null;
+  const endDate = memberData?.membershipEndDate ? new Date(memberData.membershipEndDate) : null;
+  const computedRenewal = startDate ? addYears(startDate, 1) : null;
+  const effectiveExpiry = endDate || computedRenewal;
+  const today = new Date();
+  const isExpired = effectiveExpiry ? effectiveExpiry < today : false;
+  const daysLeft = effectiveExpiry ? daysBetween(today, effectiveExpiry) : null;
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'ACTIVE': return 'green';
@@ -607,7 +631,7 @@ export default function MyMembership() {
                         <Heading size="md">Statut de l'Adhésion</Heading>
                       </CardHeader>
                       <CardBody>
-                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={{ base: 4, md: 6 }}>
                           <Box>
                             <Text fontSize="sm" color="gray.600" mb={2}>Statut actuel</Text>
                             <Badge colorScheme={getStatusColor(memberData.membershipStatus)} fontSize="md" p={2}>
@@ -630,6 +654,47 @@ export default function MyMembership() {
                             <Text fontSize="xs" color="gray.500">Numéro unique d'adhésion</Text>
                           </Box>
                         </SimpleGrid>
+
+                        {/* Validité & Renouvellement */}
+                        <Divider my={4} />
+                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={{ base: 4, md: 6 }}>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600" mb={1}>Début d'adhésion</Text>
+                            <Text fontWeight="bold">{startDate ? formatDate(startDate) : '-'}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600" mb={1}>Expiration prévue</Text>
+                            <Text fontWeight="bold" color={isExpired ? 'red.600' : 'gray.800'}>
+                              {effectiveExpiry ? formatDate(effectiveExpiry) : '-'}
+                            </Text>
+                            {effectiveExpiry && (
+                              <Text fontSize="xs" color={isExpired ? 'red.500' : 'gray.500'}>
+                                {isExpired ? 'Adhésion expirée' : `${daysLeft} jour(s) restant(s)`}
+                              </Text>
+                            )}
+                          </Box>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600" mb={1}>Dernier paiement</Text>
+                            <Text fontWeight="bold">{startDate ? formatDate(startDate) : '-'}</Text>
+                            {memberData?.paymentAmount && (
+                              <Text fontSize="xs" color="gray.600">{memberData.paymentAmount}€ ({PAYMENT_METHODS[memberData.paymentMethod] || memberData.paymentMethod})</Text>
+                            )}
+                          </Box>
+                        </SimpleGrid>
+                        {/* Message incitatif si proche de l'échéance */}
+                        {!isExpired && daysLeft !== null && daysLeft <= 60 && (
+                          <Alert status="warning" mt={4} borderRadius="md">
+                            <AlertIcon />
+                            Votre adhésion arrive à échéance dans {daysLeft} jour(s). Pensez à la renouveler.
+                          </Alert>
+                        )}
+                        {/* Message si expirée */}
+                        {isExpired && (
+                          <Alert status="error" mt={4} borderRadius="md">
+                            <AlertIcon />
+                            Votre adhésion est expirée. Veuillez procéder au renouvellement.
+                          </Alert>
+                        )}
                       </CardBody>
                     </Card>
 
@@ -692,7 +757,7 @@ export default function MyMembership() {
                             </FormControl>
                           </VStack>
                         ) : (
-                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 4, md: 6 }}>
                             <Box>
                               {memberData.paymentAmount && (
                                 <HStack mb={4}>
@@ -710,6 +775,15 @@ export default function MyMembership() {
                                   <Text fontWeight="bold">{MEMBERSHIP_TYPES[memberData.membershipType] || memberData.membershipType}</Text>
                                 </Box>
                               </HStack>
+                              {startDate && (
+                                <HStack mb={4}>
+                                  <FiCalendar />
+                                  <Box>
+                                    <Text fontSize="sm" color="gray.600">Début d'adhésion</Text>
+                                    <Text fontWeight="bold">{formatDate(startDate)}</Text>
+                                  </Box>
+                                </HStack>
+                              )}
                             </Box>
                             <Box>
                               <HStack mb={4}>
@@ -726,6 +800,15 @@ export default function MyMembership() {
                                   <Text fontWeight="bold" color="purple.600">{memberData.memberNumber}</Text>
                                 </Box>
                               </HStack>
+                              {effectiveExpiry && (
+                                <HStack mb={4}>
+                                  <FiCalendar />
+                                  <Box>
+                                    <Text fontSize="sm" color="gray.600">Expiration prévue</Text>
+                                    <Text fontWeight="bold" color={isExpired ? 'red.600' : 'gray.800'}>{formatDate(effectiveExpiry)}</Text>
+                                  </Box>
+                                </HStack>
+                              )}
                             </Box>
                           </SimpleGrid>
                         )}
