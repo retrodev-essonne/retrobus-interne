@@ -416,30 +416,6 @@ function AccessManagement() {
               <StatLabel>Total accès</StatLabel>
               <StatNumber color="blue.500">{stats.totalUsers || 0}</StatNumber>
             </Stat>
-                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
-                        Modifier la page d'accueil
-                      </Button>
-                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
-                        Gérer les événements
-                      </Button>
-                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
-                        Mettre à jour "À propos"
-                      </Button>
-
-                      <Divider my={2} />
-                      <Heading size="xs">Bouton "Soutenir l'association" (Navbar externe)</Heading>
-                      <Text fontSize="xs" color="gray.600">
-                        Configure le lien HelloAsso utilisé sur la navbar du site public.
-                      </Text>
-                      <HStack>
-                        <Input
-                          value={helloAssoLink}
-                          onChange={(e) => setHelloAssoLink(e.target.value)}
-                          placeholder="https://www.helloasso.com/associations/retrobus-essonne"
-                        />
-                        <Button size="sm" colorScheme="blue" onClick={saveHelloAsso}>Enregistrer</Button>
-                        <Button size="sm" variant="outline" onClick={testHelloAsso}>Tester</Button>
-                      </HStack>
           </CardBody>
         </Card>
         
@@ -1207,6 +1183,7 @@ function ApiConfigPanel({ onChanged }) {
   const [usersPath, setUsersPath] = useState(localStorage.getItem('rbe_api_site_users_path') || (import.meta.env?.VITE_API_SITE_USERS_PATH || ''));
   const [membersPath, setMembersPath] = useState(localStorage.getItem('rbe_api_members_path') || (import.meta.env?.VITE_API_MEMBERS_PATH || ''));
   const [changelogPath, setChangelogPath] = useState(localStorage.getItem('rbe_api_changelog_path') || (import.meta.env?.VITE_API_CHANGELOG_PATH || ''));
+  const [siteConfigPath, setSiteConfigPath] = useState(localStorage.getItem('rbe_api_site_config_path') || (import.meta.env?.VITE_API_SITE_CONFIG_PATH || ''));
   const toast = useToast();
 
   const save = () => {
@@ -1216,13 +1193,14 @@ function ApiConfigPanel({ onChanged }) {
     setOrRemove('rbe_api_site_users_path', usersPath);
     setOrRemove('rbe_api_members_path', membersPath);
     setOrRemove('rbe_api_changelog_path', changelogPath);
+    setOrRemove('rbe_api_site_config_path', siteConfigPath);
     toast({ title: 'Configuration enregistrée', status: 'success', duration: 2000 });
     onChanged?.();
   };
 
   const resetAll = () => {
-    ['rbe_api_origin','rbe_api_prefix','rbe_api_site_users_path','rbe_api_members_path','rbe_api_changelog_path'].forEach(k => localStorage.removeItem(k));
-    setOrigin(''); setPrefix(''); setUsersPath(''); setMembersPath(''); setChangelogPath('');
+    ['rbe_api_origin','rbe_api_prefix','rbe_api_site_users_path','rbe_api_members_path','rbe_api_changelog_path','rbe_api_site_config_path'].forEach(k => localStorage.removeItem(k));
+    setOrigin(''); setPrefix(''); setUsersPath(''); setMembersPath(''); setChangelogPath(''); setSiteConfigPath('');
     toast({ title: 'Configuration réinitialisée', status: 'info', duration: 2000 });
     onChanged?.();
   };
@@ -1279,6 +1257,10 @@ function ApiConfigPanel({ onChanged }) {
           <FormLabel>Chemin Changelog</FormLabel>
           <Input placeholder="ex: api/changelog" value={changelogPath} onChange={(e) => setChangelogPath(e.target.value)} />
         </FormControl>
+        <FormControl>
+          <FormLabel>Chemin Site Config</FormLabel>
+          <Input placeholder="ex: api/site-config" value={siteConfigPath} onChange={(e) => setSiteConfigPath(e.target.value)} />
+        </FormControl>
       </SimpleGrid>
 
       <HStack>
@@ -1302,6 +1284,9 @@ function ApiConfigPanel({ onChanged }) {
           </Button>
           <Button size="sm" onClick={() => runTest('Members', buildCandidates(ENDPOINTS.members, getMembersPath(), '', getMembersOrigin()))}>
             Tester Members
+          </Button>
+          <Button size="sm" onClick={() => runTest('Site Config', buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin()))}>
+            Tester Site Config
           </Button>
         </HStack>
         <Text fontSize="xs" color="gray.500">
@@ -1340,8 +1325,12 @@ export default function SiteManagement() {
         buildCandidates(ENDPOINTS.changelog, getChangelogPath(), '', getChangelogOrigin())
       );
       const data = response.data;
-      if (data && Array.isArray(data)) {
+      if (Array.isArray(data)) {
         setChangelogs(data);
+      } else if (data && Array.isArray(data.entries)) {
+        setChangelogs(data.entries);
+      } else if (data && Array.isArray(data.items)) {
+        setChangelogs(data.items);
       } else {
         console.warn('Réponse inattendue de l\'API:', data);
         setChangelogs([]);
@@ -1695,6 +1684,21 @@ export default function SiteManagement() {
                       <Button leftIcon={<FiEdit />} size="sm" variant="outline">
                         Mettre à jour "À propos"
                       </Button>
+
+                      <Divider my={2} />
+                      <Heading size="xs">Bouton "Soutenir l'association" (Navbar externe)</Heading>
+                      <Text fontSize="xs" color="gray.600">
+                        Configure le lien HelloAsso utilisé sur la navbar du site public.
+                      </Text>
+                      <HStack>
+                        <Input
+                          value={helloAssoLink}
+                          onChange={(e) => setHelloAssoLink(e.target.value)}
+                          placeholder="https://www.helloasso.com/associations/retrobus-essonne"
+                        />
+                        <Button size="sm" colorScheme="blue" onClick={saveHelloAsso}>Enregistrer</Button>
+                        <Button size="sm" variant="outline" onClick={testHelloAsso}>Tester</Button>
+                      </HStack>
                     </VStack>
                   </CardBody>
                 </Card>
