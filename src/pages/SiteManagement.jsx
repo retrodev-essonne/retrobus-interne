@@ -1726,7 +1726,75 @@ export default function SiteManagement() {
           </TabPanels>
         </Tabs>
 
-        {/* ...existing modal & rest... */}
+        {/* Modal de création/édition de Changelog */}
+        <Modal isOpen={isOpen} onClose={onClose} size="lg">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>{selectedChangelog ? '✏️ Modifier un changelog' : '🆕 Nouveau changelog'}</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={4} align="stretch">
+                <FormControl isRequired>
+                  <FormLabel>Titre</FormLabel>
+                  <Input
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Ex: Améliorations sur la page d'accueil"
+                  />
+                </FormControl>
+
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl isRequired>
+                    <FormLabel>Version</FormLabel>
+                    <Input
+                      value={formData.version}
+                      onChange={(e) => setFormData(prev => ({ ...prev, version: e.target.value }))}
+                      placeholder="Ex: 1.3.0"
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Date</FormLabel>
+                    <Input
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                    />
+                  </FormControl>
+                </SimpleGrid>
+
+                <VStack align="stretch" spacing={2}>
+                  <FormLabel>Changements</FormLabel>
+                  {formData.changes.map((change, idx) => (
+                    <HStack key={idx} align="start">
+                      <Input
+                        value={change}
+                        onChange={(e) => updateChange(idx, e.target.value)}
+                        placeholder={`• Entrée ${idx + 1}`}
+                      />
+                      <IconButton
+                        aria-label="Supprimer"
+                        icon={<FiTrash2 />}
+                        size="sm"
+                        colorScheme="red"
+                        variant="outline"
+                        onClick={() => removeChange(idx)}
+                      />
+                    </HStack>
+                  ))}
+                  <Button leftIcon={<FiPlus />} onClick={addChange} size="sm" alignSelf="flex-start">
+                    Ajouter une ligne
+                  </Button>
+                </VStack>
+              </VStack>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose}>Annuler</Button>
+              <Button colorScheme="blue" onClick={handleSave}>
+                {selectedChangelog ? 'Enregistrer' : 'Créer'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </VStack>
     </Container>
   );
