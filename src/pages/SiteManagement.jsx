@@ -116,13 +116,13 @@ const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrid
     const rel = parts.filter(Boolean).join('/');
     if (!rel) return;
 
-    // 1) absolute with explicit origin (first)
+    // Priorité aux URLs relatives pour passer via apiClient (JWT, interceptors)
+    list.add(rel);
+    // Ensuite, absolue avec origin explicite (fallback)
     if (overrideOrigin && isHttpOrigin(overrideOrigin)) {
       list.add(`${overrideOrigin.replace(/\/+$/,'')}/${rel}`);
     }
-    // 2) relative (second)
-    list.add(rel);
-    // 3) absolute with same-origin (last, except in dev on Vite)
+    // Enfin, absolue même-origine (éviter en dev Vite)
     if (!skipSameOrigin && sameOrigin) {
       list.add(`${sameOrigin}/${rel}`);
     }
@@ -137,9 +137,9 @@ const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrid
   };
 
   if (overridePath) pushEntries(overridePath);
-  // Priorité: chemins bruts fournis, puis variantes préfixées
-  baseCandidates.forEach((p) => pushEntries(p));
+  // Priorité: variantes préfixées d'abord, puis chemins bruts
   baseCandidates.forEach((p) => pushPrefixedIfNeeded(p));
+  baseCandidates.forEach((p) => pushEntries(p));
 
   return Array.from(list);
 };
