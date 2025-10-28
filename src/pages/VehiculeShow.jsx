@@ -282,6 +282,7 @@ export default function VehiculeShow() {
   const [saving, setSaving] = useState(false);
   const [vehicle, setVehicle] = useState(null);
   const [basicInfo, setBasicInfo] = useState({});
+  const [usages, setUsages] = useState([]);
 
   // DONNÉES COMPLÈTES PRÉ-REMPLIES basées sur les informations fournies
   const defaultVehicleData = {
@@ -344,6 +345,13 @@ export default function VehiculeShow() {
     try {
       const response = await apiClient.get(`/vehicles/${parc}`);
       setVehicle(response);
+      // Charger le carnet de suivi (usages)
+      try {
+        const u = await apiClient.get(`/vehicles/${parc}/usages`);
+        setUsages(Array.isArray(u) ? u : []);
+      } catch (e) {
+        setUsages([]);
+      }
       
       // Fusionner avec les données par défaut si manquantes
       const mergedData = {
@@ -791,6 +799,26 @@ export default function VehiculeShow() {
           <Text fontSize="sm" color="gray.600" mt={2}>
             La première image peut servir de fond si aucune image de fond spécifique n'est définie. Les autres images apparaissent dans le carrousel.
           </Text>
+        </Box>
+
+        {/* Carnet de suivi */}
+        <Box bg="orange.50" p={6} borderRadius="lg" border="1px solid" borderColor="orange.200">
+          <Heading size="md" mb={4}>📒 Carnet de suivi</Heading>
+          {!usages?.length && (
+            <Text color="gray.600">Aucun passage enregistré pour ce véhicule.</Text>
+          )}
+          <VStack align="stretch" spacing={3} divider={<Divider />} mt={usages?.length ? 2 : 0}>
+            {usages.map((u) => (
+              <Box key={u.id}>
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">{u.conducteur || '—'}</Text>
+                  <Text fontSize="sm" color="gray.600">{u.startedAt ? new Date(u.startedAt).toLocaleString() : ''}</Text>
+                </HStack>
+                {u.participants && <Text mt={1} fontSize="sm">{u.participants}</Text>}
+                {u.note && <Text mt={1} fontSize="sm" color="gray.700">{u.note}</Text>}
+              </Box>
+            ))}
+          </VStack>
         </Box>
 
         {/* Bouton de sauvegarde principal */}

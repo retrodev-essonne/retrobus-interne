@@ -70,6 +70,28 @@ export default function MobileVehicle() {
   const [inputMatricule, setInputMatricule] = useState(matricule || "");
   const [authLoading, setAuthLoading] = useState(false);
 
+  // members for passage modal
+  const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+  const [guestFirstName, setGuestFirstName] = useState("");
+  const [guestLastName, setGuestLastName] = useState("");
+
+  const loadMembers = async () => {
+    if (!authToken) return; // need JWT
+    try {
+      setMembersLoading(true);
+      const urls = buildCandidates(`${(import.meta.env.VITE_API_PREFIX || localStorage.getItem('rbe_api_prefix') || 'api').replace(/^\/+/,'')}/members?limit=500`);
+      const data = await fetchJsonFirst(urls, { headers: { Authorization: `Bearer ${authToken}` } });
+      setMembers(Array.isArray(data?.members) ? data.members : []);
+    } catch (e) {
+      setMembers([]);
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
   // headers to use for API calls (token preferred)
   const headersFor = (t = token, useMatricule = matricule) => {
     const h = { "Content-Type": "application/json" };
@@ -337,7 +359,7 @@ export default function MobileVehicle() {
       </Modal>
 
       {/* Passage modal */}
-      <Modal isOpen={showPassage} onClose={() => setShowPassage(false)} isCentered>
+      <Modal isOpen={showPassage} onClose={() => setShowPassage(false)} isCentered onOverlayClick={() => {}}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Signaler un passage</ModalHeader>
@@ -350,13 +372,56 @@ export default function MobileVehicle() {
                 <Input id="pass-conducteur" placeholder="Nom ou matricule" />
               </FormControl>
               <FormControl>
-                <FormLabel>Km parcourus (optionnel)</FormLabel>
-                <Input id="pass-km" placeholder="ex: 12" type="number" />
+                <FormLabel>Membres présents</FormLabel>
+                <Input
+                  placeholder="Rechercher un adhérent (nom, prénom, n°)"
+                  value={memberSearch}
+                  onChange={(e)=>setMemberSearch(e.target.value)}
+                  onFocus={() => { if (members.length===0) loadMembers(); }}
+                />
+                <Box mt={2} maxH="180px" overflowY="auto" border="1px solid #eee" borderRadius="md" p={2}>
+                  {membersLoading && <Center py={3}><Spinner size="sm"/></Center>}
+                  {!membersLoading && members
+                    .filter(m => {
+                      if (!memberSearch.trim()) return true;
+                      const q = memberSearch.toLowerCase();
+                      return [m.firstName, m.lastName, m.memberNumber, m.email]
+                        .filter(Boolean)
+                        .some(v => String(v).toLowerCase().includes(q));
+                    })
+                    .slice(0, 50)
+                    .map(m => {
+                      const id = m.id;
+                      const checked = selectedMemberIds.includes(id);
+                      const label = `${m.lastName?.toUpperCase() || ''} ${m.firstName || ''}${m.memberNumber ? ` · ${m.memberNumber}` : ''}`.trim();
+                      return (
+                        <HStack key={id} py={1} spacing={3}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e)=>{
+                              setSelectedMemberIds(prev => e.target.checked ? [...prev, id] : prev.filter(x=>x!==id));
+                            }}
+                          />
+                          <Text fontSize="sm">{label}</Text>
+                        </HStack>
+                      );
+                    })}
+                  {!membersLoading && members.length===0 && (
+                    <Text fontSize="sm" opacity={0.7}>Aucun adhérent chargé. Connectez-vous pour voir la liste.</Text>
+                  )}
+                </Box>
               </FormControl>
-              <FormControl>
-                <FormLabel>Durée (min, optionnel)</FormLabel>
-                <Input id="pass-duration" placeholder="ex: 45" type="number" />
-              </FormControl>
+              <HStack>
+                <FormControl>
+                  <FormLabel>Invité - Prénom</FormLabel>
+                  <Input value={guestFirstName} onChange={(e)=>setGuestFirstName(e.target.value)} placeholder="Prénom invité" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Invité - Nom</FormLabel>
+                  <Input value={guestLastName} onChange={(e)=>setGuestLastName(e.target.value)} placeholder="Nom invité" />
+                </FormControl>
+              </HStack>
             </VStack>
           </ModalBody>
 
@@ -364,11 +429,24 @@ export default function MobileVehicle() {
             <Button variant="ghost" onClick={() => setShowPassage(false)}>Annuler</Button>
             <Button colorScheme="orange" onClick={async () => {
               const conducteur = document.getElementById("pass-conducteur")?.value || "";
-              const km = Number(document.getElementById("pass-km")?.value || "") || null;
-              const durationMin = Number(document.getElementById("pass-duration")?.value || "") || null;
+              // Build participants string from selected members + guest
+              const selectedMembers = members.filter(m => selectedMemberIds.includes(m.id));
+              const memberNames = selectedMembers.map(m => `${m.firstName || ''} ${m.lastName || ''}`.trim()).filter(Boolean);
+              const guestName = (guestFirstName || guestLastName) ? `Invité: ${[guestFirstName, guestLastName].filter(Boolean).join(' ')}` : '';
+              const participantsStr = [
+                conducteur ? `Conducteur: ${conducteur}` : '',
+                ...memberNames,
+                guestName
+              ].filter(Boolean).join('; ');
               try {
-                await postUsage({ conducteur: conducteur || null, km, durationMin, note: "" });
+                await postUsage({
+                  startedAt: new Date().toISOString(),
+                  conducteur: conducteur || null,
+                  participants: participantsStr || null,
+                  note: ""
+                });
                 setShowPassage(false);
+                setSelectedMemberIds([]); setGuestFirstName(''); setGuestLastName(''); setMemberSearch('');
               } catch {}
             }}>Signaler</Button>
           </ModalFooter>
