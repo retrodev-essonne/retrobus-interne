@@ -1205,6 +1205,17 @@ function ApiConfigPanel({ onChanged }) {
     onChanged?.();
   };
 
+  const applyRecommended = () => {
+    const recommendedOrigin = (import.meta.env?.VITE_API_ORIGIN || 'https://attractive-kindness-rbe-serveurs.up.railway.app').replace(/\/+$/,'');
+    setOrigin(recommendedOrigin);
+    setPrefix('api');
+    setUsersPath('api/site-users');
+    setMembersPath('api/members');
+    setChangelogPath('api/changelog');
+    setSiteConfigPath('api/site-config');
+    toast({ title: 'Recommandé appliqué', description: 'Origine Railway + préfixe /api et chemins configurés.', status: 'success', duration: 2500 });
+  };
+
   const runTest = async (label, candidates) => {
     try {
       const res = await apiGet(candidates);
@@ -1266,6 +1277,7 @@ function ApiConfigPanel({ onChanged }) {
       <HStack>
         <Button colorScheme="blue" onClick={save}>Enregistrer</Button>
         <Button variant="outline" onClick={resetAll}>Réinitialiser</Button>
+        <Button variant="ghost" onClick={applyRecommended}>Utiliser config recommandée</Button>
       </HStack>
 
       <Divider />
