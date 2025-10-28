@@ -1307,7 +1307,8 @@ export default function SiteManagement() {
     title: '',
     version: '',
     date: '',
-    changes: ['']
+    entryType: 'update',
+    changes: [{ tag: 'update', text: '' }]
   });
   // Nouveau: configuration HelloAsso (navbar externe)
   const [helloAssoLink, setHelloAssoLink] = useState(
@@ -1392,7 +1393,8 @@ export default function SiteManagement() {
       title: '',
       version: '',
       date: new Date().toISOString().split('T')[0],
-      changes: ['']
+      entryType: 'update',
+      changes: [{ tag: 'update', text: '' }]
     });
     setSelectedChangelog(null);
   };
@@ -1408,25 +1410,38 @@ export default function SiteManagement() {
     setSelectedChangelog(changelog);
     
     // S'assurer que changes est toujours un tableau
-    let changes = [''];
+    let changes = [{ tag: 'update', text: '' }];
     if (changelog.changes) {
       if (Array.isArray(changelog.changes)) {
-        changes = changelog.changes.length > 0 ? changelog.changes : [''];
+        if (changelog.changes.length > 0) {
+          // Supporte soit tableau d'objets, soit tableau de chaînes
+          changes = changelog.changes.map((c) => (
+            typeof c === 'string'
+              ? { tag: 'update', text: c.replace(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}]\s*)/u, '').trim() }
+              : { tag: c.tag || 'update', text: c.text || '' }
+          ));
+        }
       } else if (typeof changelog.changes === 'string') {
         try {
           const parsed = JSON.parse(changelog.changes);
-          changes = Array.isArray(parsed) ? parsed : [''];
+          changes = Array.isArray(parsed)
+            ? parsed.map((c) => (typeof c === 'string' ? { tag: 'update', text: c } : c))
+            : [{ tag: 'update', text: String(changelog.changes) }];
         } catch (e) {
           console.warn('Impossible de parser changes:', changelog.changes);
-          changes = [changelog.changes];
+          changes = [{ tag: 'update', text: changelog.changes }];
         }
       }
+    } else if (changelog.description && typeof changelog.description === 'string') {
+      // Découper la description multi-lignes en items
+      changes = changelog.description.split(/\n|\r\n/).map(line => ({ tag: 'update', text: line.replace(/^•\s*/, '') }));
     }
     
     setFormData({
       title: changelog.title || '',
       version: changelog.version || '',
       date: changelog.date ? changelog.date.split('T')[0] : new Date().toISOString().split('T')[0],
+      entryType: changelog.type || 'update',
       changes
     });
     onOpen();
@@ -1436,7 +1451,7 @@ export default function SiteManagement() {
   const addChange = () => {
     setFormData(prev => ({
       ...prev,
-      changes: [...prev.changes, '']
+      changes: [...prev.changes, { tag: 'update', text: '' }]
     }));
   };
 
@@ -1454,9 +1469,29 @@ export default function SiteManagement() {
   const updateChange = (index, value) => {
     setFormData(prev => ({
       ...prev,
-      changes: prev.changes.map((change, i) => i === index ? value : change)
+      changes: prev.changes.map((change, i) => i === index ? { ...change, text: value } : change)
     }));
   };
+
+  const updateChangeTag = (index, tag) => {
+    setFormData(prev => ({
+      ...prev,
+      changes: prev.changes.map((change, i) => i === index ? { ...change, tag } : change)
+    }));
+  };
+
+  const TAGS = [
+    { key: 'feature', label: 'Fonctionnalité', emoji: '✨' },
+    { key: 'fix', label: 'Correction', emoji: '🐛' },
+    { key: 'update', label: 'Mise à jour', emoji: '🔄' },
+    { key: 'security', label: 'Sécurité', emoji: '🔒' },
+    { key: 'perf', label: 'Performance', emoji: '🚀' },
+    { key: 'ui', label: 'Interface', emoji: '🎨' },
+    { key: 'content', label: 'Contenu', emoji: '📝' },
+    { key: 'deps', label: 'Dépendances', emoji: '📦' },
+    { key: 'docs', label: 'Documentation', emoji: '📚' }
+  ];
+  const getEmojiForTag = (tag) => (TAGS.find(t => t.key === tag)?.emoji || '•');
 
   // Sauvegarder le changelog
   const handleSave = async () => {
@@ -1473,9 +1508,21 @@ export default function SiteManagement() {
         return;
       }
 
+      // Préparer la description et la compatibilité
+      const normalizedChanges = (formData.changes || []).filter(c => c && String(c.text || '').trim() !== '');
+      const changesText = normalizedChanges.map(c => `${getEmojiForTag(c.tag)} ${c.text.trim()}`);
+      const description = changesText.join('\n');
+
       const payload = {
-        ...formData,
-        changes: formData.changes.filter(change => change.trim() !== '')
+        title: formData.title.trim(),
+        version: formData.version.trim(),
+        date: formData.date,
+        type: formData.entryType || 'update',
+        // champs riches
+        changes: normalizedChanges,
+        // compatibilité externe
+        changesText,
+        description
       };
 
       if (selectedChangelog) {
@@ -1508,6 +1555,20 @@ export default function SiteManagement() {
 
       fetchChangelogs();
       onClose();
+
+      // Synchroniser la version du site dans la configuration publique
+      try {
+        if (formData.version?.trim()) {
+          await apiPut(
+            buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin()),
+            { siteVersion: formData.version.trim() }
+          );
+          toast({ title: 'Version du site mise à jour', description: `v${formData.version.trim()}`, status: 'success', duration: 2500 });
+        }
+      } catch (e) {
+        console.warn('MàJ siteVersion échouée:', e);
+        toast({ title: 'Version non synchronisée', description: 'Impossible de mettre à jour la version du site.', status: 'warning', duration: 3500 });
+      }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
       toast({
@@ -1653,7 +1714,15 @@ export default function SiteManagement() {
                       </CardHeader>
                       <CardBody pt={0}>
                         <VStack align="start" spacing={2}>
-                          {renderChanges(changelog.changes)}
+                          {Array.isArray(changelog.changes) && changelog.changes.length > 0 ? (
+                            changelog.changes.map((c, i) => (
+                              <Text key={i} fontSize="sm">
+                                {typeof c === 'string' ? c : `${getEmojiForTag(c.tag)} ${c.text}`}
+                              </Text>
+                            ))
+                          ) : (
+                            renderChanges(changelog.changesText || changelog.description || [])
+                          )}
                         </VStack>
                       </CardBody>
                     </Card>
@@ -1762,12 +1831,34 @@ export default function SiteManagement() {
                   </FormControl>
                 </SimpleGrid>
 
+                <FormControl>
+                  <FormLabel>Type de publication</FormLabel>
+                  <Select
+                    value={formData.entryType}
+                    onChange={(e) => setFormData(prev => ({ ...prev, entryType: e.target.value }))}
+                  >
+                    <option value="feature">Fonctionnalité ✨</option>
+                    <option value="fix">Correction 🐛</option>
+                    <option value="update">Mise à jour 🔄</option>
+                    <option value="security">Sécurité 🔒</option>
+                  </Select>
+                </FormControl>
+
                 <VStack align="stretch" spacing={2}>
                   <FormLabel>Changements</FormLabel>
                   {formData.changes.map((change, idx) => (
                     <HStack key={idx} align="start">
+                      <Select
+                        maxW="180px"
+                        value={change.tag}
+                        onChange={(e) => updateChangeTag(idx, e.target.value)}
+                      >
+                        {TAGS.map(t => (
+                          <option key={t.key} value={t.key}>{t.emoji} {t.label}</option>
+                        ))}
+                      </Select>
                       <Input
-                        value={change}
+                        value={change.text}
                         onChange={(e) => updateChange(idx, e.target.value)}
                         placeholder={`• Entrée ${idx + 1}`}
                       />
