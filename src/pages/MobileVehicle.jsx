@@ -64,6 +64,7 @@ export default function MobileVehicle() {
   // modals
   const [showAnomaly, setShowAnomaly] = useState(false);
   const [showPassage, setShowPassage] = useState(false);
+  const [finishMode, setFinishMode] = useState(false);
   const [showEvent, setShowEvent] = useState(false);
 
   // auth form (matricule) for fallback
@@ -83,6 +84,54 @@ export default function MobileVehicle() {
   const [depDate, setDepDate] = useState("");
   const [depTime, setDepTime] = useState("");
   const [actionsText, setActionsText] = useState("");
+  const [arrLoc, setArrLoc] = useState(null);
+  const [depLoc, setDepLoc] = useState(null);
+
+  // Ongoing pointage tracking
+  const currentUsageKey = `rbe_current_usage_${parc}`;
+  const [currentUsageId, setCurrentUsageId] = useState(() => {
+    const raw = localStorage.getItem(currentUsageKey);
+    return raw ? JSON.parse(raw) : null;
+  });
+
+  const setCurrentUsage = (idOrNull) => {
+    setCurrentUsageId(idOrNull);
+    if (idOrNull) localStorage.setItem(currentUsageKey, JSON.stringify(idOrNull));
+    else localStorage.removeItem(currentUsageKey);
+  };
+
+  // Helper: geolocation
+  const getGeo = () => new Promise((resolve) => {
+    if (!('geolocation' in navigator)) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  });
+
+  // When opening the passage modal, prefill arrival time and ask location
+  useEffect(() => {
+    if (showPassage && !finishMode) {
+      const now = new Date();
+      setArrDate(now.toISOString().slice(0,10));
+      setArrTime(now.toTimeString().slice(0,5));
+      getGeo().then(setArrLoc);
+    }
+    if (showPassage && finishMode) {
+      const now = new Date();
+      setDepDate(now.toISOString().slice(0,10));
+      setDepTime(now.toTimeString().slice(0,5));
+      getGeo().then(setDepLoc);
+    }
+    if (!showPassage) {
+      setFinishMode(false);
+    }
+  }, [showPassage, finishMode]);
 
   const loadMembers = async () => {
     if (!authToken) return; // need JWT
@@ -246,11 +295,32 @@ export default function MobileVehicle() {
       }
       const j = await r.json();
       setUsages(prev => [j, ...prev]);
-      toast({ status: "success", title: "Usage ajouté" });
       return j;
     } catch (e) {
       console.error(e);
       toast({ status: "error", title: "Impossible d'ajouter l'usage", description: String(e.message) });
+      throw e;
+    }
+  };
+
+  const updateUsage = async (id, payload) => {
+    try {
+      const urls = buildCandidates(`usages/${encodeURIComponent(id)}`);
+      const r = await fetch(urls[0], {
+        method: "PUT",
+        headers: headersFor(),
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(()=>({error:'err'}));
+        throw new Error(err?.error || r.statusText || "Erreur");
+      }
+      const j = await r.json();
+      setUsages(prev => prev.map(u => u.id === j.id ? j : u));
+      return j;
+    } catch (e) {
+      console.error(e);
+      toast({ status: "error", title: "Impossible de mettre à jour l'usage", description: String(e.message) });
       throw e;
     }
   };
@@ -292,7 +362,12 @@ export default function MobileVehicle() {
 
           <Stack spacing={4} mt={6}>
             <Button colorScheme="red" onClick={() => setShowAnomaly(true)}>Signaler une anomalie</Button>
-            <Button colorScheme="orange" onClick={() => setShowPassage(true)}>Signaler un passage</Button>
+            {!currentUsageId && (
+              <Button colorScheme="orange" onClick={() => { setFinishMode(false); setShowPassage(true); }}>Démarrer un pointage</Button>
+            )}
+            {currentUsageId && (
+              <Button colorScheme="green" onClick={() => { setFinishMode(true); setShowPassage(true); }}>Terminer le pointage</Button>
+            )}
             <Button colorScheme="blue" onClick={() => setShowEvent(true)}>Ajouter un évènement au véhicule</Button>
           </Stack>
 
@@ -368,7 +443,7 @@ export default function MobileVehicle() {
       <Modal isOpen={showPassage} onClose={() => setShowPassage(false)} isCentered onOverlayClick={() => {}}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Signaler un passage</ModalHeader>
+          <ModalHeader>{finishMode ? 'Terminer le pointage' : 'Démarrer un pointage'}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={3} align="stretch">
@@ -377,26 +452,36 @@ export default function MobileVehicle() {
                 <FormLabel>Conducteur</FormLabel>
                 <Input id="pass-conducteur" placeholder="Nom ou matricule" />
               </FormControl>
-              <HStack>
-                <FormControl>
-                  <FormLabel>Date d'arrivée</FormLabel>
-                  <Input type="date" value={arrDate} onChange={(e)=>setArrDate(e.target.value)} />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Heure d'arrivée</FormLabel>
-                  <Input type="time" value={arrTime} onChange={(e)=>setArrTime(e.target.value)} />
-                </FormControl>
-              </HStack>
-              <HStack>
-                <FormControl>
-                  <FormLabel>Date de sortie</FormLabel>
-                  <Input type="date" value={depDate} onChange={(e)=>setDepDate(e.target.value)} />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Heure de sortie</FormLabel>
-                  <Input type="time" value={depTime} onChange={(e)=>setDepTime(e.target.value)} />
-                </FormControl>
-              </HStack>
+              {!finishMode && (
+                <>
+                  <HStack>
+                    <FormControl>
+                      <FormLabel>Date d'arrivée</FormLabel>
+                      <Input type="date" value={arrDate} onChange={(e)=>setArrDate(e.target.value)} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Heure d'arrivée</FormLabel>
+                      <Input type="time" value={arrTime} onChange={(e)=>setArrTime(e.target.value)} />
+                    </FormControl>
+                  </HStack>
+                  {arrLoc && <Text fontSize="sm" color="gray.600">📍 Arrivée GPS: {arrLoc.lat.toFixed(5)},{arrLoc.lng.toFixed(5)} (±{Math.round(arrLoc.accuracy)}m)</Text>}
+                </>
+              )}
+              {finishMode && (
+                <>
+                  <HStack>
+                    <FormControl>
+                      <FormLabel>Date de sortie</FormLabel>
+                      <Input type="date" value={depDate} onChange={(e)=>setDepDate(e.target.value)} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Heure de sortie</FormLabel>
+                      <Input type="time" value={depTime} onChange={(e)=>setDepTime(e.target.value)} />
+                    </FormControl>
+                  </HStack>
+                  {depLoc && <Text fontSize="sm" color="gray.600">📍 Sortie GPS: {depLoc.lat.toFixed(5)},{depLoc.lng.toFixed(5)} (±{Math.round(depLoc.accuracy)}m)</Text>}
+                </>
+              )}
               <FormControl>
                 <FormLabel>Membres présents</FormLabel>
                 <Input
@@ -448,16 +533,18 @@ export default function MobileVehicle() {
                   <Input value={guestLastName} onChange={(e)=>setGuestLastName(e.target.value)} placeholder="Nom invité" />
                 </FormControl>
               </HStack>
-              <FormControl>
-                <FormLabel>Actions réalisées</FormLabel>
-                <Textarea value={actionsText} onChange={(e)=>setActionsText(e.target.value)} placeholder="Détaillez les actions réalisées pendant le passage" rows={4} />
-              </FormControl>
+              {finishMode && (
+                <FormControl>
+                  <FormLabel>Actions réalisées</FormLabel>
+                  <Textarea value={actionsText} onChange={(e)=>setActionsText(e.target.value)} placeholder="Détaillez les actions réalisées pendant le passage" rows={4} />
+                </FormControl>
+              )}
             </VStack>
           </ModalBody>
 
           <ModalFooter>
             <Button variant="ghost" onClick={() => setShowPassage(false)}>Annuler</Button>
-            <Button colorScheme="orange" onClick={async () => {
+            <Button colorScheme={finishMode ? 'green' : 'orange'} onClick={async () => {
               const conducteur = document.getElementById("pass-conducteur")?.value || "";
               // Build participants string from selected members + guest
               const selectedMembers = members.filter(m => selectedMemberIds.includes(m.id));
@@ -481,16 +568,34 @@ export default function MobileVehicle() {
               const startedAtISO = toISO(arrDate, arrTime);
               const endedAtISO = depDate || depTime ? toISO(depDate, depTime) : null;
               try {
-                await postUsage({
-                  startedAt: startedAtISO || new Date().toISOString(),
-                  conducteur: conducteur || null,
-                  participants: participantsStr || null,
-                  note: actionsText ? `Actions:\n${actionsText}` : "",
-                  endedAt: endedAtISO
-                });
+                if (!finishMode) {
+                  // Start pointage
+                  const arrivalNote = arrLoc ? `\nArrivée GPS: ${arrLoc.lat?.toFixed(5)},${arrLoc.lng?.toFixed(5)} (±${Math.round(arrLoc.accuracy||0)}m)` : '';
+                  const created = await postUsage({
+                    startedAt: startedAtISO || new Date().toISOString(),
+                    conducteur: conducteur || null,
+                    participants: participantsStr || null,
+                    note: arrivalNote || ''
+                  });
+                  setCurrentUsage(created?.id || null);
+                  toast({ status: 'success', title: 'Pointage démarré' });
+                } else {
+                  // Finish pointage
+                  if (!currentUsageId) throw new Error('Aucun pointage en cours');
+                  const exitNote = depLoc ? `\nSortie GPS: ${depLoc.lat?.toFixed(5)},${depLoc.lng?.toFixed(5)} (±${Math.round(depLoc.accuracy||0)}m)` : '';
+                  const actionsNote = actionsText ? `\nActions:\n${actionsText}` : '';
+                  await updateUsage(currentUsageId, {
+                    endedAt: endedAtISO || new Date().toISOString(),
+                    conducteur: conducteur || null,
+                    participants: participantsStr || null,
+                    note: `${actionsNote}${exitNote}`.trim()
+                  });
+                  setCurrentUsage(null);
+                  toast({ status: 'success', title: 'Pointage terminé' });
+                }
                 setShowPassage(false);
                 setSelectedMemberIds([]); setGuestFirstName(''); setGuestLastName(''); setMemberSearch('');
-                setArrDate(''); setArrTime(''); setDepDate(''); setDepTime(''); setActionsText('');
+                setArrDate(''); setArrTime(''); setDepDate(''); setDepTime(''); setActionsText(''); setArrLoc(null); setDepLoc(null);
               } catch {}
             }}>Signaler</Button>
           </ModalFooter>
