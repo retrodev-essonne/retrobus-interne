@@ -57,6 +57,11 @@ const ENDPOINTS = {
     // Fallback statique servi par l'app interne (placer le fichier dans public/data/changelog.json)
     'data/changelog.json'
   ]
+  ,
+  siteConfig: [
+    'api/site-config',
+    'site-config'
+  ]
 };
 const toUrls = (candidates) =>
   candidates
@@ -77,6 +82,7 @@ const getApiPrefix = () => clean(localStorage.getItem('rbe_api_prefix') || impor
 const getUsersPath = () => clean(localStorage.getItem('rbe_api_site_users_path') || import.meta.env?.VITE_API_SITE_USERS_PATH);
 const getMembersPath = () => clean(localStorage.getItem('rbe_api_members_path') || import.meta.env?.VITE_API_MEMBERS_PATH);
 const getChangelogPath = () => clean(localStorage.getItem('rbe_api_changelog_path') || import.meta.env?.VITE_API_CHANGELOG_PATH);
+const getSiteConfigPath = () => clean(localStorage.getItem('rbe_api_site_config_path') || import.meta.env?.VITE_API_SITE_CONFIG_PATH);
 
 // Origins (priorité: spécifique ressource > globale > même origine)
 const getGlobalOrigin = () => {
@@ -90,6 +96,8 @@ const getMembersOrigin = () =>
   (localStorage.getItem('rbe_api_members_origin') || import.meta.env?.VITE_API_MEMBERS_ORIGIN || getGlobalOrigin() || '').trim();
 const getChangelogOrigin = () =>
   (localStorage.getItem('rbe_api_changelog_origin') || import.meta.env?.VITE_API_CHANGELOG_ORIGIN || getGlobalOrigin() || '').trim();
+const getSiteConfigOrigin = () =>
+  (localStorage.getItem('rbe_api_site_config_origin') || import.meta.env?.VITE_API_SITE_CONFIG_ORIGIN || getGlobalOrigin() || '').trim();
 
 const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrideOrigin) => {
   const suffix = clean(extraSuffix);
@@ -408,15 +416,30 @@ function AccessManagement() {
               <StatLabel>Total accès</StatLabel>
               <StatNumber color="blue.500">{stats.totalUsers || 0}</StatNumber>
             </Stat>
-          </CardBody>
-        </Card>
-        
-        <Card bg={cardBg}>
-          <CardBody>
-            <Stat>
-              <StatLabel>Accès actifs</StatLabel>
-              <StatNumber color="green.500">{stats.activeUsers || 0}</StatNumber>
-            </Stat>
+                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
+                        Modifier la page d'accueil
+                      </Button>
+                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
+                        Gérer les événements
+                      </Button>
+                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
+                        Mettre à jour "À propos"
+                      </Button>
+
+                      <Divider my={2} />
+                      <Heading size="xs">Bouton "Soutenir l'association" (Navbar externe)</Heading>
+                      <Text fontSize="xs" color="gray.600">
+                        Configure le lien HelloAsso utilisé sur la navbar du site public.
+                      </Text>
+                      <HStack>
+                        <Input
+                          value={helloAssoLink}
+                          onChange={(e) => setHelloAssoLink(e.target.value)}
+                          placeholder="https://www.helloasso.com/associations/retrobus-essonne"
+                        />
+                        <Button size="sm" colorScheme="blue" onClick={saveHelloAsso}>Enregistrer</Button>
+                        <Button size="sm" variant="outline" onClick={testHelloAsso}>Tester</Button>
+                      </HStack>
           </CardBody>
         </Card>
         
@@ -1301,6 +1324,10 @@ export default function SiteManagement() {
     date: '',
     changes: ['']
   });
+  // Nouveau: configuration HelloAsso (navbar externe)
+  const [helloAssoLink, setHelloAssoLink] = useState(
+    localStorage.getItem('rbe_site_helloasso_url') || 'https://www.helloasso.com/associations/retrobus-essonne'
+  );
   
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
@@ -1337,6 +1364,38 @@ export default function SiteManagement() {
   useEffect(() => {
     fetchChangelogs();
   }, []);
+
+  // --- Gestion sauvegarde HelloAsso ---
+  const saveHelloAsso = async () => {
+    try {
+      if (!helloAssoLink || !/^https?:\/\//i.test(helloAssoLink)) {
+        toast({ title: 'Lien invalide', description: 'Fournissez une URL complète commençant par http(s)://', status: 'error', duration: 3000 });
+        return;
+      }
+      // Mémoriser en local également
+      localStorage.setItem('rbe_site_helloasso_url', helloAssoLink);
+
+      // Publier vers l'API publique (Railway) si disponible
+      const candidates = buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin());
+      const res = await apiPut(candidates, { helloAssoUrl: helloAssoLink });
+      toast({ title: 'Lien mis à jour', description: 'Le bouton "Soutenir" utilisera le nouveau lien.', status: 'success', duration: 3000 });
+      return res;
+    } catch (e) {
+      console.error('Erreur sauvegarde HelloAsso:', e);
+      toast({ title: 'Erreur', description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`, status: 'error', duration: 6000 });
+    }
+  };
+
+  const testHelloAsso = async () => {
+    try {
+      const candidates = buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin());
+      const res = await apiGet(candidates);
+      const data = res?.data || {};
+      toast({ title: 'Config détectée', description: `helloAssoUrl=${data.helloAssoUrl || 'non défini'}`, status: 'success', duration: 3000 });
+    } catch (e) {
+      toast({ title: 'Config indisponible', description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`, status: 'warning', duration: 5000 });
+    }
+  };
 
   // Réinitialiser le formulaire
   const resetForm = () => {
