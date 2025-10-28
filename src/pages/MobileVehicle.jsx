@@ -89,7 +89,8 @@ export default function MobileVehicle() {
         const h = headersFor(token);
         const basePath = getVehiclesPath();
         const vehUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}`);
-        const evUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/events`);
+  // Server expects "reports" for vehicle-specific events
+  const evUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/reports`);
         const usUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/usages`);
         const [rv, re, ru] = await Promise.all([
           fetchJsonFirst(vehUrls, { headers: h }),
@@ -98,7 +99,15 @@ export default function MobileVehicle() {
         ]);
         if (stop) return;
         setVeh(rv);
-        setEvents(Array.isArray(re) ? re : []);
+        // Normalize report objects into UI-friendly event items
+        const normalizedEvents = Array.isArray(re) ? re.map(r => ({
+          id: r.id,
+          type: r.type || 'Rapport',
+          date: r.createdAt || r.date || new Date().toISOString(),
+          note: r.description || r.note || '',
+          createdBy: r.createdBy || r.author || '—',
+        })) : [];
+        setEvents(normalizedEvents);
         setUsages(Array.isArray(ru) ? ru : []);
       } catch (err) {
         // token invalid or other error — clear vehicle so user must auth
@@ -132,7 +141,7 @@ export default function MobileVehicle() {
             const h = headersFor('', inputMatricule.trim());
             const basePath = getVehiclesPath();
             const vehUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}`);
-            const evUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/events`);
+            const evUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/reports`);
             const usUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/usages`);
             const [rv, re, ru] = await Promise.all([
               fetchJsonFirst(vehUrls, { headers: h }),
@@ -140,7 +149,14 @@ export default function MobileVehicle() {
               fetchJsonFirst(usUrls, { headers: h }).catch(() => []),
             ]);
             setVeh(rv);
-            setEvents(Array.isArray(re) ? re : []);
+            const normalizedEvents = Array.isArray(re) ? re.map(r => ({
+              id: r.id,
+              type: r.type || 'Rapport',
+              date: r.createdAt || r.date || new Date().toISOString(),
+              note: r.description || r.note || '',
+              createdBy: r.createdBy || r.author || '—',
+            })) : [];
+            setEvents(normalizedEvents);
             setUsages(Array.isArray(ru) ? ru : []);
           } catch (err) {
             toast({ status: "error", title: "Accès refusé" });
@@ -158,18 +174,26 @@ export default function MobileVehicle() {
   const postEvent = async (payload) => {
     try {
       const basePath = getVehiclesPath();
-      const urls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/events`);
+      const urls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/reports`);
       const r = await fetch(urls[0], {
         method: "POST",
         headers: headersFor(),
-        body: JSON.stringify(payload),
+        // backend expects { description, usageId?, filesMeta? }
+        body: JSON.stringify({ description: payload?.note ? `${payload.type || 'Événement'}: ${payload.note}` : (payload?.type || 'Événement') }),
       });
       if (!r.ok) {
         const err = await r.json().catch(()=>({error:'err'}));
         throw new Error(err?.error || r.statusText || "Erreur");
       }
       const j = await r.json();
-      setEvents(prev => [j, ...prev]);
+      const ev = {
+        id: j.id,
+        type: 'Rapport',
+        date: j.createdAt || new Date().toISOString(),
+        note: j.description || '',
+        createdBy: j.createdBy || '—',
+      };
+      setEvents(prev => [ev, ...prev]);
       toast({ status: "success", title: "Événement ajouté" });
       return j;
     } catch (e) {
