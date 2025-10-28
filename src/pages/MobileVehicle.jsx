@@ -77,6 +77,12 @@ export default function MobileVehicle() {
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [guestFirstName, setGuestFirstName] = useState("");
   const [guestLastName, setGuestLastName] = useState("");
+  // arrival/departure & actions
+  const [arrDate, setArrDate] = useState("");
+  const [arrTime, setArrTime] = useState("");
+  const [depDate, setDepDate] = useState("");
+  const [depTime, setDepTime] = useState("");
+  const [actionsText, setActionsText] = useState("");
 
   const loadMembers = async () => {
     if (!authToken) return; // need JWT
@@ -371,6 +377,26 @@ export default function MobileVehicle() {
                 <FormLabel>Conducteur</FormLabel>
                 <Input id="pass-conducteur" placeholder="Nom ou matricule" />
               </FormControl>
+              <HStack>
+                <FormControl>
+                  <FormLabel>Date d'arrivée</FormLabel>
+                  <Input type="date" value={arrDate} onChange={(e)=>setArrDate(e.target.value)} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Heure d'arrivée</FormLabel>
+                  <Input type="time" value={arrTime} onChange={(e)=>setArrTime(e.target.value)} />
+                </FormControl>
+              </HStack>
+              <HStack>
+                <FormControl>
+                  <FormLabel>Date de sortie</FormLabel>
+                  <Input type="date" value={depDate} onChange={(e)=>setDepDate(e.target.value)} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Heure de sortie</FormLabel>
+                  <Input type="time" value={depTime} onChange={(e)=>setDepTime(e.target.value)} />
+                </FormControl>
+              </HStack>
               <FormControl>
                 <FormLabel>Membres présents</FormLabel>
                 <Input
@@ -422,6 +448,10 @@ export default function MobileVehicle() {
                   <Input value={guestLastName} onChange={(e)=>setGuestLastName(e.target.value)} placeholder="Nom invité" />
                 </FormControl>
               </HStack>
+              <FormControl>
+                <FormLabel>Actions réalisées</FormLabel>
+                <Textarea value={actionsText} onChange={(e)=>setActionsText(e.target.value)} placeholder="Détaillez les actions réalisées pendant le passage" rows={4} />
+              </FormControl>
             </VStack>
           </ModalBody>
 
@@ -438,15 +468,29 @@ export default function MobileVehicle() {
                 ...memberNames,
                 guestName
               ].filter(Boolean).join('; ');
+              const toISO = (d, t) => {
+                if (!d && !t) return null;
+                const date = d || new Date().toISOString().split('T')[0];
+                const time = t || new Date().toTimeString().slice(0,5);
+                // Build local datetime then convert to ISO
+                const [yy,mm,dd] = date.split('-').map(Number);
+                const [HH,MM] = time.split(':').map(Number);
+                const dt = new Date(yy, (mm-1), dd, HH, MM, 0);
+                return dt.toISOString();
+              };
+              const startedAtISO = toISO(arrDate, arrTime);
+              const endedAtISO = depDate || depTime ? toISO(depDate, depTime) : null;
               try {
                 await postUsage({
-                  startedAt: new Date().toISOString(),
+                  startedAt: startedAtISO || new Date().toISOString(),
                   conducteur: conducteur || null,
                   participants: participantsStr || null,
-                  note: ""
+                  note: actionsText ? `Actions:\n${actionsText}` : "",
+                  endedAt: endedAtISO
                 });
                 setShowPassage(false);
                 setSelectedMemberIds([]); setGuestFirstName(''); setGuestLastName(''); setMemberSearch('');
+                setArrDate(''); setArrTime(''); setDepDate(''); setDepTime(''); setActionsText('');
               } catch {}
             }}>Signaler</Button>
           </ModalFooter>

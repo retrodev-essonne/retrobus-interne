@@ -821,6 +821,38 @@ export default function VehiculeShow() {
           </VStack>
         </Box>
 
+        {/* Carnet de suivi */}
+        <Box bg="orange.50" p={6} borderRadius="lg" border="1px solid" borderColor="orange.200">
+          <Heading size="md" mb={4}>📒 Carnet de suivi</Heading>
+          {!usages?.length && (
+            <Text color="gray.600">Aucun passage enregistré pour ce véhicule.</Text>
+          )}
+          <VStack align="stretch" spacing={3} divider={<Divider />} mt={usages?.length ? 2 : 0}>
+            {usages.map((u) => {
+              const started = u.startedAt ? new Date(u.startedAt) : null;
+              const ended = u.endedAt ? new Date(u.endedAt) : null;
+              const duration = (started && ended) ? Math.round((ended - started) / 60000) : null;
+              return (
+                <Box key={u.id}>
+                  <HStack justify="space-between" align="start">
+                    <VStack align="start" spacing={0}>
+                      <Text fontWeight="bold">{u.conducteur || '—'}</Text>
+                      {u.participants && <Text mt={1} fontSize="sm">{u.participants}</Text>}
+                    </VStack>
+                    <VStack align="end" spacing={0}>
+                      <Text fontSize="sm" color="gray.600">{started ? started.toLocaleString() : ''}</Text>
+                      {ended && (
+                        <Text fontSize="sm" color="gray.600">→ {ended.toLocaleString()} {duration!=null ? `(${duration} min)` : ''}</Text>
+                      )}
+                    </VStack>
+                  </HStack>
+                  {u.note && <Text mt={2} fontSize="sm" whiteSpace="pre-wrap">{u.note}</Text>}
+                </Box>
+              );
+            })}
+          </VStack>
+        </Box>
+
         {/* Bouton de sauvegarde principal */}
         <Box textAlign="center" py={4}>
           <Button
