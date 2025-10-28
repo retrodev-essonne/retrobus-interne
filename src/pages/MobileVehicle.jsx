@@ -10,11 +10,34 @@ import { API_BASE_URL } from "../api/config";
 
 // Build API URLs that always include the /api prefix and support same-origin when no base is set
 const BASE = (API_BASE_URL || (import.meta.env.VITE_API_URL || "")).replace(/\/+$/, "");
-const PREFIX = (import.meta.env.VITE_API_PREFIX || "api").replace(/^\/+|\/+$/g, "");
-const apiUrl = (path) => {
-  const cleanPath = String(path || "").replace(/^\/+/, "");
-  // If BASE is empty → relative '/api/...'; else absolute 'BASE/api/...'
-  return `${BASE ? BASE : ""}/${PREFIX}/${cleanPath}`;
+const PREFIX = (import.meta.env.VITE_API_PREFIX || localStorage.getItem('rbe_api_prefix') || "api").replace(/^\/+|\/+$/g, "");
+const getVehiclesPath = () => (localStorage.getItem('rbe_api_vehicles_path') || `${PREFIX}/vehicles`).replace(/^\/+/, '').replace(/\/+$/, '');
+const getOrigin = () => (localStorage.getItem('rbe_api_origin') || BASE).replace(/\/+$/, '');
+
+const buildCandidates = (resourcePath) => {
+  const path = String(resourcePath || '').replace(/^\/+/, '');
+  const origin = getOrigin();
+  const rel = `/${path}`; // relative (same-origin via dev proxy)
+  const abs = origin ? `${origin}/${path}` : null;
+  const list = [rel];
+  if (abs) list.push(abs);
+  return list;
+};
+
+const fetchJsonFirst = async (urls, init) => {
+  let lastErr = null;
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, init);
+      if (!r.ok) { lastErr = new Error(`HTTP ${r.status}`); continue; }
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('application/json')) { lastErr = new Error('non-json'); continue; }
+      return await r.json();
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('fetch failed');
 };
 
 /**
@@ -64,10 +87,14 @@ export default function MobileVehicle() {
       try {
         setLoading(true);
         const h = headersFor(token);
+        const basePath = getVehiclesPath();
+        const vehUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}`);
+        const evUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/events`);
+        const usUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/usages`);
         const [rv, re, ru] = await Promise.all([
-          fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}`), { headers: h }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
-          fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/events`), { headers: h }).then(r => r.ok ? r.json() : []),
-          fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/usages`), { headers: h }).then(r => r.ok ? r.json() : []),
+          fetchJsonFirst(vehUrls, { headers: h }),
+          fetchJsonFirst(evUrls, { headers: h }).catch(() => []),
+          fetchJsonFirst(usUrls, { headers: h }).catch(() => []),
         ]);
         if (stop) return;
         setVeh(rv);
@@ -103,10 +130,14 @@ export default function MobileVehicle() {
           try {
             setLoading(true);
             const h = headersFor('', inputMatricule.trim());
+            const basePath = getVehiclesPath();
+            const vehUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}`);
+            const evUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/events`);
+            const usUrls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/usages`);
             const [rv, re, ru] = await Promise.all([
-              fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}`), { headers: h }).then(r => r.ok ? r.json() : Promise.reject()),
-              fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/events`), { headers: h }).then(r => r.ok ? r.json() : []),
-              fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/usages`), { headers: h }).then(r => r.ok ? r.json() : []),
+              fetchJsonFirst(vehUrls, { headers: h }),
+              fetchJsonFirst(evUrls, { headers: h }).catch(() => []),
+              fetchJsonFirst(usUrls, { headers: h }).catch(() => []),
             ]);
             setVeh(rv);
             setEvents(Array.isArray(re) ? re : []);
@@ -126,7 +157,9 @@ export default function MobileVehicle() {
   // submit helpers
   const postEvent = async (payload) => {
     try {
-      const r = await fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/events`), {
+      const basePath = getVehiclesPath();
+      const urls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/events`);
+      const r = await fetch(urls[0], {
         method: "POST",
         headers: headersFor(),
         body: JSON.stringify(payload),
@@ -148,7 +181,9 @@ export default function MobileVehicle() {
 
   const postUsage = async (payload) => {
     try {
-      const r = await fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/usages`), {
+      const basePath = getVehiclesPath();
+      const urls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/usages`);
+      const r = await fetch(urls[0], {
         method: "POST",
         headers: headersFor(),
         body: JSON.stringify(payload),

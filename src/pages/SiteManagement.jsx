@@ -1184,6 +1184,7 @@ function ApiConfigPanel({ onChanged }) {
   const [membersPath, setMembersPath] = useState(localStorage.getItem('rbe_api_members_path') || (import.meta.env?.VITE_API_MEMBERS_PATH || ''));
   const [changelogPath, setChangelogPath] = useState(localStorage.getItem('rbe_api_changelog_path') || (import.meta.env?.VITE_API_CHANGELOG_PATH || ''));
   const [siteConfigPath, setSiteConfigPath] = useState(localStorage.getItem('rbe_api_site_config_path') || (import.meta.env?.VITE_API_SITE_CONFIG_PATH || ''));
+  const [vehiclesPath, setVehiclesPath] = useState(localStorage.getItem('rbe_api_vehicles_path') || (import.meta.env?.VITE_API_VEHICLES_PATH || ''));
   const toast = useToast();
 
   const save = () => {
@@ -1194,13 +1195,14 @@ function ApiConfigPanel({ onChanged }) {
     setOrRemove('rbe_api_members_path', membersPath);
     setOrRemove('rbe_api_changelog_path', changelogPath);
     setOrRemove('rbe_api_site_config_path', siteConfigPath);
+    setOrRemove('rbe_api_vehicles_path', vehiclesPath);
     toast({ title: 'Configuration enregistrée', status: 'success', duration: 2000 });
     onChanged?.();
   };
 
   const resetAll = () => {
-    ['rbe_api_origin','rbe_api_prefix','rbe_api_site_users_path','rbe_api_members_path','rbe_api_changelog_path','rbe_api_site_config_path'].forEach(k => localStorage.removeItem(k));
-    setOrigin(''); setPrefix(''); setUsersPath(''); setMembersPath(''); setChangelogPath(''); setSiteConfigPath('');
+    ['rbe_api_origin','rbe_api_prefix','rbe_api_site_users_path','rbe_api_members_path','rbe_api_changelog_path','rbe_api_site_config_path','rbe_api_vehicles_path'].forEach(k => localStorage.removeItem(k));
+    setOrigin(''); setPrefix(''); setUsersPath(''); setMembersPath(''); setChangelogPath(''); setSiteConfigPath(''); setVehiclesPath('');
     toast({ title: 'Configuration réinitialisée', status: 'info', duration: 2000 });
     onChanged?.();
   };
@@ -1213,6 +1215,7 @@ function ApiConfigPanel({ onChanged }) {
     setMembersPath('api/members');
     setChangelogPath('api/changelog');
     setSiteConfigPath('api/site-config');
+    setVehiclesPath('api/vehicles');
     toast({ title: 'Recommandé appliqué', description: 'Origine Railway + préfixe /api et chemins configurés.', status: 'success', duration: 2500 });
   };
 
@@ -1272,6 +1275,10 @@ function ApiConfigPanel({ onChanged }) {
           <FormLabel>Chemin Site Config</FormLabel>
           <Input placeholder="ex: api/site-config" value={siteConfigPath} onChange={(e) => setSiteConfigPath(e.target.value)} />
         </FormControl>
+        <FormControl>
+          <FormLabel>Chemin Vehicles</FormLabel>
+          <Input placeholder="ex: api/vehicles" value={vehiclesPath} onChange={(e) => setVehiclesPath(e.target.value)} />
+        </FormControl>
       </SimpleGrid>
 
       <HStack>
@@ -1299,6 +1306,9 @@ function ApiConfigPanel({ onChanged }) {
           </Button>
           <Button size="sm" onClick={() => runTest('Site Config', buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin()))}>
             Tester Site Config
+          </Button>
+          <Button size="sm" onClick={() => runTest('Vehicles', buildCandidates(['api/vehicles','vehicles','api/v1/vehicles','v1/vehicles','vehicules'], (localStorage.getItem('rbe_api_vehicles_path')||'api/vehicles'), '', getGlobalOrigin()))}>
+            Tester Vehicles
           </Button>
         </HStack>
         <Text fontSize="xs" color="gray.500">
