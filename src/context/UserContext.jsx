@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { normalizeRole as normRole } from '../lib/roles';
 import ForcePasswordChange from '../components/ForcePasswordChange';
 
 const UserContext = createContext(null);
@@ -179,8 +180,11 @@ export function UserProvider({ children }) {
   const username = user?.username || '';
   const prenom = user?.prenom || '';
   const nom = user?.nom || '';
-  const roles = user?.roles || [];
-  const isAdmin = roles.includes('ADMIN');
+  const roles = (user?.roles || []).map(r => normRole(r));
+  const isAdmin = roles.includes('ADMIN') || roles.includes('PRESIDENT') || roles.includes('VICE_PRESIDENT') || roles.includes('TRESORIER') || roles.includes('SECRETAIRE_GENERAL');
+  const isVolunteer = roles.includes('VOLUNTEER');
+  const isDriver = roles.includes('DRIVER');
+  const isMember = roles.includes('MEMBER');
   const matricule = user?.username || '';
 
   const value = useMemo(
@@ -195,6 +199,9 @@ export function UserProvider({ children }) {
       nom,
       roles,
       isAdmin,
+  isVolunteer,
+  isDriver,
+  isMember,
       matricule,
       logout,
       // NEW: exposer le statut de session et l’action
@@ -207,7 +214,7 @@ export function UserProvider({ children }) {
       memberApiBase,
       refreshMember,
     }),
-    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, matricule, sessionChecked, member, memberLoading, memberError, memberApiBase]
+    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, isVolunteer, isDriver, isMember, matricule, sessionChecked, member, memberLoading, memberError, memberApiBase]
   );
 
   return (

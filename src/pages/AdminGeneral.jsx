@@ -244,7 +244,7 @@ function ChangelogManagement() {
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  // Charger le changelog depuis l'API
+  // Helpers basés sur l'API publique /api/changelog (même backend que le site externe)
   useEffect(() => {
     loadChangelog();
   }, []);
@@ -252,40 +252,13 @@ function ChangelogManagement() {
   const loadChangelog = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/admin/changelog`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setChangelogEntries(data.entries || []);
-      } else {
-        console.error('Erreur chargement changelog:', response.status);
-        // Utiliser des données par défaut en cas d'erreur
-        setChangelogEntries([
-          {
-            id: 1,
-            version: '2.1.0',
-            date: '2025-10-18',
-            type: 'feature',
-            title: "Système RétroReports",
-            description: "Ajout du système de tickets pour le suivi des incidents et améliorations",
-            author: 'Équipe Dev'
-          },
-          {
-            id: 2,
-            version: '2.0.5',
-            date: '2025-10-15',
-            type: 'fix',
-            title: 'Correction gestion membres',
-            description: "Résolution des problèmes de performance sur la page de gestion des membres",
-            author: 'W. Belaidi'
-          }
-        ]);
-      }
+      const origin = '';
+      const url = `${origin}/api/changelog`;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      // Attendu: tableau d'entrées
+      setChangelogEntries(Array.isArray(data) ? data : (data?.entries || []));
     } catch (error) {
       console.error('Erreur:', error);
       toast({
@@ -299,37 +272,35 @@ function ChangelogManagement() {
     }
   };
 
-  // Sauvegarder le changelog vers l'API
-  const saveChangelog = async (entries) => {
+  const publishEntry = async (entry) => {
     try {
       setSaving(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/admin/changelog`, {
+      const url = `/api/changelog`;
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : undefined
         },
-        body: JSON.stringify({ entries })
+        body: JSON.stringify(entry)
       });
-
-      if (response.ok) {
-        toast({
-          title: "Changelog publié",
-          description: "Les modifications sont maintenant visibles sur le site externe",
-          status: "success",
-          duration: 5000
-        });
-      } else {
-        throw new Error(`Erreur ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      toast({
+        title: "Changelog publié",
+        description: "Les modifications sont maintenant visibles sur le site externe",
+        status: "success",
+        duration: 5000
+      });
     } catch (error) {
-      console.error('Erreur sauvegarde:', error);
+      console.error('Erreur publication:', error);
       toast({
         title: "Erreur de publication",
         description: "Impossible de publier le changelog",
         status: "error",
         duration: 5000
       });
+      throw error;
     } finally {
       setSaving(false);
     }
@@ -358,8 +329,8 @@ function ChangelogManagement() {
     setNewEntry({ version: '', type: 'feature', title: '', description: '', author: '' });
     onClose();
 
-    // Sauvegarder automatiquement
-    await saveChangelog(updatedEntries);
+    // Publier l'entrée côté API externe
+    await publishEntry(entry);
 
     toast({
       title: 'Succès',
@@ -376,9 +347,22 @@ function ChangelogManagement() {
 
     const updatedEntries = changelogEntries.filter(entry => entry.id !== entryId);
     setChangelogEntries(updatedEntries);
-    
-    // Sauvegarder automatiquement
-    await saveChangelog(updatedEntries);
+
+    // Supprimer côté API externe
+    try {
+      setSaving(true);
+      const url = `/api/changelog/${encodeURIComponent(entryId)}`;
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : undefined
+        }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } finally {
+      setSaving(false);
+    }
 
     toast({ 
       title: 'Entrée supprimée', 
