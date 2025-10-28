@@ -6,8 +6,16 @@ import {
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
+import { API_BASE_URL } from "../api/config";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
+// Build API URLs that always include the /api prefix and support same-origin when no base is set
+const BASE = (API_BASE_URL || (import.meta.env.VITE_API_URL || "")).replace(/\/+$/, "");
+const PREFIX = (import.meta.env.VITE_API_PREFIX || "api").replace(/^\/+|\/+$/g, "");
+const apiUrl = (path) => {
+  const cleanPath = String(path || "").replace(/^\/+/, "");
+  // If BASE is empty → relative '/api/...'; else absolute 'BASE/api/...'
+  return `${BASE ? BASE : ""}/${PREFIX}/${cleanPath}`;
+};
 
 /**
  * Page mobile d'accès via QR
@@ -22,7 +30,7 @@ export default function MobileVehicle() {
   const nav = useNavigate();
 
   const tokenFromUrl = searchParams.get("t") || "";
-  const { matricule, setMatricule } = useUser();
+  const { matricule, setMatricule, token: authToken } = useUser();
 
   const [token, setToken] = useState(tokenFromUrl || "");
   const [veh, setVeh] = useState(null);
@@ -44,6 +52,8 @@ export default function MobileVehicle() {
     const h = { "Content-Type": "application/json" };
     if (t) h["x-qr-token"] = t;
     else if (useMatricule) h["x-user-matricule"] = useMatricule;
+    // If user is logged in with standard credentials, include JWT too
+    if (authToken) h["Authorization"] = `Bearer ${authToken}`;
     return h;
   };
 
@@ -53,11 +63,11 @@ export default function MobileVehicle() {
     (async () => {
       try {
         setLoading(true);
-        const h = token ? { "x-qr-token": token } : {};
+        const h = headersFor(token);
         const [rv, re, ru] = await Promise.all([
-          fetch(`${API}/vehicles/${encodeURIComponent(parc)}`, { headers: h }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
-          fetch(`${API}/vehicles/${encodeURIComponent(parc)}/events`, { headers: h }).then(r => r.ok ? r.json() : []),
-          fetch(`${API}/vehicles/${encodeURIComponent(parc)}/usages`, { headers: h }).then(r => r.ok ? r.json() : []),
+          fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}`), { headers: h }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+          fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/events`), { headers: h }).then(r => r.ok ? r.json() : []),
+          fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/usages`), { headers: h }).then(r => r.ok ? r.json() : []),
         ]);
         if (stop) return;
         setVeh(rv);
@@ -92,11 +102,11 @@ export default function MobileVehicle() {
         (async () => {
           try {
             setLoading(true);
-            const h = { "x-user-matricule": inputMatricule.trim() };
+            const h = headersFor('', inputMatricule.trim());
             const [rv, re, ru] = await Promise.all([
-              fetch(`${API}/vehicles/${encodeURIComponent(parc)}`, { headers: h }).then(r => r.ok ? r.json() : Promise.reject()),
-              fetch(`${API}/vehicles/${encodeURIComponent(parc)}/events`, { headers: h }).then(r => r.ok ? r.json() : []),
-              fetch(`${API}/vehicles/${encodeURIComponent(parc)}/usages`, { headers: h }).then(r => r.ok ? r.json() : []),
+              fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}`), { headers: h }).then(r => r.ok ? r.json() : Promise.reject()),
+              fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/events`), { headers: h }).then(r => r.ok ? r.json() : []),
+              fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/usages`), { headers: h }).then(r => r.ok ? r.json() : []),
             ]);
             setVeh(rv);
             setEvents(Array.isArray(re) ? re : []);
@@ -116,7 +126,7 @@ export default function MobileVehicle() {
   // submit helpers
   const postEvent = async (payload) => {
     try {
-      const r = await fetch(`${API}/vehicles/${encodeURIComponent(parc)}/events`, {
+      const r = await fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/events`), {
         method: "POST",
         headers: headersFor(),
         body: JSON.stringify(payload),
@@ -138,7 +148,7 @@ export default function MobileVehicle() {
 
   const postUsage = async (payload) => {
     try {
-      const r = await fetch(`${API}/vehicles/${encodeURIComponent(parc)}/usages`, {
+      const r = await fetch(apiUrl(`/vehicles/${encodeURIComponent(parc)}/usages`), {
         method: "POST",
         headers: headersFor(),
         body: JSON.stringify(payload),
