@@ -40,6 +40,31 @@ const fetchJsonFirst = async (urls, init) => {
   throw lastErr || new Error('fetch failed');
 };
 
+// Like fetchJsonFirst but for write operations: try all candidates until one succeeds, then parse JSON
+const writeJsonFirst = async (urls, init) => {
+  let lastErr = null;
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, init);
+      if (!r.ok) {
+        // try next candidate
+        const text = await r.text().catch(()=> '');
+        lastErr = new Error(`HTTP ${r.status} ${text?.slice(0,120)}`);
+        continue;
+      }
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('application/json')) {
+        return await r.json();
+      }
+      // if no content or non-json, return null as success
+      return null;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('write failed');
+};
+
 /**
  * Page mobile d'accès via QR
  * - URL expected: /mobile/v/:parc?t=<token>
@@ -252,17 +277,11 @@ export default function MobileVehicle() {
     try {
       const basePath = getVehiclesPath();
       const urls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/reports`);
-      const r = await fetch(urls[0], {
-        method: "POST",
+      const j = await writeJsonFirst(urls, {
+        method: 'POST',
         headers: headersFor(),
-        // backend expects { description, usageId?, filesMeta? }
         body: JSON.stringify({ description: payload?.note ? `${payload.type || 'Événement'}: ${payload.note}` : (payload?.type || 'Événement') }),
       });
-      if (!r.ok) {
-        const err = await r.json().catch(()=>({error:'err'}));
-        throw new Error(err?.error || r.statusText || "Erreur");
-      }
-      const j = await r.json();
       const ev = {
         id: j.id,
         type: 'Rapport',
@@ -284,16 +303,11 @@ export default function MobileVehicle() {
     try {
       const basePath = getVehiclesPath();
       const urls = buildCandidates(`${basePath}/${encodeURIComponent(parc)}/usages`);
-      const r = await fetch(urls[0], {
-        method: "POST",
+      const j = await writeJsonFirst(urls, {
+        method: 'POST',
         headers: headersFor(),
         body: JSON.stringify(payload),
       });
-      if (!r.ok) {
-        const err = await r.json().catch(()=>({error:'err'}));
-        throw new Error(err?.error || r.statusText || "Erreur");
-      }
-      const j = await r.json();
       setUsages(prev => [j, ...prev]);
       return j;
     } catch (e) {
@@ -305,17 +319,13 @@ export default function MobileVehicle() {
 
   const updateUsage = async (id, payload) => {
     try {
-      const urls = buildCandidates(`usages/${encodeURIComponent(id)}`);
-      const r = await fetch(urls[0], {
-        method: "PUT",
+      const basePrefix = (import.meta.env.VITE_API_PREFIX || localStorage.getItem('rbe_api_prefix') || 'api').replace(/^\/+|\/+$/g, '');
+      const urls = buildCandidates(`${basePrefix}/usages/${encodeURIComponent(id)}`);
+      const j = await writeJsonFirst(urls, {
+        method: 'PUT',
         headers: headersFor(),
         body: JSON.stringify(payload),
       });
-      if (!r.ok) {
-        const err = await r.json().catch(()=>({error:'err'}));
-        throw new Error(err?.error || r.statusText || "Erreur");
-      }
-      const j = await r.json();
       setUsages(prev => prev.map(u => u.id === j.id ? j : u));
       return j;
     } catch (e) {
