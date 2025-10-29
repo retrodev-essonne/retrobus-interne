@@ -661,8 +661,8 @@ const AdminFinance = () => {
 
     try {
       setLoading(true);
-      
-      const response = await fetch(apiUrl('/api/finance/transactions'), {
+      const paths = buildPathCandidates('/api/finance/transactions');
+      const data = await fetchJsonFirst(paths, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -674,7 +674,7 @@ const AdminFinance = () => {
         })
       });
 
-      if (response.ok) {
+      if (data) {
         toast({
           status: "success",
           title: "Transaction ajoutée",
@@ -693,18 +693,8 @@ const AdminFinance = () => {
         
         onTransactionClose();
         
-        // Recharger les données
         await loadTransactions();
         await loadBalance();
-      } else {
-        const errorData = await response.json();
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible d'ajouter la transaction",
-          duration: 4000,
-          isClosable: true
-        });
       }
     } catch (error) {
       console.error('❌ Erreur ajout transaction:', error);
@@ -717,6 +707,155 @@ const AdminFinance = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Edition transaction
+  const openEditTransaction = (tx) => {
+    setEditingTransaction({ ...tx });
+    onEditTxOpen();
+  };
+
+  const saveEditedTransaction = async () => {
+    if (!editingTransaction || !editingTransaction.id) return;
+    try {
+      setLoading(true);
+      const paths = buildPathCandidates(`/api/finance/transactions/${encodeURIComponent(editingTransaction.id)}`);
+      await fetchJsonFirst(paths, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          description: editingTransaction.description,
+          category: editingTransaction.category,
+          type: editingTransaction.type,
+          amount: parseFloat(editingTransaction.amount),
+          date: editingTransaction.date
+        })
+      });
+      toast({ status: 'success', title: 'Transaction mise à jour' });
+      onEditTxClose();
+      await loadTransactions();
+      await loadBalance();
+    } catch (e) {
+      console.error('❌ Erreur modification transaction:', e);
+      toast({ status: 'error', title: 'Erreur', description: "Impossible de modifier la transaction" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteTransaction = async (id) => {
+    try {
+      if (!confirm('Supprimer cette transaction ?')) return;
+      const paths = buildPathCandidates(`/api/finance/transactions/${encodeURIComponent(id)}`);
+      await deleteFirst(paths, { 'Authorization': `Bearer ${localStorage.getItem('token')}` });
+      toast({ status: 'success', title: 'Transaction supprimée' });
+      await loadTransactions();
+      await loadBalance();
+    } catch (e) {
+      console.error('❌ Erreur suppression transaction:', e);
+      toast({ status: 'error', title: 'Erreur', description: 'Suppression impossible' });
+    }
+  };
+
+  // Liaison transaction ↔ document
+  const openLinkDocument = (tx) => {
+    setLinkTxTarget(tx);
+    setLinkDocId(tx?.documentId || '');
+    onLinkDocOpen();
+  };
+
+  const saveLinkDocument = async () => {
+    try {
+      if (!linkTxTarget) return;
+      const paths = buildPathCandidates(`/api/finance/transactions/${encodeURIComponent(linkTxTarget.id)}`);
+      await fetchJsonFirst(paths, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ documentId: linkDocId || null })
+      });
+      setTransactions(prev => prev.map(t => t.id === linkTxTarget.id ? { ...t, documentId: linkDocId || null } : t));
+      onLinkDocClose();
+      setLinkTxTarget(null);
+      setLinkDocId('');
+      toast({ status: 'success', title: 'Transaction liée au document' });
+    } catch (e) {
+      console.error('❌ Erreur liaison transaction/document:', e);
+      toast({ status: 'error', title: 'Erreur', description: 'Impossible de lier la transaction' });
+    }
+  };
+
+  // CRUD Documents
+  const openCreateDocument = () => {
+    setEditingDocument(null);
+    setDocForm({ type: 'QUOTE', number: '', title: '', date: new Date().toISOString().split('T')[0], amount: '', status: 'DRAFT', eventId: '' });
+    onDocOpen();
+  };
+
+  const openEditDocument = (doc) => {
+    setEditingDocument(doc);
+    setDocForm({
+      type: doc.type || 'QUOTE',
+      number: doc.number || '',
+      title: doc.title || '',
+      date: (doc.date || new Date().toISOString()).slice(0,10),
+      amount: String(doc.amount ?? ''),
+      status: doc.status || 'DRAFT',
+      eventId: doc.eventId || ''
+    });
+    onDocOpen();
+  };
+
+  const saveDocument = async () => {
+    try {
+      const isEdit = !!editingDocument?.id;
+      const paths = isEdit
+        ? buildPathCandidates(`/api/finance/documents/${encodeURIComponent(editingDocument.id)}`)
+        : buildPathCandidates('/api/finance/documents');
+      const payload = {
+        ...docForm,
+        amount: docForm.amount === '' ? 0 : parseFloat(docForm.amount)
+      };
+      const saved = await fetchJsonFirst(paths, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      // RAF: recharger
+      await loadDocuments();
+      onDocClose();
+      toast({ status: 'success', title: isEdit ? 'Document modifié' : 'Document créé' });
+    } catch (e) {
+      // Fallback local
+      const genId = editingDocument?.id || `local-${Date.now()}`;
+      const updated = editingDocument
+        ? documents.map(d => d.id === editingDocument.id ? { ...editingDocument, ...docForm, id: genId } : d)
+        : [{ id: genId, ...docForm }, ...documents];
+      writeDocsLocal(updated);
+      setDocuments(updated);
+      onDocClose();
+      toast({ status: 'info', title: 'Document enregistré en local' });
+    }
+  };
+
+  const deleteDocument = async (id) => {
+    try {
+      const paths = buildPathCandidates(`/api/finance/documents/${encodeURIComponent(id)}`);
+      await deleteFirst(paths, { 'Authorization': `Bearer ${localStorage.getItem('token')}` });
+      await loadDocuments();
+      toast({ status: 'success', title: 'Document supprimé' });
+    } catch (e) {
+      // Fallback local
+      const updated = documents.filter(d => d.id !== id);
+      writeDocsLocal(updated);
+      setDocuments(updated);
+      toast({ status: 'info', title: 'Document supprimé (local)' });
     }
   };
 
