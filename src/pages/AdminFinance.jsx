@@ -2457,11 +2457,11 @@ const AdminFinance = () => {
                 ) : (
                   <VStack spacing={4} align="stretch">
                     {/* Totaux */}
-                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                    <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
                       <Card>
                         <CardBody>
                           <Stat>
-                            <StatLabel>Total crédits</StatLabel>
+                            <StatLabel>Total crédits (période)</StatLabel>
                             <StatNumber color="green.600">{formatCurrency(reportData?.totals?.credits || 0)}</StatNumber>
                           </Stat>
                         </CardBody>
@@ -2469,7 +2469,7 @@ const AdminFinance = () => {
                       <Card>
                         <CardBody>
                           <Stat>
-                            <StatLabel>Total débits</StatLabel>
+                            <StatLabel>Total débits (période)</StatLabel>
                             <StatNumber color="red.600">{formatCurrency(reportData?.totals?.debits || 0)}</StatNumber>
                           </Stat>
                         </CardBody>
@@ -2477,14 +2477,43 @@ const AdminFinance = () => {
                       <Card>
                         <CardBody>
                           <Stat>
-                            <StatLabel>Solde net</StatLabel>
+                            <StatLabel>Net (période)</StatLabel>
                             <StatNumber color={(reportData?.totals?.net || 0) >= 0 ? 'green.600' : 'red.600'}>
                               {formatCurrency(reportData?.totals?.net || 0)}
                             </StatNumber>
                           </Stat>
                         </CardBody>
                       </Card>
+                      <Card>
+                        <CardBody>
+                          <Stat>
+                            <StatLabel>Solde actuel</StatLabel>
+                            <StatNumber>{formatCurrency(balance)}</StatNumber>
+                          </Stat>
+                        </CardBody>
+                      </Card>
                     </SimpleGrid>
+
+                    {/* Solde d'ouverture / clôture */}
+                    <Card>
+                      <CardHeader><Heading size="sm">Soldes de période</Heading></CardHeader>
+                      <CardBody>
+                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                          <Stat>
+                            <StatLabel>Solde d'ouverture</StatLabel>
+                            <StatNumber>{formatCurrency(reportData?.balances?.opening || 0)}</StatNumber>
+                          </Stat>
+                          <Stat>
+                            <StatLabel>Solde de clôture (calculé)</StatLabel>
+                            <StatNumber>{formatCurrency(reportData?.balances?.closing || 0)}</StatNumber>
+                          </Stat>
+                          <Stat>
+                            <StatLabel>Ouverture + Net</StatLabel>
+                            <StatNumber>{formatCurrency(reportData?.balances?.closingFromOpeningPlusNet || 0)}</StatNumber>
+                          </Stat>
+                        </SimpleGrid>
+                      </CardBody>
+                    </Card>
 
                     {/* Par mois */}
                     <Card>
