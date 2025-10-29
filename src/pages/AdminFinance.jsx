@@ -40,8 +40,7 @@ const AdminFinance = () => {
     totalDebits: 0,
     monthlyBalance: 0,
     scheduledMonthlyImpact: 0,
-    scheduledCount: 0,
-    projectedNextMonth: 0
+    scheduledCount: 0
   });
   
   // États des transactions
@@ -516,16 +515,13 @@ const AdminFinance = () => {
         return sum + (impact * multiplier);
       }, 0);
     
-    const projectedNextMonth = balance + monthlyBalance + scheduledMonthlyImpact;
-    
     setStats({
       balance,
       totalCredits,
       totalDebits,
       monthlyBalance,
       scheduledMonthlyImpact,
-      scheduledCount: scheduledOperations.filter(op => op.isActive).length,
-      projectedNextMonth
+      scheduledCount: scheduledOperations.filter(op => op.isActive).length
     });
   };
 
@@ -1785,19 +1781,7 @@ const AdminFinance = () => {
             </CardBody>
           </Card>
 
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Projection M+1</StatLabel>
-                <StatNumber color={stats.projectedNextMonth >= 0 ? "green.600" : "red.600"}>
-                  {formatCurrency(stats.projectedNextMonth)}
-                </StatNumber>
-                <StatHelpText>
-                  Estimation
-                </StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
+          
         </SimpleGrid>
 
         {/* Onglets étendus */}
