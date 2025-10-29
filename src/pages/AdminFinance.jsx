@@ -150,6 +150,48 @@ const AdminFinance = () => {
   const API_BASE = String(RAW_BASE || '').replace(/\/$/, '');
   const apiUrl = (path) => `${API_BASE}${path}`;
 
+  // Helpers: try /api/... then fallback to /... when backend exposes non-prefixed routes
+  const buildPathCandidates = (path) => {
+    const primary = apiUrl(path);
+    const alt = path.startsWith('/api') ? apiUrl(path.replace(/^\/api/, '')) : primary;
+    return [primary, alt].filter((v, i, a) => a.indexOf(v) === i);
+  };
+
+  const fetchJsonFirst = async (paths, init) => {
+    let lastErr = null;
+    for (const p of paths) {
+      try {
+        const r = await fetch(p, init);
+        if (!r.ok) { lastErr = new Error(`HTTP ${r.status}`); continue; }
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        if (ct.includes('application/json')) return await r.json();
+        // accept empty body
+        return null;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('fetch failed');
+  };
+
+  const deleteFirst = async (paths, headers) => {
+    let lastErr = null;
+    for (const p of paths) {
+      try {
+        const r = await fetch(p, { method: 'DELETE', headers });
+        if (!r.ok) { lastErr = new Error(`HTTP ${r.status}`); continue; }
+        return true;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('delete failed');
+  };
+
+  // Local fallback for documents (devis/factures)
+  const readDocsLocal = () => {
+    try { return JSON.parse(localStorage.getItem('rbe:finance:documents') || '[]'); } catch { return []; }
+  };
+  const writeDocsLocal = (docs) => {
+    try { localStorage.setItem('rbe:finance:documents', JSON.stringify(docs)); } catch {}
+  };
+
   // === FONCTIONS DE CHARGEMENT ===
   const loadFinancialData = async () => {
     try {
@@ -183,18 +225,20 @@ const AdminFinance = () => {
   // Charger devis/factures
   const loadDocuments = async () => {
     try {
-      const res = await fetch(apiUrl('/api/finance/documents'), {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDocuments(Array.isArray(data.documents) ? data.documents : (Array.isArray(data.items) ? data.items : []));
+      const paths = buildPathCandidates('/api/finance/documents');
+      const data = await fetchJsonFirst(paths, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const list = Array.isArray(data?.documents) ? data.documents : (Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
+      if (list.length === 0) {
+        const local = readDocsLocal();
+        setDocuments(local);
       } else {
-        setDocuments([]);
+        setDocuments(list);
+        writeDocsLocal(list);
       }
     } catch (e) {
-      console.warn('⚠️ Documents non disponibles, utilisation d\'une liste vide');
-      setDocuments([]);
+      // fallback to local cache
+      const local = readDocsLocal();
+      setDocuments(local);
     }
   };
 
@@ -224,20 +268,9 @@ const AdminFinance = () => {
 
   const loadTransactions = async () => {
     try {
-      const response = await fetch(apiUrl('/api/finance/transactions'), {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data.transactions || []);
-      } else {
-        console.warn('⚠️ Transactions non disponibles');
-        setTransactions([]);
-      }
+      const paths = buildPathCandidates('/api/finance/transactions');
+      const data = await fetchJsonFirst(paths, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' } });
+      setTransactions((data && data.transactions) ? data.transactions : (Array.isArray(data) ? data : []));
     } catch (error) {
       console.error('❌ Erreur chargement transactions:', error);
       setTransactions([]);
@@ -692,20 +725,16 @@ const AdminFinance = () => {
 
     try {
       setLoading(true);
-      
-      const response = await fetch(apiUrl('/api/finance/transactions'), {
+
+      const paths = buildPathCandidates('/api/finance/transactions');
+      const payload = { ...newTransaction, amount: parseFloat(newTransaction.amount) };
+      const data = await fetchJsonFirst(paths, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newTransaction,
-          amount: parseFloat(newTransaction.amount)
-        })
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
-      if (response.ok) {
+      if (data) {
         toast({
           status: "success",
           title: "Transaction ajoutée",
@@ -727,16 +756,7 @@ const AdminFinance = () => {
         // Recharger les données
         await loadTransactions();
         await loadBalance();
-      } else {
-        const errorData = await response.json();
-        toast({
-          status: "error",
-          title: "Erreur",
-          description: errorData.message || "Impossible d'ajouter la transaction",
-          duration: 4000,
-          isClosable: true
-        });
-      }
+      } 
     } catch (error) {
       console.error('❌ Erreur ajout transaction:', error);
       toast({
@@ -761,12 +781,10 @@ const AdminFinance = () => {
     if (!editingTransaction) return;
     try {
       setLoading(true);
-      const response = await fetch(apiUrl(`/api/finance/transactions/${encodeURIComponent(editingTransaction.id)}`), {
+      const paths = buildPathCandidates(`/api/finance/transactions/${encodeURIComponent(editingTransaction.id)}`);
+      const data = await fetchJsonFirst(paths, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: editingTransaction.description,
           category: editingTransaction.category,
@@ -777,8 +795,6 @@ const AdminFinance = () => {
           documentId: editingTransaction.documentId || undefined
         })
       });
-      if (!response.ok) throw new Error('update failed');
-      const data = await response.json().catch(()=>null);
       const updated = data?.transaction || data || editingTransaction;
       setTransactions(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
       toast({ status: 'success', title: 'Transaction mise à jour' });
@@ -797,11 +813,8 @@ const AdminFinance = () => {
     if (!confirm('Supprimer cette transaction ?')) return;
     try {
       setLoading(true);
-      const response = await fetch(apiUrl(`/api/finance/transactions/${encodeURIComponent(id)}`), {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!response.ok) throw new Error('delete failed');
+      const paths = buildPathCandidates(`/api/finance/transactions/${encodeURIComponent(id)}`);
+      await deleteFirst(paths, { 'Authorization': `Bearer ${localStorage.getItem('token')}` });
       setTransactions(prev => prev.filter(t => t.id !== id));
       toast({ status: 'success', title: 'Transaction supprimée' });
     } catch (e) {
@@ -871,24 +884,33 @@ const AdminFinance = () => {
         ...docForm,
         amount: parseFloat(docForm.amount || 0)
       };
-      const url = editingDocument ? apiUrl(`/api/finance/documents/${encodeURIComponent(editingDocument.id)}`) : apiUrl('/api/finance/documents');
-      const method = editingDocument ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method,
+      const paths = editingDocument
+        ? buildPathCandidates(`/api/finance/documents/${encodeURIComponent(editingDocument.id)}`)
+        : buildPathCandidates('/api/finance/documents');
+      const data = await fetchJsonFirst(paths, {
+        method: editingDocument ? 'PUT' : 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('save doc failed');
-      const data = await res.json().catch(()=>null);
       const saved = data?.document || data || { id: editingDocument?.id || Math.random().toString(36).slice(2), ...payload };
       if (editingDocument) setDocuments(prev => prev.map(d => d.id === saved.id ? { ...d, ...saved } : d));
       else setDocuments(prev => [saved, ...prev]);
+      writeDocsLocal(prev => {});
       onDocClose();
       setEditingDocument(null);
       toast({ status: 'success', title: 'Document enregistré' });
     } catch (e) {
-      console.error('❌ Erreur sauvegarde document:', e);
-      toast({ status: 'error', title: 'Enregistrement impossible' });
+      // Fallback local when endpoint not available
+      const localList = readDocsLocal();
+      const toSave = { id: editingDocument?.id || `${Date.now()}`, ...docForm, amount: parseFloat(docForm.amount || 0) };
+      let next;
+      if (editingDocument) next = localList.map(d => d.id === toSave.id ? { ...d, ...toSave } : d);
+      else next = [toSave, ...localList];
+      writeDocsLocal(next);
+      setDocuments(next);
+      onDocClose();
+      setEditingDocument(null);
+      toast({ status: 'warning', title: 'Document enregistré localement (API indisponible)' });
     } finally {
       setLoading(false);
     }
@@ -897,13 +919,19 @@ const AdminFinance = () => {
     if (!confirm('Supprimer ce document ?')) return;
     try {
       setLoading(true);
-      const res = await fetch(apiUrl(`/api/finance/documents/${encodeURIComponent(id)}`), {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!res.ok) throw new Error('delete doc failed');
-      setDocuments(prev => prev.filter(d => d.id !== id));
-      toast({ status: 'success', title: 'Document supprimé' });
+      const paths = buildPathCandidates(`/api/finance/documents/${encodeURIComponent(id)}`);
+      try {
+        await deleteFirst(paths, { 'Authorization': `Bearer ${localStorage.getItem('token')}` });
+        setDocuments(prev => prev.filter(d => d.id !== id));
+        writeDocsLocal(documents.filter(d => d.id !== id));
+        toast({ status: 'success', title: 'Document supprimé' });
+      } catch {
+        // Local fallback
+        const localList = readDocsLocal().filter(d => d.id !== id);
+        writeDocsLocal(localList);
+        setDocuments(localList);
+        toast({ status: 'warning', title: 'Document supprimé localement (API indisponible)' });
+      }
     } catch (e) {
       console.error('❌ Erreur suppression document:', e);
       toast({ status: 'error', title: 'Suppression impossible' });
