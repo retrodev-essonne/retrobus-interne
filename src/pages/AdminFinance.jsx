@@ -368,25 +368,23 @@ const AdminFinance = () => {
 
   const loadExpenseReports = async () => {
     try {
-      const response = await fetch(apiUrl('/api/finance/expense-reports'), {
+      const paths = buildPathCandidates('/api/finance/expense-reports');
+      const data = await fetchJsonFirst(paths, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setExpenseReports(data.reports || []);
-      } else {
-        setExpenseReports([]);
-      }
+      if (Array.isArray(data?.reports)) setExpenseReports(data.reports);
+      else if (Array.isArray(data?.items)) setExpenseReports(data.items);
+      else if (Array.isArray(data)) setExpenseReports(data);
+      else setExpenseReports([]);
     } catch (e) {
       console.error('❌ Erreur chargement notes de frais:', e);
       setExpenseReports([]);
     }
   };
 
-  // Ajouter l'état manquant pour les droits utilisateur
   const [canModifyBalance, setCanModifyBalance] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const isTreasurer = (currentUser?.roles || []).some(r => String(r).toUpperCase() === 'TRESORIER');
@@ -1760,7 +1758,6 @@ const AdminFinance = () => {
             <Tab>📄 Devis & Factures</Tab>
             <Tab>⏰ Échéanciers</Tab>
             <Tab>🏦 Paiements programmés</Tab>
-            {/* Nouvel onglet Notes de frais */}
             <Tab>🧾 Notes de frais</Tab>
             <Tab>🧮 Simulations</Tab>
             <Tab>📊 Rapports</Tab>
@@ -1823,37 +1820,28 @@ const AdminFinance = () => {
                                   const doc = documents.find(d => d.id === transaction.documentId);
                                   return doc ? (
                                     <HStack spacing={2}>
-                                      <Badge colorScheme={doc.type === 'INVOICE' ? 'purple' : 'gray'}>{doc.type === 'INVOICE' ? 'Facture' : 'Devis'}</Badge>
+                                      <Badge colorScheme={doc.type === 'INVOICE' ? 'purple' : 'gray'}>
+                                        {doc.type === 'INVOICE' ? 'Facture' : 'Devis'}
+                                      </Badge>
                                       <Text fontSize="sm">{doc.number || doc.title || doc.id}</Text>
                                     </HStack>
                                   ) : <Text fontSize="sm" color="gray.500">—</Text>;
                                 })()}
                               </Td>
                               <Td>
-                                <Badge
-                                  colorScheme={transaction.type === 'CREDIT' ? 'green' : 'red'}
-                                  size="sm"
-                                >
+                                <Badge colorScheme={transaction.type === 'CREDIT' ? 'green' : 'red'} size="sm">
                                   {transaction.type === 'CREDIT' ? 'Crédit' : 'Débit'}
                                 </Badge>
                               </Td>
                               <Td isNumeric>
-                                <Text
-                                  color={transaction.type === 'CREDIT' ? 'green.600' : 'red.600'}
-                                  fontWeight="bold"
-                                >
+                                <Text color={transaction.type === 'CREDIT' ? 'green.600' : 'red.600'} fontWeight="bold">
                                   {transaction.type === 'CREDIT' ? '+' : '-'}
                                   {formatCurrency(Math.abs(transaction.amount))}
                                 </Text>
                               </Td>
                               <Td>
                                 <Menu>
-                                  <MenuButton
-                                    as={IconButton}
-                                    icon={<FiMoreHorizontal />}
-                                    variant="ghost"
-                                    size="sm"
-                                  />
+                                  <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
                                   <MenuList>
                                     <MenuItem icon={<FiEdit3 />} onClick={() => openEditTransaction(transaction)}>Modifier</MenuItem>
                                     <MenuItem onClick={() => openLinkDocument(transaction)}>Lier à devis/facture…</MenuItem>
@@ -2162,7 +2150,7 @@ const AdminFinance = () => {
                                     <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
                                     <MenuItem onClick={() => openDeclarePayment(operation)}>Déclarer mensualité payée</MenuItem>
                                     <MenuItem onClick={() => openPaymentsList(operation)}>Voir paiements</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500">
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteScheduledOperation(operation.id)}>
                                       Supprimer
                                     </MenuItem>
                                   </MenuList>
