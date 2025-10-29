@@ -117,6 +117,19 @@ const AdminFinance = () => {
     date: new Date().toISOString().split('T')[0]
   });
 
+  // Devis & Factures
+  const [documents, setDocuments] = useState([]); // {id,type:'QUOTE'|'INVOICE', number, title, date, amount, status, eventId?}
+  const [editingDocument, setEditingDocument] = useState(null);
+  const [docForm, setDocForm] = useState({ type: 'QUOTE', number: '', title: '', date: new Date().toISOString().split('T')[0], amount: '', status: 'DRAFT', eventId: '' });
+
+  // Edition/Liaison transaction
+  const { isOpen: isEditTxOpen, onOpen: onEditTxOpen, onClose: onEditTxClose } = useDisclosure();
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const { isOpen: isLinkDocOpen, onOpen: onLinkDocOpen, onClose: onLinkDocClose } = useDisclosure();
+  const [linkTxTarget, setLinkTxTarget] = useState(null);
+  const [linkDocId, setLinkDocId] = useState('');
+  const { isOpen: isDocOpen, onOpen: onDocOpen, onClose: onDocClose } = useDisclosure();
+
   // Toast
   const toast = useToast();
 
@@ -138,6 +151,51 @@ const AdminFinance = () => {
   const API_BASE = String(RAW_BASE || '').replace(/\/$/, '');
   const apiUrl = (path) => `${API_BASE}${path}`;
 
+  // Helpers: try /api then non-/api variant
+  const buildPathCandidates = (path) => {
+    const clean = String(path || '');
+    if (clean.startsWith('/api/')) return [clean, clean.replace(/^\/api/, '')];
+    return [clean, `/api${clean}`];
+  };
+
+  const fetchJsonFirst = async (paths, init = {}) => {
+    const list = Array.isArray(paths) ? paths : [paths];
+    let lastErr = null;
+    for (const p of list) {
+      try {
+        const res = await fetch(apiUrl(p), init);
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) return await res.json();
+        return {};
+      } catch (e) { lastErr = e; }
+    }
+    if (lastErr) throw lastErr;
+    return {};
+  };
+
+  const deleteFirst = async (paths, headers = {}) => {
+    const list = Array.isArray(paths) ? paths : [paths];
+    let lastErr = null;
+    for (const p of list) {
+      try {
+        const res = await fetch(apiUrl(p), { method: 'DELETE', headers });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        return true;
+      } catch (e) { lastErr = e; }
+    }
+    if (lastErr) throw lastErr;
+    return false;
+  };
+
+  // Local cache for documents
+  const readDocsLocal = () => {
+    try { const raw = localStorage.getItem('rbe:finance:documents'); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  };
+  const writeDocsLocal = (docs) => {
+    try { localStorage.setItem('rbe:finance:documents', JSON.stringify(docs || [])); } catch {}
+  };
+
   // === FONCTIONS DE CHARGEMENT ===
   const loadFinancialData = async () => {
     try {
@@ -150,7 +208,8 @@ const AdminFinance = () => {
         loadScheduledOperations(),
         loadSimulationData(),
         loadBalanceHistory(),
-        loadExpenseReports()
+        loadExpenseReports(),
+        loadDocuments()
       ]);
       
     } catch (error) {
@@ -164,6 +223,25 @@ const AdminFinance = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Charger devis/factures
+  const loadDocuments = async () => {
+    try {
+      const paths = buildPathCandidates('/api/finance/documents');
+      const data = await fetchJsonFirst(paths, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const list = Array.isArray(data?.documents) ? data.documents : (Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
+      if (list.length === 0) {
+        const local = readDocsLocal();
+        setDocuments(local);
+      } else {
+        setDocuments(list);
+        writeDocsLocal(list);
+      }
+    } catch (e) {
+      const local = readDocsLocal();
+      setDocuments(local);
     }
   };
 
@@ -1676,6 +1754,7 @@ const AdminFinance = () => {
         <Tabs index={activeTab} onChange={setActiveTab}>
           <TabList>
             <Tab>💳 Transactions</Tab>
+            <Tab>📄 Devis & Factures</Tab>
             <Tab>⏰ Échéanciers</Tab>
             <Tab>🏦 Paiements programmés</Tab>
             {/* Nouvel onglet Notes de frais */}
@@ -1720,6 +1799,7 @@ const AdminFinance = () => {
                             <Th>Date</Th>
                             <Th>Description</Th>
                             <Th>Catégorie</Th>
+                            <Th>Document</Th>
                             <Th>Type</Th>
                             <Th isNumeric>Montant</Th>
                             <Th>Actions</Th>
@@ -1734,6 +1814,19 @@ const AdminFinance = () => {
                                 <Badge size="sm" variant="outline">
                                   {getCategoryLabel(transaction.category)}
                                 </Badge>
+                              </Td>
+                              <Td>
+                                {(() => {
+                                  const doc = documents.find(d => d.id === transaction.documentId);
+                                  return doc ? (
+                                    <HStack spacing={2}>
+                                      <Badge colorScheme={doc.type === 'INVOICE' ? 'purple' : 'gray'}>
+                                        {doc.type === 'INVOICE' ? 'Facture' : 'Devis'}
+                                      </Badge>
+                                      <Text fontSize="sm">{doc.number || doc.title || doc.id}</Text>
+                                    </HStack>
+                                  ) : <Text fontSize="sm" color="gray.500">—</Text>;
+                                })()}
                               </Td>
                               <Td>
                                 <Badge
@@ -1761,10 +1854,68 @@ const AdminFinance = () => {
                                     size="sm"
                                   />
                                   <MenuList>
-                                    <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteScheduledOperation(operation.id)}>
-                                      Supprimer
-                                    </MenuItem>
+                                    <MenuItem icon={<FiEdit3 />} onClick={() => openEditTransaction(transaction)}>Modifier</MenuItem>
+                                    <MenuItem onClick={() => openLinkDocument(transaction)}>Lier à devis/facture…</MenuItem>
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteTransaction(transaction.id)}>Supprimer</MenuItem>
+                                  </MenuList>
+                                </Menu>
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </CardBody>
+                  </Card>
+                )}
+              </VStack>
+            </TabPanel>
+
+            {/* Onglet Devis & Factures */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <HStack justify="space-between">
+                  <Heading size="md">Devis & Factures</Heading>
+                  <Button leftIcon={<FiPlus />} colorScheme="purple" size="sm" onClick={openCreateDocument}>Nouveau document</Button>
+                </HStack>
+
+                {loading ? (
+                  <Box textAlign="center" p={8}><Spinner size="lg" /><Text mt={2}>Chargement…</Text></Box>
+                ) : (
+                  <Card>
+                    <CardBody p={0}>
+                      <Table variant="simple">
+                        <Thead>
+                          <Tr>
+                            <Th>Type</Th>
+                            <Th>Numéro</Th>
+                            <Th>Titre</Th>
+                            <Th>Date</Th>
+                            <Th isNumeric>Montant</Th>
+                            <Th>Événement</Th>
+                            <Th>Statut</Th>
+                            <Th>Actions</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {documents.map((doc) => (
+                            <Tr key={doc.id}>
+                              <Td>
+                                <Badge colorScheme={doc.type === 'INVOICE' ? 'purple' : 'gray'}>
+                                  {doc.type === 'INVOICE' ? 'Facture' : 'Devis'}
+                                </Badge>
+                              </Td>
+                              <Td>{doc.number || '—'}</Td>
+                              <Td>{doc.title || '—'}</Td>
+                              <Td>{formatDate(doc.date)}</Td>
+                              <Td isNumeric>{formatCurrency(Number(doc.amount || 0))}</Td>
+                              <Td>{doc.eventId ? <Badge>{doc.eventId}</Badge> : <Text fontSize="sm" color="gray.500">—</Text>}</Td>
+                              <Td><Badge variant="outline">{doc.status || 'DRAFT'}</Badge></Td>
+                              <Td>
+                                <Menu>
+                                  <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
+                                  <MenuList>
+                                    <MenuItem icon={<FiEdit3 />} onClick={() => openEditDocument(doc)}>Modifier</MenuItem>
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteDocument(doc.id)}>Supprimer</MenuItem>
                                   </MenuList>
                                 </Menu>
                               </Td>
