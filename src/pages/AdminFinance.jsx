@@ -117,6 +117,11 @@ const AdminFinance = () => {
     date: new Date().toISOString().split('T')[0]
   });
 
+  // Rapports financiers
+  const currentYear = new Date().getFullYear();
+  const [reportYear, setReportYear] = useState(currentYear);
+  const [reportData, setReportData] = useState(null); // { totals, monthly, byCategory, sample }
+
   // Devis & Factures
   const [documents, setDocuments] = useState([]); // {id,type:'QUOTE'|'INVOICE', number, title, date, amount, status, eventId?}
   const [editingDocument, setEditingDocument] = useState(null);
@@ -209,7 +214,8 @@ const AdminFinance = () => {
         loadSimulationData(),
         loadBalanceHistory(),
         loadExpenseReports(),
-        loadDocuments()
+        loadDocuments(),
+        loadReports(reportYear)
       ]);
       
     } catch (error) {
@@ -397,6 +403,50 @@ const AdminFinance = () => {
     } catch (e) {
       console.error('❌ Erreur chargement notes de frais:', e);
       setExpenseReports([]);
+    }
+  };
+
+  const loadReports = async (y) => {
+    try {
+      const response = await fetch(apiUrl(`/api/finance/reports?year=${encodeURIComponent(y)}`), {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setReportData(data);
+      } else {
+        setReportData(null);
+      }
+    } catch (e) {
+      console.error('❌ Erreur chargement rapports:', e);
+      setReportData(null);
+    }
+  };
+
+  const exportReportPdf = async () => {
+    try {
+      const resp = await fetch(apiUrl(`/api/finance/reports/pdf?year=${encodeURIComponent(reportYear)}`), {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!resp.ok) {
+        toast({ status: 'error', title: 'Export PDF échoué' });
+        return;
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rapport-financier-${reportYear}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('❌ Export PDF:', e);
+      toast({ status: 'error', title: 'Export PDF échoué' });
     }
   };
 
@@ -2394,17 +2444,156 @@ const AdminFinance = () => {
             {/* Onglet Rapports */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
-                <Heading size="md">Rapports Financiers</Heading>
-                <Alert status="info">
-                  <AlertIcon />
-                  <VStack align="start" spacing={2}>
-                    <Text fontWeight="bold">Rapports détaillés en développement</Text>
-                    <Text fontSize="sm">
-                      Prochainement : graphiques d'évolution, analyse des tendances,
-                      export PDF des rapports mensuels et annuels.
-                    </Text>
+                <HStack justify="space-between">
+                  <Heading size="md">Rapports Financiers</Heading>
+                  <HStack>
+                    <FormControl width="150px">
+                      <FormLabel>Année</FormLabel>
+                      <Select value={reportYear} onChange={(e) => setReportYear(parseInt(e.target.value, 10))}>
+                        {[0,1,2,3,4].map((off) => {
+                          const y = new Date().getFullYear() - off;
+                          return <option key={y} value={y}>{y}</option>;
+                        })}
+                      </Select>
+                    </FormControl>
+                    <Button leftIcon={<FiRefreshCw />} onClick={() => loadReports(reportYear)} isLoading={loading}>
+                      Actualiser
+                    </Button>
+                    <Button leftIcon={<FiDownload />} colorScheme="purple" onClick={exportReportPdf}>
+                      Export PDF
+                    </Button>
+                  </HStack>
+                </HStack>
+
+                {!reportData ? (
+                  <Alert status="info">
+                    <AlertIcon />
+                    <Text>Aucun rapport disponible pour {reportYear}. Essayez d'actualiser.</Text>
+                  </Alert>
+                ) : (
+                  <VStack spacing={4} align="stretch">
+                    {/* Totaux */}
+                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                      <Card>
+                        <CardBody>
+                          <Stat>
+                            <StatLabel>Total crédits</StatLabel>
+                            <StatNumber color="green.600">{formatCurrency(reportData?.totals?.credits || 0)}</StatNumber>
+                          </Stat>
+                        </CardBody>
+                      </Card>
+                      <Card>
+                        <CardBody>
+                          <Stat>
+                            <StatLabel>Total débits</StatLabel>
+                            <StatNumber color="red.600">{formatCurrency(reportData?.totals?.debits || 0)}</StatNumber>
+                          </Stat>
+                        </CardBody>
+                      </Card>
+                      <Card>
+                        <CardBody>
+                          <Stat>
+                            <StatLabel>Solde net</StatLabel>
+                            <StatNumber color={(reportData?.totals?.net || 0) >= 0 ? 'green.600' : 'red.600'}>
+                              {formatCurrency(reportData?.totals?.net || 0)}
+                            </StatNumber>
+                          </Stat>
+                        </CardBody>
+                      </Card>
+                    </SimpleGrid>
+
+                    {/* Par mois */}
+                    <Card>
+                      <CardHeader><Heading size="sm">Par mois ({reportYear})</Heading></CardHeader>
+                      <CardBody p={0}>
+                        <Table size="sm" variant="simple">
+                          <Thead>
+                            <Tr>
+                              <Th>Mois</Th>
+                              <Th isNumeric>Crédits</Th>
+                              <Th isNumeric>Débits</Th>
+                              <Th isNumeric>Net</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {(reportData?.monthly || []).map((m) => (
+                              <Tr key={m.month}>
+                                <Td>{String(m.month).padStart(2, '0')}</Td>
+                                <Td isNumeric>{formatCurrency(m.credits)}</Td>
+                                <Td isNumeric>{formatCurrency(m.debits)}</Td>
+                                <Td isNumeric>
+                                  <Text color={(m.net || 0) >= 0 ? 'green.600' : 'red.600'}>
+                                    {formatCurrency(m.net)}
+                                  </Text>
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </CardBody>
+                    </Card>
+
+                    {/* Par catégorie */}
+                    <Card>
+                      <CardHeader><Heading size="sm">Par catégorie</Heading></CardHeader>
+                      <CardBody p={0}>
+                        <Table size="sm" variant="simple">
+                          <Thead>
+                            <Tr>
+                              <Th>Catégorie</Th>
+                              <Th isNumeric>Crédits</Th>
+                              <Th isNumeric>Débits</Th>
+                              <Th isNumeric>Net</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {Object.entries(reportData?.byCategory || {}).map(([cat, v]) => (
+                              <Tr key={cat}>
+                                <Td>{cat}</Td>
+                                <Td isNumeric>{formatCurrency(v.credits)}</Td>
+                                <Td isNumeric>{formatCurrency(v.debits)}</Td>
+                                <Td isNumeric>
+                                  <Text color={(v.net || 0) >= 0 ? 'green.600' : 'red.600'}>{formatCurrency(v.net)}</Text>
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </CardBody>
+                    </Card>
+
+                    {/* Extraits récents */}
+                    <Card>
+                      <CardHeader><Heading size="sm">Transactions récentes (extrait)</Heading></CardHeader>
+                      <CardBody p={0}>
+                        <Table size="sm" variant="simple">
+                          <Thead>
+                            <Tr>
+                              <Th>Date</Th>
+                              <Th>Description</Th>
+                              <Th>Catégorie</Th>
+                              <Th isNumeric>Montant</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {(reportData?.sample || []).map((t) => (
+                              <Tr key={`${t.id}-${t.date}`}>
+                                <Td>{formatDate(t.date)}</Td>
+                                <Td>{t.description}</Td>
+                                <Td>{(t.category || 'AUTRE').toUpperCase()}</Td>
+                                <Td isNumeric>
+                                  <Text color={String(t.type).toUpperCase() === 'CREDIT' ? 'green.600' : 'red.600'}>
+                                    {formatCurrency(t.amount)}
+                                  </Text>
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </CardBody>
+                    </Card>
                   </VStack>
-                </Alert>
+                )}
               </VStack>
             </TabPanel>
 
