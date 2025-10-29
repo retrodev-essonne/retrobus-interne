@@ -53,12 +53,6 @@ const AdminFinance = () => {
     category: 'ADHESION',
     date: new Date().toISOString().split('T')[0]
   });
-  // Edition/Suppression transaction
-  const { isOpen: isEditTxOpen, onOpen: onEditTxOpen, onClose: onEditTxClose } = useDisclosure();
-  const [editingTransaction, setEditingTransaction] = useState(null);
-  const { isOpen: isLinkDocOpen, onOpen: onLinkDocOpen, onClose: onLinkDocClose } = useDisclosure();
-  const [linkTxTarget, setLinkTxTarget] = useState(null);
-  const [linkDocId, setLinkDocId] = useState('');
   
   // États des opérations programmées
   const [scheduledOperations, setScheduledOperations] = useState([]);
@@ -78,12 +72,6 @@ const AdminFinance = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentFile, setPaymentFile] = useState(null);
   const [paymentsList, setPaymentsList] = useState([]);
-
-  // Devis & Factures
-  const [documents, setDocuments] = useState([]); // {id,type:number:'QUOTE'|'INVOICE', number, date, amount, status, eventId?, title?, description?}
-  const { isOpen: isDocOpen, onOpen: onDocOpen, onClose: onDocClose } = useDisclosure();
-  const [editingDocument, setEditingDocument] = useState(null);
-  const [docForm, setDocForm] = useState({ type: 'QUOTE', number: '', title: '', date: new Date().toISOString().split('T')[0], amount: '', status: 'DRAFT', eventId: '' });
   
   // États de configuration
   const [showBalanceConfig, setShowBalanceConfig] = useState(false);
@@ -150,48 +138,6 @@ const AdminFinance = () => {
   const API_BASE = String(RAW_BASE || '').replace(/\/$/, '');
   const apiUrl = (path) => `${API_BASE}${path}`;
 
-  // Helpers: try /api/... then fallback to /... when backend exposes non-prefixed routes
-  const buildPathCandidates = (path) => {
-    const primary = apiUrl(path);
-    const alt = path.startsWith('/api') ? apiUrl(path.replace(/^\/api/, '')) : primary;
-    return [primary, alt].filter((v, i, a) => a.indexOf(v) === i);
-  };
-
-  const fetchJsonFirst = async (paths, init) => {
-    let lastErr = null;
-    for (const p of paths) {
-      try {
-        const r = await fetch(p, init);
-        if (!r.ok) { lastErr = new Error(`HTTP ${r.status}`); continue; }
-        const ct = (r.headers.get('content-type') || '').toLowerCase();
-        if (ct.includes('application/json')) return await r.json();
-        // accept empty body
-        return null;
-      } catch (e) { lastErr = e; }
-    }
-    throw lastErr || new Error('fetch failed');
-  };
-
-  const deleteFirst = async (paths, headers) => {
-    let lastErr = null;
-    for (const p of paths) {
-      try {
-        const r = await fetch(p, { method: 'DELETE', headers });
-        if (!r.ok) { lastErr = new Error(`HTTP ${r.status}`); continue; }
-        return true;
-      } catch (e) { lastErr = e; }
-    }
-    throw lastErr || new Error('delete failed');
-  };
-
-  // Local fallback for documents (devis/factures)
-  const readDocsLocal = () => {
-    try { return JSON.parse(localStorage.getItem('rbe:finance:documents') || '[]'); } catch { return []; }
-  };
-  const writeDocsLocal = (docs) => {
-    try { localStorage.setItem('rbe:finance:documents', JSON.stringify(docs)); } catch {}
-  };
-
   // === FONCTIONS DE CHARGEMENT ===
   const loadFinancialData = async () => {
     try {
@@ -204,8 +150,7 @@ const AdminFinance = () => {
         loadScheduledOperations(),
         loadSimulationData(),
         loadBalanceHistory(),
-        loadExpenseReports(),
-        loadDocuments()
+        loadExpenseReports()
       ]);
       
     } catch (error) {
@@ -219,26 +164,6 @@ const AdminFinance = () => {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Charger devis/factures
-  const loadDocuments = async () => {
-    try {
-      const paths = buildPathCandidates('/api/finance/documents');
-      const data = await fetchJsonFirst(paths, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      const list = Array.isArray(data?.documents) ? data.documents : (Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []));
-      if (list.length === 0) {
-        const local = readDocsLocal();
-        setDocuments(local);
-      } else {
-        setDocuments(list);
-        writeDocsLocal(list);
-      }
-    } catch (e) {
-      // fallback to local cache
-      const local = readDocsLocal();
-      setDocuments(local);
     }
   };
 
@@ -268,9 +193,20 @@ const AdminFinance = () => {
 
   const loadTransactions = async () => {
     try {
-      const paths = buildPathCandidates('/api/finance/transactions');
-      const data = await fetchJsonFirst(paths, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' } });
-      setTransactions((data && data.transactions) ? data.transactions : (Array.isArray(data) ? data : []));
+      const response = await fetch(apiUrl('/api/finance/transactions'), {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTransactions(data.transactions || []);
+      } else {
+        console.warn('⚠️ Transactions non disponibles');
+        setTransactions([]);
+      }
     } catch (error) {
       console.error('❌ Erreur chargement transactions:', error);
       setTransactions([]);
@@ -368,23 +304,25 @@ const AdminFinance = () => {
 
   const loadExpenseReports = async () => {
     try {
-      const paths = buildPathCandidates('/api/finance/expense-reports');
-      const data = await fetchJsonFirst(paths, {
+      const response = await fetch(apiUrl('/api/finance/expense-reports'), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         }
       });
-      if (Array.isArray(data?.reports)) setExpenseReports(data.reports);
-      else if (Array.isArray(data?.items)) setExpenseReports(data.items);
-      else if (Array.isArray(data)) setExpenseReports(data);
-      else setExpenseReports([]);
+      if (response.ok) {
+        const data = await response.json();
+        setExpenseReports(data.reports || []);
+      } else {
+        setExpenseReports([]);
+      }
     } catch (e) {
       console.error('❌ Erreur chargement notes de frais:', e);
       setExpenseReports([]);
     }
   };
 
+  // Ajouter l'état manquant pour les droits utilisateur
   const [canModifyBalance, setCanModifyBalance] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const isTreasurer = (currentUser?.roles || []).some(r => String(r).toUpperCase() === 'TRESORIER');
@@ -723,16 +661,20 @@ const AdminFinance = () => {
 
     try {
       setLoading(true);
-
-      const paths = buildPathCandidates('/api/finance/transactions');
-      const payload = { ...newTransaction, amount: parseFloat(newTransaction.amount) };
-      const data = await fetchJsonFirst(paths, {
+      
+      const response = await fetch(apiUrl('/api/finance/transactions'), {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...newTransaction,
+          amount: parseFloat(newTransaction.amount)
+        })
       });
 
-      if (data) {
+      if (response.ok) {
         toast({
           status: "success",
           title: "Transaction ajoutée",
@@ -754,7 +696,16 @@ const AdminFinance = () => {
         // Recharger les données
         await loadTransactions();
         await loadBalance();
-      } 
+      } else {
+        const errorData = await response.json();
+        toast({
+          status: "error",
+          title: "Erreur",
+          description: errorData.message || "Impossible d'ajouter la transaction",
+          duration: 4000,
+          isClosable: true
+        });
+      }
     } catch (error) {
       console.error('❌ Erreur ajout transaction:', error);
       toast({
@@ -764,175 +715,6 @@ const AdminFinance = () => {
         duration: 4000,
         isClosable: true
       });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Edition transaction
-  const openEditTransaction = (tx) => {
-    setEditingTransaction({ ...tx, amount: String(tx.amount ?? '') });
-    onEditTxOpen();
-  };
-
-  const saveEditedTransaction = async () => {
-    if (!editingTransaction) return;
-    try {
-      setLoading(true);
-      const paths = buildPathCandidates(`/api/finance/transactions/${encodeURIComponent(editingTransaction.id)}`);
-      const data = await fetchJsonFirst(paths, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: editingTransaction.description,
-          category: editingTransaction.category,
-          type: editingTransaction.type,
-          date: editingTransaction.date,
-          amount: parseFloat(editingTransaction.amount || 0),
-          eventId: editingTransaction.eventId || undefined,
-          documentId: editingTransaction.documentId || undefined
-        })
-      });
-      const updated = data?.transaction || data || editingTransaction;
-      setTransactions(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
-      toast({ status: 'success', title: 'Transaction mise à jour' });
-      onEditTxClose();
-      setEditingTransaction(null);
-    } catch (e) {
-      console.error('❌ Erreur mise à jour transaction:', e);
-      toast({ status: 'error', title: 'Mise à jour impossible' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteTransaction = async (id) => {
-    if (!id) return;
-    if (!confirm('Supprimer cette transaction ?')) return;
-    try {
-      setLoading(true);
-      const paths = buildPathCandidates(`/api/finance/transactions/${encodeURIComponent(id)}`);
-      await deleteFirst(paths, { 'Authorization': `Bearer ${localStorage.getItem('token')}` });
-      setTransactions(prev => prev.filter(t => t.id !== id));
-      toast({ status: 'success', title: 'Transaction supprimée' });
-    } catch (e) {
-      console.error('❌ Erreur suppression transaction:', e);
-      toast({ status: 'error', title: 'Suppression impossible' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Liaison transaction ↔ document
-  const openLinkDocument = (tx) => {
-    setLinkTxTarget(tx);
-    setLinkDocId(tx?.documentId || '');
-    onLinkDocOpen();
-  };
-
-  const saveLinkDocument = async () => {
-    if (!linkTxTarget) return;
-    try {
-      setLoading(true);
-      const response = await fetch(apiUrl(`/api/finance/transactions/${encodeURIComponent(linkTxTarget.id)}`), {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ documentId: linkDocId || null })
-      });
-      if (!response.ok) throw new Error('link failed');
-      setTransactions(prev => prev.map(t => t.id === linkTxTarget.id ? { ...t, documentId: linkDocId || null } : t));
-      onLinkDocClose();
-      setLinkTxTarget(null);
-      setLinkDocId('');
-      toast({ status: 'success', title: 'Lien mis à jour' });
-    } catch (e) {
-      console.error('❌ Erreur liaison document:', e);
-      toast({ status: 'error', title: 'Liaison impossible' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // CRUD Documents
-  const openCreateDocument = () => {
-    setEditingDocument(null);
-    setDocForm({ type: 'QUOTE', number: '', title: '', date: new Date().toISOString().split('T')[0], amount: '', status: 'DRAFT', eventId: '' });
-    onDocOpen();
-  };
-  const openEditDocument = (doc) => {
-    setEditingDocument(doc);
-    setDocForm({
-      type: doc.type || 'QUOTE',
-      number: doc.number || '',
-      title: doc.title || '',
-      date: (doc.date || '').slice(0,10) || new Date().toISOString().split('T')[0],
-      amount: String(doc.amount ?? ''),
-      status: doc.status || 'DRAFT',
-      eventId: doc.eventId || ''
-    });
-    onDocOpen();
-  };
-  const saveDocument = async () => {
-    try {
-      setLoading(true);
-      const payload = {
-        ...docForm,
-        amount: parseFloat(docForm.amount || 0)
-      };
-      const paths = editingDocument
-        ? buildPathCandidates(`/api/finance/documents/${encodeURIComponent(editingDocument.id)}`)
-        : buildPathCandidates('/api/finance/documents');
-      const data = await fetchJsonFirst(paths, {
-        method: editingDocument ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const saved = data?.document || data || { id: editingDocument?.id || Math.random().toString(36).slice(2), ...payload };
-      if (editingDocument) setDocuments(prev => prev.map(d => d.id === saved.id ? { ...d, ...saved } : d));
-      else setDocuments(prev => [saved, ...prev]);
-      writeDocsLocal(prev => {});
-      onDocClose();
-      setEditingDocument(null);
-      toast({ status: 'success', title: 'Document enregistré' });
-    } catch (e) {
-      // Fallback local when endpoint not available
-      const localList = readDocsLocal();
-      const toSave = { id: editingDocument?.id || `${Date.now()}`, ...docForm, amount: parseFloat(docForm.amount || 0) };
-      let next;
-      if (editingDocument) next = localList.map(d => d.id === toSave.id ? { ...d, ...toSave } : d);
-      else next = [toSave, ...localList];
-      writeDocsLocal(next);
-      setDocuments(next);
-      onDocClose();
-      setEditingDocument(null);
-      toast({ status: 'warning', title: 'Document enregistré localement (API indisponible)' });
-    } finally {
-      setLoading(false);
-    }
-  };
-  const deleteDocument = async (id) => {
-    if (!confirm('Supprimer ce document ?')) return;
-    try {
-      setLoading(true);
-      const paths = buildPathCandidates(`/api/finance/documents/${encodeURIComponent(id)}`);
-      try {
-        await deleteFirst(paths, { 'Authorization': `Bearer ${localStorage.getItem('token')}` });
-        setDocuments(prev => prev.filter(d => d.id !== id));
-        writeDocsLocal(documents.filter(d => d.id !== id));
-        toast({ status: 'success', title: 'Document supprimé' });
-      } catch {
-        // Local fallback
-        const localList = readDocsLocal().filter(d => d.id !== id);
-        writeDocsLocal(localList);
-        setDocuments(localList);
-        toast({ status: 'warning', title: 'Document supprimé localement (API indisponible)' });
-      }
-    } catch (e) {
-      console.error('❌ Erreur suppression document:', e);
-      toast({ status: 'error', title: 'Suppression impossible' });
     } finally {
       setLoading(false);
     }
@@ -1755,9 +1537,9 @@ const AdminFinance = () => {
         <Tabs index={activeTab} onChange={setActiveTab}>
           <TabList>
             <Tab>💳 Transactions</Tab>
-            <Tab>📄 Devis & Factures</Tab>
             <Tab>⏰ Échéanciers</Tab>
             <Tab>🏦 Paiements programmés</Tab>
+            {/* Nouvel onglet Notes de frais */}
             <Tab>🧾 Notes de frais</Tab>
             <Tab>🧮 Simulations</Tab>
             <Tab>📊 Rapports</Tab>
@@ -1799,7 +1581,6 @@ const AdminFinance = () => {
                             <Th>Date</Th>
                             <Th>Description</Th>
                             <Th>Catégorie</Th>
-                            <Th>Document</Th>
                             <Th>Type</Th>
                             <Th isNumeric>Montant</Th>
                             <Th>Actions</Th>
@@ -1816,36 +1597,35 @@ const AdminFinance = () => {
                                 </Badge>
                               </Td>
                               <Td>
-                                {(() => {
-                                  const doc = documents.find(d => d.id === transaction.documentId);
-                                  return doc ? (
-                                    <HStack spacing={2}>
-                                      <Badge colorScheme={doc.type === 'INVOICE' ? 'purple' : 'gray'}>
-                                        {doc.type === 'INVOICE' ? 'Facture' : 'Devis'}
-                                      </Badge>
-                                      <Text fontSize="sm">{doc.number || doc.title || doc.id}</Text>
-                                    </HStack>
-                                  ) : <Text fontSize="sm" color="gray.500">—</Text>;
-                                })()}
-                              </Td>
-                              <Td>
-                                <Badge colorScheme={transaction.type === 'CREDIT' ? 'green' : 'red'} size="sm">
+                                <Badge
+                                  colorScheme={transaction.type === 'CREDIT' ? 'green' : 'red'}
+                                  size="sm"
+                                >
                                   {transaction.type === 'CREDIT' ? 'Crédit' : 'Débit'}
                                 </Badge>
                               </Td>
                               <Td isNumeric>
-                                <Text color={transaction.type === 'CREDIT' ? 'green.600' : 'red.600'} fontWeight="bold">
+                                <Text
+                                  color={transaction.type === 'CREDIT' ? 'green.600' : 'red.600'}
+                                  fontWeight="bold"
+                                >
                                   {transaction.type === 'CREDIT' ? '+' : '-'}
                                   {formatCurrency(Math.abs(transaction.amount))}
                                 </Text>
                               </Td>
                               <Td>
                                 <Menu>
-                                  <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
+                                  <MenuButton
+                                    as={IconButton}
+                                    icon={<FiMoreHorizontal />}
+                                    variant="ghost"
+                                    size="sm"
+                                  />
                                   <MenuList>
-                                    <MenuItem icon={<FiEdit3 />} onClick={() => openEditTransaction(transaction)}>Modifier</MenuItem>
-                                    <MenuItem onClick={() => openLinkDocument(transaction)}>Lier à devis/facture…</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteTransaction(transaction.id)}>Supprimer</MenuItem>
+                                    <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
+                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteScheduledOperation(operation.id)}>
+                                      Supprimer
+                                    </MenuItem>
                                   </MenuList>
                                 </Menu>
                               </Td>
@@ -1859,215 +1639,6 @@ const AdminFinance = () => {
               </VStack>
             </TabPanel>
 
-            {/* Onglet Devis & Factures */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <HStack justify="space-between">
-                  <Heading size="md">Devis & Factures</Heading>
-                  <Button leftIcon={<FiPlus />} colorScheme="purple" size="sm" onClick={openCreateDocument}>Nouveau document</Button>
-                </HStack>
-
-                {loading ? (
-                  <Box textAlign="center" p={8}><Spinner size="lg" /><Text mt={2}>Chargement…</Text></Box>
-                ) : (
-                  <Card>
-                    <CardBody p={0}>
-                      <Table variant="simple">
-                        <Thead>
-                          <Tr>
-                            <Th>Type</Th>
-                            <Th>Numéro</Th>
-                            <Th>Titre</Th>
-                            <Th>Date</Th>
-                            <Th isNumeric>Montant</Th>
-                            <Th>Événement</Th>
-                            <Th>Statut</Th>
-                            <Th>Actions</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {documents.map((doc) => (
-                            <Tr key={doc.id}>
-                              <Td>
-                                <Badge colorScheme={doc.type === 'INVOICE' ? 'purple' : 'gray'}>
-                                  {doc.type === 'INVOICE' ? 'Facture' : 'Devis'}
-                                </Badge>
-                              </Td>
-                              <Td>{doc.number || '—'}</Td>
-                              <Td>{doc.title || '—'}</Td>
-                              <Td>{formatDate(doc.date)}</Td>
-                              <Td isNumeric>{formatCurrency(Number(doc.amount || 0))}</Td>
-                              <Td>{doc.eventId ? <Badge>{doc.eventId}</Badge> : <Text fontSize="sm" color="gray.500">—</Text>}</Td>
-                              <Td>
-                                <Badge variant="outline">{doc.status || 'DRAFT'}</Badge>
-                              </Td>
-                              <Td>
-                                <Menu>
-                                  <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
-                                  <MenuList>
-                                    <MenuItem icon={<FiEdit3 />} onClick={() => openEditDocument(doc)}>Modifier</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteDocument(doc.id)}>Supprimer</MenuItem>
-                                  </MenuList>
-                                </Menu>
-                              </Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </CardBody>
-                  </Card>
-                )}
-              </VStack>
-            </TabPanel>
-
-
-          {/* Modal: Édition transaction */}
-          <Modal isOpen={isEditTxOpen} onClose={onEditTxClose} isCentered>
-            <ModalOverlay />
-            <ModalContent>
-              <ModalHeader>Modifier la transaction</ModalHeader>
-              <ModalCloseButton />
-              <ModalBody>
-                {editingTransaction && (
-                  <VStack spacing={3} align="stretch">
-                    <FormControl>
-                      <FormLabel>Description</FormLabel>
-                      <Input value={editingTransaction.description || ''} onChange={(e)=>setEditingTransaction(prev=>({...prev, description: e.target.value}))} />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Catégorie</FormLabel>
-                      <Select value={editingTransaction.category || 'ADHESION'} onChange={(e)=>setEditingTransaction(prev=>({...prev, category: e.target.value}))}>
-                        <option value="ADHESION">Adhésion</option>
-                        <option value="EVENEMENT">Événement</option>
-                        <option value="MAINTENANCE">Maintenance</option>
-                        <option value="CARBURANT">Carburant</option>
-                        <option value="AUTRE">Autre</option>
-                      </Select>
-                    </FormControl>
-                    <HStack>
-                      <FormControl>
-                        <FormLabel>Type</FormLabel>
-                        <Select value={editingTransaction.type || 'CREDIT'} onChange={(e)=>setEditingTransaction(prev=>({...prev, type: e.target.value}))}>
-                          <option value="CREDIT">Crédit</option>
-                          <option value="DEBIT">Débit</option>
-                        </Select>
-                      </FormControl>
-                      <FormControl>
-                        <FormLabel>Date</FormLabel>
-                        <Input type="date" value={(editingTransaction.date || '').slice(0,10)} onChange={(e)=>setEditingTransaction(prev=>({...prev, date: e.target.value}))} />
-                      </FormControl>
-                    </HStack>
-                    <FormControl>
-                      <FormLabel>Montant</FormLabel>
-                      <NumberInput value={editingTransaction.amount} onChange={(v)=>setEditingTransaction(prev=>({...prev, amount: v}))} precision={2} step={0.5}>
-                        <NumberInputField />
-                        <NumberInputStepper>
-                          <NumberIncrementStepper />
-                          <NumberDecrementStepper />
-                        </NumberInputStepper>
-                      </NumberInput>
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Événement associé (optionnel)</FormLabel>
-                      <Input value={editingTransaction.eventId || ''} onChange={(e)=>setEditingTransaction(prev=>({...prev, eventId: e.target.value}))} placeholder="ID d\'événement" />
-                    </FormControl>
-                  </VStack>
-                )}
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="ghost" onClick={onEditTxClose}>Annuler</Button>
-                <Button colorScheme="blue" onClick={saveEditedTransaction}>Enregistrer</Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
-
-          {/* Modal: Lier transaction à un document */}
-          <Modal isOpen={isLinkDocOpen} onClose={onLinkDocClose} isCentered>
-            <ModalOverlay />
-            <ModalContent>
-              <ModalHeader>Lier à un devis/une facture</ModalHeader>
-              <ModalCloseButton />
-              <ModalBody>
-                <VStack spacing={3} align="stretch">
-                  <FormControl>
-                    <FormLabel>Document</FormLabel>
-                    <Select placeholder="Sélectionner un document" value={linkDocId} onChange={(e)=>setLinkDocId(e.target.value)}>
-                      {documents.map(d => (
-                        <option key={d.id} value={d.id}>{d.type === 'INVOICE' ? 'Facture' : 'Devis'} · {d.number || d.title || d.id} · {formatCurrency(Number(d.amount||0))}</option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </VStack>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="ghost" onClick={onLinkDocClose}>Annuler</Button>
-                <Button colorScheme="blue" onClick={saveLinkDocument}>Lier</Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
-
-          {/* Modal: Création/Édition document */}
-          <Modal isOpen={isDocOpen} onClose={onDocClose} isCentered>
-            <ModalOverlay />
-            <ModalContent>
-              <ModalHeader>{editingDocument ? 'Modifier le document' : 'Nouveau document'}</ModalHeader>
-              <ModalCloseButton />
-              <ModalBody>
-                <VStack spacing={3} align="stretch">
-                  <HStack>
-                    <FormControl>
-                      <FormLabel>Type</FormLabel>
-                      <Select value={docForm.type} onChange={(e)=>setDocForm(prev=>({...prev, type: e.target.value}))}>
-                        <option value="QUOTE">Devis</option>
-                        <option value="INVOICE">Facture</option>
-                      </Select>
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Date</FormLabel>
-                      <Input type="date" value={docForm.date} onChange={(e)=>setDocForm(prev=>({...prev, date: e.target.value}))} />
-                    </FormControl>
-                  </HStack>
-                  <HStack>
-                    <FormControl>
-                      <FormLabel>Numéro</FormLabel>
-                      <Input value={docForm.number} onChange={(e)=>setDocForm(prev=>({...prev, number: e.target.value}))} placeholder="ex: 2025-INV-001" />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Montant</FormLabel>
-                      <NumberInput value={docForm.amount} onChange={(v)=>setDocForm(prev=>({...prev, amount: v}))} precision={2} step={0.5}>
-                        <NumberInputField />
-                        <NumberInputStepper>
-                          <NumberIncrementStepper />
-                          <NumberDecrementStepper />
-                        </NumberInputStepper>
-                      </NumberInput>
-                    </FormControl>
-                  </HStack>
-                  <FormControl>
-                    <FormLabel>Titre</FormLabel>
-                    <Input value={docForm.title} onChange={(e)=>setDocForm(prev=>({...prev, title: e.target.value}))} placeholder="Objet du document" />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Statut</FormLabel>
-                    <Select value={docForm.status} onChange={(e)=>setDocForm(prev=>({...prev, status: e.target.value}))}>
-                      <option value="DRAFT">Brouillon</option>
-                      <option value="SENT">Envoyé</option>
-                      <option value="PAID">Payé</option>
-                      <option value="CANCELLED">Annulé</option>
-                    </Select>
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Événement (optionnel)</FormLabel>
-                    <Input value={docForm.eventId} onChange={(e)=>setDocForm(prev=>({...prev, eventId: e.target.value}))} placeholder="ID d\'événement" />
-                  </FormControl>
-                </VStack>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="ghost" onClick={onDocClose}>Annuler</Button>
-                <Button colorScheme="purple" onClick={saveDocument}>{editingDocument ? 'Enregistrer' : 'Créer'}</Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
             {/* Onglet Échéanciers */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
@@ -2150,7 +1721,7 @@ const AdminFinance = () => {
                                     <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
                                     <MenuItem onClick={() => openDeclarePayment(operation)}>Déclarer mensualité payée</MenuItem>
                                     <MenuItem onClick={() => openPaymentsList(operation)}>Voir paiements</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteScheduledOperation(operation.id)}>
+                                    <MenuItem icon={<FiTrash2 />} color="red.500">
                                       Supprimer
                                     </MenuItem>
                                   </MenuList>
