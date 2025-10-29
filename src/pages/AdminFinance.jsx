@@ -1904,6 +1904,154 @@ const AdminFinance = () => {
               </VStack>
             </TabPanel>
 
+
+          {/* Modal: Édition transaction */}
+          <Modal isOpen={isEditTxOpen} onClose={onEditTxClose} isCentered>
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader>Modifier la transaction</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody>
+                {editingTransaction && (
+                  <VStack spacing={3} align="stretch">
+                    <FormControl>
+                      <FormLabel>Description</FormLabel>
+                      <Input value={editingTransaction.description || ''} onChange={(e)=>setEditingTransaction(prev=>({...prev, description: e.target.value}))} />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Catégorie</FormLabel>
+                      <Select value={editingTransaction.category || 'ADHESION'} onChange={(e)=>setEditingTransaction(prev=>({...prev, category: e.target.value}))}>
+                        <option value="ADHESION">Adhésion</option>
+                        <option value="EVENEMENT">Événement</option>
+                        <option value="MAINTENANCE">Maintenance</option>
+                        <option value="CARBURANT">Carburant</option>
+                        <option value="AUTRE">Autre</option>
+                      </Select>
+                    </FormControl>
+                    <HStack>
+                      <FormControl>
+                        <FormLabel>Type</FormLabel>
+                        <Select value={editingTransaction.type || 'CREDIT'} onChange={(e)=>setEditingTransaction(prev=>({...prev, type: e.target.value}))}>
+                          <option value="CREDIT">Crédit</option>
+                          <option value="DEBIT">Débit</option>
+                        </Select>
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel>Date</FormLabel>
+                        <Input type="date" value={(editingTransaction.date || '').slice(0,10)} onChange={(e)=>setEditingTransaction(prev=>({...prev, date: e.target.value}))} />
+                      </FormControl>
+                    </HStack>
+                    <FormControl>
+                      <FormLabel>Montant</FormLabel>
+                      <NumberInput value={editingTransaction.amount} onChange={(v)=>setEditingTransaction(prev=>({...prev, amount: v}))} precision={2} step={0.5}>
+                        <NumberInputField />
+                        <NumberInputStepper>
+                          <NumberIncrementStepper />
+                          <NumberDecrementStepper />
+                        </NumberInputStepper>
+                      </NumberInput>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Événement associé (optionnel)</FormLabel>
+                      <Input value={editingTransaction.eventId || ''} onChange={(e)=>setEditingTransaction(prev=>({...prev, eventId: e.target.value}))} placeholder="ID d\'événement" />
+                    </FormControl>
+                  </VStack>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" onClick={onEditTxClose}>Annuler</Button>
+                <Button colorScheme="blue" onClick={saveEditedTransaction}>Enregistrer</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
+
+          {/* Modal: Lier transaction à un document */}
+          <Modal isOpen={isLinkDocOpen} onClose={onLinkDocClose} isCentered>
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader>Lier à un devis/une facture</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody>
+                <VStack spacing={3} align="stretch">
+                  <FormControl>
+                    <FormLabel>Document</FormLabel>
+                    <Select placeholder="Sélectionner un document" value={linkDocId} onChange={(e)=>setLinkDocId(e.target.value)}>
+                      {documents.map(d => (
+                        <option key={d.id} value={d.id}>{d.type === 'INVOICE' ? 'Facture' : 'Devis'} · {d.number || d.title || d.id} · {formatCurrency(Number(d.amount||0))}</option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" onClick={onLinkDocClose}>Annuler</Button>
+                <Button colorScheme="blue" onClick={saveLinkDocument}>Lier</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
+
+          {/* Modal: Création/Édition document */}
+          <Modal isOpen={isDocOpen} onClose={onDocClose} isCentered>
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader>{editingDocument ? 'Modifier le document' : 'Nouveau document'}</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody>
+                <VStack spacing={3} align="stretch">
+                  <HStack>
+                    <FormControl>
+                      <FormLabel>Type</FormLabel>
+                      <Select value={docForm.type} onChange={(e)=>setDocForm(prev=>({...prev, type: e.target.value}))}>
+                        <option value="QUOTE">Devis</option>
+                        <option value="INVOICE">Facture</option>
+                      </Select>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Date</FormLabel>
+                      <Input type="date" value={docForm.date} onChange={(e)=>setDocForm(prev=>({...prev, date: e.target.value}))} />
+                    </FormControl>
+                  </HStack>
+                  <HStack>
+                    <FormControl>
+                      <FormLabel>Numéro</FormLabel>
+                      <Input value={docForm.number} onChange={(e)=>setDocForm(prev=>({...prev, number: e.target.value}))} placeholder="ex: 2025-INV-001" />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Montant</FormLabel>
+                      <NumberInput value={docForm.amount} onChange={(v)=>setDocForm(prev=>({...prev, amount: v}))} precision={2} step={0.5}>
+                        <NumberInputField />
+                        <NumberInputStepper>
+                          <NumberIncrementStepper />
+                          <NumberDecrementStepper />
+                        </NumberInputStepper>
+                      </NumberInput>
+                    </FormControl>
+                  </HStack>
+                  <FormControl>
+                    <FormLabel>Titre</FormLabel>
+                    <Input value={docForm.title} onChange={(e)=>setDocForm(prev=>({...prev, title: e.target.value}))} placeholder="Objet du document" />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Statut</FormLabel>
+                    <Select value={docForm.status} onChange={(e)=>setDocForm(prev=>({...prev, status: e.target.value}))}>
+                      <option value="DRAFT">Brouillon</option>
+                      <option value="SENT">Envoyé</option>
+                      <option value="PAID">Payé</option>
+                      <option value="CANCELLED">Annulé</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Événement (optionnel)</FormLabel>
+                    <Input value={docForm.eventId} onChange={(e)=>setDocForm(prev=>({...prev, eventId: e.target.value}))} placeholder="ID d\'événement" />
+                  </FormControl>
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" onClick={onDocClose}>Annuler</Button>
+                <Button colorScheme="purple" onClick={saveDocument}>{editingDocument ? 'Enregistrer' : 'Créer'}</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
             {/* Onglet Échéanciers */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
