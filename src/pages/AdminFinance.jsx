@@ -531,20 +531,24 @@ const AdminFinance = () => {
     const pct = typeof percent === 'number' ? Math.max(0, Math.min(1, percent)) : null;
     const r = 50; // radius
     const cx = 60, cy = 60; // center
-    const start = Math.PI; // 180°
-    const end = Math.PI * (1 - (pct ?? 0)); // map to arc sweep from left to right
-    const x1 = cx + r * Math.cos(Math.PI);
-    const y1 = cy + r * Math.sin(Math.PI);
+    // Angles in radians for upper semicircle [PI .. 0]
+    const start = Math.PI; // leftmost
+    const end = Math.PI * (1 - (pct ?? 0)); // map 0->PI, 1->0
+    // Start point (left)
+    const x1 = cx + r * Math.cos(start);
+    const y1 = cy - r * Math.sin(start); // use minus to keep arc on upper half
+    // End point according to percent
     const x2 = cx + r * Math.cos(end);
-    const y2 = cy + r * Math.sin(end);
-    const largeArc = 0;
-    const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+    const y2 = cy - r * Math.sin(end);
+    const largeArc = 0; // always <= 180°
+    const sweepFlag = 0; // draw upper arc (counter-clockwise in screen coords)
+    const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} ${sweepFlag} ${x2} ${y2}`;
     return (
-      <svg viewBox="0 0 120 70" width="100%" height="70">
-        {/* background arc */}
-        <path d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} stroke="#E2E8F0" strokeWidth="10" fill="none" />
+      <svg viewBox="0 0 120 70" width="100%" height="70" role="img" aria-label={pct != null ? `${Math.round(pct * 100)}%` : 'N/A'}>
+        {/* background arc (full upper semicircle) */}
+        <path d={`M ${x1} ${y1} A ${r} ${r} 0 0 ${sweepFlag} ${cx + r} ${cy}`} stroke="#E2E8F0" strokeWidth="10" fill="none" />
         {/* foreground arc */}
-        {pct != null && (
+        {pct != null && pct > 0 && (
           <path d={path} stroke={color} strokeWidth="10" fill="none" strokeLinecap="round" />
         )}
         {/* percent label */}
@@ -2018,7 +2022,11 @@ const AdminFinance = () => {
                       const isCredit = op.type === 'SCHEDULED_CREDIT';
                       const hasTotal = Number.isFinite(op.totalAmount) && op.totalAmount > 0;
                       const paid = hasTotal ? Math.max(op.totalAmount - (op.remainingTotalAmount || 0), 0) : null;
-                      const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : null;
+                      // Fallback: progress within current year if no total
+                      const hasYearPlan = Number.isFinite(op.plannedCountYear) && op.plannedCountYear > 0;
+                      const yearPaidCount = hasYearPlan ? Math.max((op.plannedCountYear || 0) - (op.remainingCountYear || 0), 0) : null;
+                      const percentYear = hasYearPlan ? Math.max(0, Math.min(1, yearPaidCount / op.plannedCountYear)) : null;
+                      const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : percentYear;
                       const gaugeColor = percent == null ? 'gray.400' : percent >= 0.75 ? (isCredit ? 'green' : 'red') : percent >= 0.4 ? 'orange' : 'red';
 
                       return (
@@ -2042,7 +2050,7 @@ const AdminFinance = () => {
                               </Box>
                               <VStack align="start" spacing={1} flex={1}>
                                 <Text fontSize="sm" color="gray.600">Prochaine date</Text>
-                                <Text fontWeight="medium">{formatDate(op.nextDate)}</Text>
+                                <Text fontWeight="medium">{op.nextDate ? formatDate(op.nextDate) : '—'}</Text>
                                 <Text fontSize="sm" color="gray.600">Montant</Text>
                                 <Text fontWeight="bold" color={isCredit ? 'green.600' : 'red.600'}>
                                   {isCredit ? '+' : '-'}{formatCurrency(Math.abs(op.amount))}
@@ -2053,6 +2061,12 @@ const AdminFinance = () => {
                                     <Badge variant="subtle" colorScheme={isCredit ? 'green' : 'red'}>
                                       Restant: {formatCurrency(op.remainingTotalAmount || 0)}
                                     </Badge>
+                                  </HStack>
+                                )}
+                                {!hasTotal && hasYearPlan && (
+                                  <HStack spacing={3}>
+                                    <Badge variant="subtle" colorScheme="blue">Échéances prévues: {op.plannedCountYear}</Badge>
+                                    <Badge variant="subtle" colorScheme="purple">Payées: {yearPaidCount}</Badge>
                                   </HStack>
                                 )}
                                 {op.estimatedEndDate && (
@@ -2109,7 +2123,10 @@ const AdminFinance = () => {
                         {list.map((op, idx) => {
                           const hasTotal = Number.isFinite(op.totalAmount) && op.totalAmount > 0;
                           const paid = hasTotal ? Math.max(op.totalAmount - (op.remainingTotalAmount || 0), 0) : null;
-                          const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : null;
+                          const hasYearPlan = Number.isFinite(op.plannedCountYear) && op.plannedCountYear > 0;
+                          const yearPaidCount = hasYearPlan ? Math.max((op.plannedCountYear || 0) - (op.remainingCountYear || 0), 0) : null;
+                          const percentYear = hasYearPlan ? Math.max(0, Math.min(1, yearPaidCount / op.plannedCountYear)) : null;
+                          const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : percentYear;
                           const gaugeColor = percent == null ? 'gray.400' : percent >= 0.75 ? 'red' : percent >= 0.4 ? 'orange' : 'red';
                           return (
                             <Card key={op.id || idx}>
@@ -2129,13 +2146,16 @@ const AdminFinance = () => {
                                   </Box>
                                   <VStack align="start" spacing={1} flex={1}>
                                     <Text fontSize="sm" color="gray.600">Prochaine date</Text>
-                                    <Text fontWeight="medium">{formatDate(op.nextDate)}</Text>
+                                    <Text fontWeight="medium">{op.nextDate ? formatDate(op.nextDate) : '—'}</Text>
                                     <Text fontSize="sm" color="gray.600">Mensualité</Text>
                                     <Text fontWeight="bold" color="red.600">- {formatCurrency(Math.abs(op.amount))}</Text>
                                     <HStack spacing={3}>
                                       <Badge variant="subtle" colorScheme="blue">Payées: {op.paymentsCount ?? 0}</Badge>
                                       {hasTotal && (
                                         <Badge variant="subtle">Restant total: {formatCurrency(op.remainingTotalAmount || 0)}</Badge>
+                                      )}
+                                      {!hasTotal && hasYearPlan && (
+                                        <Badge variant="subtle" colorScheme="purple">Payées cette année: {yearPaidCount}</Badge>
                                       )}
                                     </HStack>
                                     {op.estimatedEndDate && (
