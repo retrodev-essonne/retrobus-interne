@@ -526,6 +526,34 @@ const AdminFinance = () => {
   };
 
   // === FONCTIONS UTILITAIRES ===
+  // Simple semicircle gauge using SVG. percent: 0..1 or null (unknown)
+  const SemicircleGauge = ({ percent, color = 'gray' }) => {
+    const pct = typeof percent === 'number' ? Math.max(0, Math.min(1, percent)) : null;
+    const r = 50; // radius
+    const cx = 60, cy = 60; // center
+    const start = Math.PI; // 180°
+    const end = Math.PI * (1 - (pct ?? 0)); // map to arc sweep from left to right
+    const x1 = cx + r * Math.cos(Math.PI);
+    const y1 = cy + r * Math.sin(Math.PI);
+    const x2 = cx + r * Math.cos(end);
+    const y2 = cy + r * Math.sin(end);
+    const largeArc = 0;
+    const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+    return (
+      <svg viewBox="0 0 120 70" width="100%" height="70">
+        {/* background arc */}
+        <path d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} stroke="#E2E8F0" strokeWidth="10" fill="none" />
+        {/* foreground arc */}
+        {pct != null && (
+          <path d={path} stroke={color} strokeWidth="10" fill="none" strokeLinecap="round" />
+        )}
+        {/* percent label */}
+        <text x="60" y="65" textAnchor="middle" fontSize="10" fill="#4A5568">
+          {pct != null ? `${Math.round(pct * 100)}%` : 'N/A'}
+        </text>
+      </svg>
+    );
+  };
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -1136,16 +1164,12 @@ const AdminFinance = () => {
       toast({ status: 'warning', title: 'Montant invalide', description: 'Veuillez saisir un montant valide' });
       return;
     }
-    if (!paymentFile) {
-      toast({ status: 'warning', title: 'Pièce justificative requise', description: "Ajoutez l'attestation ou la photo" });
-      return;
-    }
     try {
       setLoading(true);
       const form = new FormData();
       form.append('period', paymentPeriod);
       form.append('amount', String(parseFloat(paymentAmount)));
-      form.append('attachment', paymentFile);
+      if (paymentFile) form.append('attachment', paymentFile);
       const response = await fetch(apiUrl(`/api/finance/scheduled-operations/${selectedOperation.id}/payments`), {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
@@ -1154,7 +1178,7 @@ const AdminFinance = () => {
       if (response.ok) {
         toast({ status: 'success', title: 'Mensualité déclarée payée' });
         onDeclarePaymentClose();
-        await loadScheduledOperations();
+        await Promise.all([loadScheduledOperations(), loadTransactions(), loadBalance()]);
       } else {
         const err = await response.json().catch(() => ({}));
         toast({ status: 'error', title: 'Erreur', description: err.message || 'Déclaration impossible' });
@@ -1989,74 +2013,65 @@ const AdminFinance = () => {
                     Aucune opération programmée
                   </Alert>
                 ) : (
-                  <Card>
-                    <CardBody p={0}>
-                      <Table variant="simple">
-                        <Thead>
-                          <Tr>
-                            <Th>Description</Th>
-                            <Th>Fréquence</Th>
-                            <Th>Prochaine date</Th>
-                            <Th isNumeric>Montant</Th>
-                            <Th isNumeric>Payées</Th>
-                            <Th>Statut</Th>
-                            <Th>Actions</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {scheduledOperations.map((operation, index) => (
-                            <Tr key={operation.id || index}>
-                              <Td>{operation.description}</Td>
-                              <Td>
-                                <Badge variant="outline">
-                                  {getFrequencyLabel(operation.frequency)}
-                                </Badge>
-                              </Td>
-                              <Td>{formatDate(operation.nextDate)}</Td>
-                              <Td isNumeric>
-                                <Text
-                                  color={operation.type === 'SCHEDULED_CREDIT' ? 'green.600' : 'red.600'}
-                                  fontWeight="bold"
-                                >
-                                  {operation.type === 'SCHEDULED_CREDIT' ? '+' : '-'}
-                                  {formatCurrency(Math.abs(operation.amount))}
+                  <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                    {scheduledOperations.map((op, idx) => {
+                      const isCredit = op.type === 'SCHEDULED_CREDIT';
+                      const hasTotal = Number.isFinite(op.totalAmount) && op.totalAmount > 0;
+                      const paid = hasTotal ? Math.max(op.totalAmount - (op.remainingTotalAmount || 0), 0) : null;
+                      const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : null;
+                      const gaugeColor = percent == null ? 'gray.400' : percent >= 0.75 ? (isCredit ? 'green' : 'red') : percent >= 0.4 ? 'orange' : 'red';
+
+                      return (
+                        <Card key={op.id || idx}>
+                          <CardHeader>
+                            <HStack justify="space-between" align="start">
+                              <VStack align="start" spacing={1}>
+                                <Heading size="sm" noOfLines={2}>{op.description}</Heading>
+                                <HStack>
+                                  <Badge variant="outline">{getFrequencyLabel(op.frequency)}</Badge>
+                                  <Badge colorScheme={isCredit ? 'green' : 'red'}>{isCredit ? 'RECETTE' : 'DÉPENSE'}</Badge>
+                                </HStack>
+                              </VStack>
+                              <Switch isChecked={op.isActive} onChange={() => toggleScheduledOperation(op.id, op.isActive)} size="sm" />
+                            </HStack>
+                          </CardHeader>
+                          <CardBody>
+                            <HStack align="center" spacing={4}>
+                              <Box minW="120px" w="120px">
+                                <SemicircleGauge percent={percent} color={gaugeColor} />
+                              </Box>
+                              <VStack align="start" spacing={1} flex={1}>
+                                <Text fontSize="sm" color="gray.600">Prochaine date</Text>
+                                <Text fontWeight="medium">{formatDate(op.nextDate)}</Text>
+                                <Text fontSize="sm" color="gray.600">Montant</Text>
+                                <Text fontWeight="bold" color={isCredit ? 'green.600' : 'red.600'}>
+                                  {isCredit ? '+' : '-'}{formatCurrency(Math.abs(op.amount))}
                                 </Text>
-                              </Td>
-                              <Td isNumeric>
-                                <Badge variant="subtle" colorScheme="blue">{operation.paymentsCount ?? (operation.payments?.length || 0) }</Badge>
-                              </Td>
-                              <Td>
-                                <Switch
-                                  isChecked={operation.isActive}
-                                  onChange={() => toggleScheduledOperation(operation.id, operation.isActive)}
-                                  colorScheme="green"
-                                  size="sm"
-                                />
-                              </Td>
-                              <Td>
-                                <Menu>
-                                  <MenuButton
-                                    as={IconButton}
-                                    icon={<FiMoreHorizontal />}
-                                    variant="ghost"
-                                    size="sm"
-                                  />
-                                  <MenuList>
-                                    <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
-                                    <MenuItem onClick={() => openDeclarePayment(operation)}>Déclarer mensualité payée</MenuItem>
-                                    <MenuItem onClick={() => openPaymentsList(operation)}>Voir paiements</MenuItem>
-                                    <MenuItem icon={<FiTrash2 />} color="red.500">
-                                      Supprimer
-                                    </MenuItem>
-                                  </MenuList>
-                                </Menu>
-                              </Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </CardBody>
-                  </Card>
+                                {hasTotal && (
+                                  <HStack spacing={3}>
+                                    <Badge variant="subtle">Total: {formatCurrency(op.totalAmount)}</Badge>
+                                    <Badge variant="subtle" colorScheme={isCredit ? 'green' : 'red'}>
+                                      Restant: {formatCurrency(op.remainingTotalAmount || 0)}
+                                    </Badge>
+                                  </HStack>
+                                )}
+                                {op.estimatedEndDate && (
+                                  <Text fontSize="sm" color="gray.600">Fin estimée: {formatDate(op.estimatedEndDate)}</Text>
+                                )}
+                              </VStack>
+                            </HStack>
+                          </CardBody>
+                          <CardBody pt={0}>
+                            <HStack>
+                              <Button size="sm" onClick={() => openDeclarePayment(op)}>Déclarer payé</Button>
+                              <Button size="sm" variant="outline" onClick={() => openPaymentsList(op)}>Voir paiements</Button>
+                              <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="sm" variant="ghost" colorScheme="red" onClick={() => deleteScheduledOperation(op.id)} />
+                            </HStack>
+                          </CardBody>
+                        </Card>
+                      );
+                    })}
+                  </SimpleGrid>
                 )}
               </VStack>
             </TabPanel>
@@ -2090,74 +2105,56 @@ const AdminFinance = () => {
                         Aucun paiement mensuel programmé
                       </Alert>
                     ) : (
-                      <Card>
-                        <CardBody p={0}>
-                          <Table variant="simple">
-                            <Thead>
-                              <Tr>
-                                <Th>Description</Th>
-                                <Th>Prochaine date</Th>
-                                <Th isNumeric>Montant</Th>
-                                <Th isNumeric>Payées (année)</Th>
-                                <Th isNumeric>Restant (année)</Th>
-                                <Th isNumeric>Restant total</Th>
-                                <Th isNumeric>Mensualités restantes</Th>
-                                <Th>Fin estimée</Th>
-                                <Th>Actions</Th>
-                              </Tr>
-                            </Thead>
-                            <Tbody>
-                              {list.map((op, idx) => (
-                                <Tr key={op.id || idx}>
-                                  <Td>{op.description}</Td>
-                                  <Td>{formatDate(op.nextDate)}</Td>
-                                  <Td isNumeric>
-                                    <Text color="red.600" fontWeight="bold">- {formatCurrency(Math.abs(op.amount))}</Text>
-                                  </Td>
-                                  <Td isNumeric>
-                                    <Badge variant="subtle" colorScheme="blue">{op.paymentsCount ?? 0}</Badge>
-                                  </Td>
-                                  <Td isNumeric>
-                                    {op.remainingAmountYear != null ? (
-                                      <Text fontWeight="bold">{formatCurrency(op.remainingAmountYear)}</Text>
-                                    ) : (
-                                      <Text color="gray.500">N/A</Text>
-                                    )}
-                                  </Td>
-                                  <Td isNumeric>
-                                    {op.remainingTotalAmount != null ? (
-                                      <Text fontWeight="bold">{formatCurrency(op.remainingTotalAmount)}</Text>
-                                    ) : (
-                                      <Text color="gray.500">—</Text>
-                                    )}
-                                  </Td>
-                                  <Td isNumeric>
-                                    {op.monthsRemainingTotal != null ? (
-                                      <Badge colorScheme="purple">{op.monthsRemainingTotal}</Badge>
-                                    ) : (
-                                      <Text color="gray.500">—</Text>
-                                    )}
-                                  </Td>
-                                  <Td>
-                                    {op.estimatedEndDate ? (
-                                      <Text>{formatDate(op.estimatedEndDate)}</Text>
-                                    ) : (
-                                      <Text color="gray.500">—</Text>
-                                    )}
-                                  </Td>
-                                  <Td>
-                                    <HStack>
-                                      <Button size="xs" onClick={() => openDeclarePayment(op)}>Déclarer payé</Button>
-                                      <Button size="xs" variant="outline" onClick={() => openPaymentsList(op)}>Voir paiements</Button>
-                                      <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="xs" variant="ghost" colorScheme="red" onClick={() => deleteScheduledOperation(op.id)} />
+                      <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                        {list.map((op, idx) => {
+                          const hasTotal = Number.isFinite(op.totalAmount) && op.totalAmount > 0;
+                          const paid = hasTotal ? Math.max(op.totalAmount - (op.remainingTotalAmount || 0), 0) : null;
+                          const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : null;
+                          const gaugeColor = percent == null ? 'gray.400' : percent >= 0.75 ? 'red' : percent >= 0.4 ? 'orange' : 'red';
+                          return (
+                            <Card key={op.id || idx}>
+                              <CardHeader>
+                                <VStack align="start" spacing={1}>
+                                  <Heading size="sm" noOfLines={2}>{op.description}</Heading>
+                                  <HStack>
+                                    <Badge variant="outline">Mensuel</Badge>
+                                    <Badge colorScheme="red">DÉPENSE</Badge>
+                                  </HStack>
+                                </VStack>
+                              </CardHeader>
+                              <CardBody>
+                                <HStack align="center" spacing={4}>
+                                  <Box minW="120px" w="120px">
+                                    <SemicircleGauge percent={percent} color={gaugeColor} />
+                                  </Box>
+                                  <VStack align="start" spacing={1} flex={1}>
+                                    <Text fontSize="sm" color="gray.600">Prochaine date</Text>
+                                    <Text fontWeight="medium">{formatDate(op.nextDate)}</Text>
+                                    <Text fontSize="sm" color="gray.600">Mensualité</Text>
+                                    <Text fontWeight="bold" color="red.600">- {formatCurrency(Math.abs(op.amount))}</Text>
+                                    <HStack spacing={3}>
+                                      <Badge variant="subtle" colorScheme="blue">Payées: {op.paymentsCount ?? 0}</Badge>
+                                      {hasTotal && (
+                                        <Badge variant="subtle">Restant total: {formatCurrency(op.remainingTotalAmount || 0)}</Badge>
+                                      )}
                                     </HStack>
-                                  </Td>
-                                </Tr>
-                              ))}
-                            </Tbody>
-                          </Table>
-                        </CardBody>
-                      </Card>
+                                    {op.estimatedEndDate && (
+                                      <Text fontSize="sm" color="gray.600">Fin estimée: {formatDate(op.estimatedEndDate)}</Text>
+                                    )}
+                                  </VStack>
+                                </HStack>
+                              </CardBody>
+                              <CardBody pt={0}>
+                                <HStack>
+                                  <Button size="sm" onClick={() => openDeclarePayment(op)}>Déclarer payé</Button>
+                                  <Button size="sm" variant="outline" onClick={() => openPaymentsList(op)}>Voir paiements</Button>
+                                  <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="sm" variant="ghost" colorScheme="red" onClick={() => deleteScheduledOperation(op.id)} />
+                                </HStack>
+                              </CardBody>
+                            </Card>
+                          );
+                        })}
+                      </SimpleGrid>
                     );
                   })()
                 )}

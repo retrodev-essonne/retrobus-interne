@@ -4,9 +4,12 @@
     /* Base */
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["node", "react", "react-dom"],
+    // Let type packages auto-resolve; vite/client is provided via tsconfig.node.json
+    // If you need Node.js types, install @types/node and add "node" here.
+    // "types": ["react", "react-dom"],
     "skipLibCheck": true,
 
     /* Strict / qualité */
