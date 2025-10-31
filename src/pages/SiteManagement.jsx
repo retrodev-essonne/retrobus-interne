@@ -1393,6 +1393,7 @@ export default function SiteManagement() {
     logoUrl: '',
     logoWidth: 44
   });
+  const [headerImageFile, setHeaderImageFile] = useState(null); // Nouveau: stocker le fichier à uploader
 
   const loadSiteConfig = async () => {
     try {
