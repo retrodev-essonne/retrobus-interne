@@ -1415,13 +1415,6 @@ export default function SiteManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHeaderOpen]);
 
-  const fileToDataUrl = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-
   const saveHeaderConfig = async () => {
     try {
       // Sauvegarder uniquement la config (focal, size, logo width)
@@ -1974,16 +1967,8 @@ export default function SiteManagement() {
                         Pour modifier le logo : éditez manuellement les fichiers dans <strong>externe/src/assets/</strong>
                       </Alert>
                       <HStack>
-                        <FormControl>
-                          <FormLabel>URL du logo</FormLabel>
-                          <Input
-                            placeholder="https://... ou data:image/..."
-                            value={headerConfig.logoUrl}
-                            onChange={(e) => setHeaderConfig(prev => ({ ...prev, logoUrl: e.target.value }))}
-                          />
-                        </FormControl>
                         <FormControl maxW="240px">
-                          <FormLabel>Largeur (px)</FormLabel>
+                          <FormLabel>Hauteur du logo (px)</FormLabel>
                           <Input
                             type="number"
                             min={24}
@@ -1993,26 +1978,6 @@ export default function SiteManagement() {
                           />
                         </FormControl>
                       </HStack>
-                      <HStack>
-                        <FormControl>
-                          <FormLabel>Importer un logo</FormLabel>
-                          <Input type="file" accept="image/*" onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            if (!f) return;
-                            const dataUrl = await fileToDataUrl(f);
-                            setHeaderConfig(prev => ({ ...prev, logoUrl: dataUrl }));
-                          }} />
-                        </FormControl>
-                      </HStack>
-
-                      <Box>
-                        <Text fontSize="sm" color="gray.600" mb={2}>Aperçu</Text>
-                        <HStack p={3} border="1px solid" borderColor="gray.200" borderRadius="md" justify="space-between">
-                          <ChakraImage src={headerConfig.logoUrl || '/assets/rbe_logo.svg'} alt="Logo" height={`${headerConfig.logoWidth || 44}px`} objectFit="contain" />
-                          <Box h={`${headerConfig.logoWidth || 44}px`} w="1px" />
-                          <Text fontSize="xs" color="gray.500">Menu</Text>
-                        </HStack>
-                      </Box>
                     </VStack>
                   </CardBody>
                 </Card>
