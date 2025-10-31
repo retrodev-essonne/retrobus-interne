@@ -18,7 +18,8 @@ import {
 import { 
   FiEdit, FiTrash2, FiPlus, FiUsers, FiKey, FiEye, FiShield,
   FiUserCheck, FiUserX, FiLink, FiSearch, FiGlobe, FiLock,
-  FiUnlock, FiRefreshCw, FiSettings, FiActivity, FiMail, FiBell
+  FiUnlock, FiRefreshCw, FiSettings, FiActivity, FiMail, FiBell,
+  FiChevronLeft, FiChevronRight
 } from 'react-icons/fi';
 import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
@@ -57,8 +58,15 @@ const ENDPOINTS = {
     'changelogs',
     // Fallback statique servi par l'app interne (placer le fichier dans public/data/changelog.json)
     'data/changelog.json'
-  ]
-  ,
+  ],
+  retroNews: [
+    'api/retro-news',
+    'api/news',
+    'retro-news',
+    'news',
+    // Fallback statique
+    'data/retro-news.json'
+  ],
   siteConfig: [
     'api/site-config',
     'site-config'
@@ -273,6 +281,8 @@ function AccessManagement() {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [selectedUser, setSelectedUser] = useState(null);
   const [stats, setStats] = useState({});
+  const [retroNews, setRetroNews] = useState([]);
+  const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
 
   const {
     isOpen: isCreateOpen,
@@ -294,6 +304,7 @@ function AccessManagement() {
     loadUsers();
     loadMembers();
     loadStats();
+    loadRetroNews();
   }, []);
 
   // Unifier sur apiClient + fallbacks
@@ -371,6 +382,20 @@ function AccessManagement() {
     }
   };
 
+  const loadRetroNews = async () => {
+    try {
+      const response = await apiGet(
+        buildCandidates(ENDPOINTS.retroNews, '', '', getGlobalOrigin())
+      );
+      const newsData = response.data || [];
+      setRetroNews(Array.isArray(newsData) ? newsData : []);
+    } catch (error) {
+      console.error('Erreur chargement RétroNews:', error);
+      // En cas d'erreur, on laisse le tableau vide (pas de toast pour ne pas polluer)
+      setRetroNews([]);
+    }
+  };
+
   // Callback central pour recharger toute la vue après une action
   const reloadAll = () => {
     loadUsers();
@@ -410,7 +435,7 @@ function AccessManagement() {
       </HStack>
 
       {/* Statistiques */}
-      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+      <SimpleGrid columns={{ base: 2, md: 3 }} spacing={4}>
         <Card bg={cardBg}>
           <CardBody>
             <Stat>
@@ -438,6 +463,64 @@ function AccessManagement() {
           </CardBody>
         </Card>
       </SimpleGrid>
+
+      {/* Carrousel RétroNews */}
+      {retroNews.length > 0 && (
+        <Card bg={cardBg}>
+          <CardHeader>
+            <HStack justify="space-between">
+              <Heading size="sm">📰 RétroNews</Heading>
+              <HStack spacing={2}>
+                <IconButton
+                  icon={<FiChevronLeft />}
+                  size="sm"
+                  onClick={() => setCurrentNewsIndex((prev) => 
+                    prev === 0 ? retroNews.length - 1 : prev - 1
+                  )}
+                  aria-label="News précédente"
+                  isDisabled={retroNews.length <= 1}
+                />
+                <Text fontSize="xs" color="gray.500">
+                  {currentNewsIndex + 1} / {retroNews.length}
+                </Text>
+                <IconButton
+                  icon={<FiChevronRight />}
+                  size="sm"
+                  onClick={() => setCurrentNewsIndex((prev) => 
+                    (prev + 1) % retroNews.length
+                  )}
+                  aria-label="News suivante"
+                  isDisabled={retroNews.length <= 1}
+                />
+              </HStack>
+            </HStack>
+          </CardHeader>
+          <CardBody>
+            <VStack align="start" spacing={2}>
+              <Heading size="md">{retroNews[currentNewsIndex]?.title || 'Sans titre'}</Heading>
+              {retroNews[currentNewsIndex]?.date && (
+                <Text fontSize="sm" color="gray.500">
+                  {new Date(retroNews[currentNewsIndex].date).toLocaleDateString('fr-FR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </Text>
+              )}
+              <Text>{retroNews[currentNewsIndex]?.content || ''}</Text>
+              {retroNews[currentNewsIndex]?.imageUrl && (
+                <ChakraImage
+                  src={retroNews[currentNewsIndex].imageUrl}
+                  alt={retroNews[currentNewsIndex]?.title}
+                  maxH="200px"
+                  objectFit="cover"
+                  borderRadius="md"
+                />
+              )}
+            </VStack>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Filtres */}
       <Card bg={cardBg}>
