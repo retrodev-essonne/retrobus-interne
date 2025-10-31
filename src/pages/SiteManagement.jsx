@@ -8,7 +8,7 @@ import {
   Tabs, TabList, TabPanels, Tab, TabPanel, SimpleGrid, Select,
   Switch, Table, Thead, Tbody, Tr, Th, Td, InputGroup,
   InputLeftElement, Menu, MenuButton, MenuList, MenuItem,
-  useColorModeValue, Tooltip, Divider, Stat, StatLabel, StatNumber
+  useColorModeValue, Tooltip, Divider, Stat, StatLabel, StatNumber, Image as ChakraImage
 } from '@chakra-ui/react';
 import { 
   FaEdit, FaTrash, FaPlus, FaUsers, FaKey, FaEye,
@@ -2012,7 +2012,7 @@ export default function SiteManagement() {
                       <Box>
                         <Text fontSize="sm" color="gray.600" mb={2}>Aperçu</Text>
                         <HStack p={3} border="1px solid" borderColor="gray.200" borderRadius="md" justify="space-between">
-                          <Image src={headerConfig.logoUrl || '/assets/rbe_logo.svg'} alt="Logo" height={`${headerConfig.logoWidth || 44}px`} objectFit="contain" />
+                          <ChakraImage src={headerConfig.logoUrl || '/assets/rbe_logo.svg'} alt="Logo" height={`${headerConfig.logoWidth || 44}px`} objectFit="contain" />
                           <Box h={`${headerConfig.logoWidth || 44}px`} w="1px" />
                           <Text fontSize="xs" color="gray.500">Menu</Text>
                         </HStack>
