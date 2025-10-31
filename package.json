@@ -11,12 +11,6 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css}\""
   },
   "dependencies": {
-    "@capacitor/android": "^7.4.4",
-    "@capacitor/app": "^7.1.0",
-    "@capacitor/cli": "^7.4.4",
-    "@capacitor/core": "^7.4.4",
-    "@capacitor/keyboard": "^7.0.3",
-    "@capacitor/status-bar": "^7.0.3",
     "@chakra-ui/icons": "^2.2.4",
     "@chakra-ui/react": "2.10.9",
     "@emotion/react": "11.14.0",
