@@ -162,7 +162,14 @@ export default function RetroBus() {
           let gasoil = 0;
           try {
             if (v.caracteristiques) {
-              carac = JSON.parse(v.caracteristiques);
+              // Vérifier si c'est déjà un objet ou une chaîne JSON
+              if (typeof v.caracteristiques === 'string') {
+                carac = JSON.parse(v.caracteristiques);
+              } else if (Array.isArray(v.caracteristiques)) {
+                carac = v.caracteristiques;
+              } else if (typeof v.caracteristiques === 'object') {
+                carac = Array.isArray(v.caracteristiques) ? v.caracteristiques : [];
+              }
               const found = carac.find(c => c.label === 'Niveau gasoil');
               if (found) gasoil = Number(found.value) || 0;
             }
