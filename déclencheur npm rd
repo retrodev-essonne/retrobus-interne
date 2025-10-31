@@ -7,6 +7,11 @@ npm run dev
 cd "C:\Dev\RETROBUS_ESSONNE\externe"
 npm run dev
 
+cd "C:\Dev\RETROBUS_ESSONNE\RétroBus"
+npm run dev
+
+cd "C:\Users\belai\OneDrive\Documents\2025 Dev\PHOTOTHEQUE_TCESSONNES"
+npm run dev
 
 --DECLENCHEUR DE PUSH--
 
@@ -29,7 +34,7 @@ git commit -m "mise à jour"
 git push origin main
 
 
-cd C:\Dev\RETROBUS_ESSONNE\RétroMail
+cd C:\Dev\RETROBUS_ESSONNE\RétroBus
 git add .
 git commit -m "mise à jour"
 git push origin main
