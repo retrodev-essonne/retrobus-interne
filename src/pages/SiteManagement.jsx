@@ -1434,31 +1434,45 @@ export default function SiteManagement() {
         const formData = new FormData();
         formData.append('header', headerImageFile);
         
-        const uploadCandidates = buildCandidates(
-          ['api/site-config/upload-header'], 
-          'api/site-config', 
-          'upload-header', 
-          getSiteConfigOrigin()
-        );
+        // Construire les URLs candidates manuellement
+        const apiOrigin = getSiteConfigOrigin();
+        const uploadCandidates = [
+          `${apiOrigin}/api/site-config/upload-header`,
+          '/api/site-config/upload-header'
+        ];
         
         // Upload avec fetch raw car FormData
         const token = localStorage.getItem('token');
         let uploaded = false;
+        let lastError = null;
         for (const url of uploadCandidates) {
           try {
+            console.log('🔼 Tentative upload vers:', url);
             const res = await fetch(url, {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}` },
               body: formData
             });
+            console.log('📡 Upload response:', res.status);
             if (res.ok) {
               uploaded = true;
+              console.log('✅ Upload réussi');
               break;
+            } else {
+              const text = await res.text().catch(() => '');
+              lastError = `${res.status}: ${text}`;
             }
-          } catch {}
+          } catch (e) {
+            lastError = e.message;
+          }
         }
         if (!uploaded) {
-          toast({ title: 'Erreur upload image', description: 'Impossible d\'envoyer l\'image au serveur', status: 'error', duration: 5000 });
+          toast({ 
+            title: 'Erreur upload image', 
+            description: `Impossible d'envoyer l'image au serveur. ${lastError || ''}`, 
+            status: 'error', 
+            duration: 5000 
+          });
           return;
         }
       }
@@ -1939,7 +1953,7 @@ export default function SiteManagement() {
                     <VStack align="stretch" spacing={3}>
                       <Alert status="info" fontSize="sm">
                         <AlertIcon />
-                        L'image téléchargée remplacera <strong>externe/src/assets/header.jpg</strong>. La configuration de taille et de focale sera conservée.
+                        L'image téléchargée remplacera <strong>externe/public/assets/header.jpg</strong>. Les changements seront visibles immédiatement (cache du navigateur permis).
                       </Alert>
                       <HStack>
                         <FormControl maxW="220px">
