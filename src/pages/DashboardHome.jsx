@@ -11,7 +11,8 @@ import {
   FiActivity, FiBell, FiCalendar, FiClock, FiCpu, 
   FiDollarSign, FiExternalLink, FiEye, FiFileText, FiGitBranch, 
   FiHeart, FiHome, FiMapPin, FiPlus, FiRefreshCw, FiSettings, 
-  FiTrendingUp, FiTruck, FiUser, FiUsers, FiZap, FiBarChart 
+  FiTrendingUp, FiTruck, FiUser, FiUsers, FiZap, FiBarChart,
+  FiChevronLeft, FiChevronRight
 } from "react-icons/fi";
 import { useUser } from '../context/UserContext';
 
@@ -42,12 +43,13 @@ export default function DashboardHome() {
   const [stats, setStats] = useState({
     vehicles: { total: 0, active: 0, loading: true },
     events: { total: 0, upcoming: 0, published: 0, loading: true },
-    members: { total: 0, active: 0, loading: true },
-    revenue: { amount: 0, loading: true }
+    members: { total: 0, active: 0, loading: true }
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [quickActions, setQuickActions] = useState([]);
+  const [retroActus, setRetroActus] = useState([]);
+  const [currentActuIndex, setCurrentActuIndex] = useState(0);
   
   const toast = useToast();
   const cardBg = useColorModeValue("white", "gray.800");
@@ -73,11 +75,40 @@ export default function DashboardHome() {
     loadVehiclesData();
     loadEventsData();
     loadMembersData();
-    loadFinanceData();
     
     // Activités récentes et actions rapides
     setupRecentActivity();
     setupQuickActions();
+    loadRetroActus();
+  };
+
+  const loadRetroActus = async () => {
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const candidates = [
+        `${API_BASE}/api/retro-news`,
+        `${API_BASE}/retro-news`,
+        '/data/retro-news.json'
+      ];
+      
+      for (const url of candidates) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const data = await res.json();
+          setRetroActus(Array.isArray(data) ? data : []);
+          return;
+        } catch (e) {
+          console.warn(`Échec chargement depuis ${url}:`, e);
+        }
+      }
+      
+      // Si aucune source n'a fonctionné
+      setRetroActus([]);
+    } catch (error) {
+      console.error('Erreur chargement RétroActus:', error);
+      setRetroActus([]);
+    }
   };
 
   const loadVehiclesData = async () => {
@@ -312,43 +343,6 @@ export default function DashboardHome() {
     }
   };
 
-  const loadFinanceData = async () => {
-    try {
-      console.log('📊 Calcul des données financières...');
-      
-      // Calculer le revenu basé sur les membres actifs
-      // En attendant une API finance dédiée
-      const currentStats = stats.members;
-      if (!currentStats.loading) {
-        const revenue = {
-          amount: currentStats.active * 60, // 60€ par adhésion active
-          loading: false
-        };
-
-        console.log('📈 Stats finance:', revenue);
-
-        setStats(prev => ({
-          ...prev,
-          revenue
-        }));
-      }
-
-    } catch (error) {
-      console.error('❌ Erreur calcul finance:', error);
-      setStats(prev => ({
-        ...prev,
-        revenue: { amount: 0, loading: false }
-      }));
-    }
-  };
-
-  // Actualiser les finances quand les membres changent
-  useEffect(() => {
-    if (!stats.members.loading) {
-      loadFinanceData();
-    }
-  }, [stats.members]);
-
   const setupRecentActivity = () => {
     // Activités de base (seront complétées par les vraies données)
     const baseActivity = [
@@ -398,7 +392,7 @@ export default function DashboardHome() {
 
   // Finaliser le loading quand toutes les données sont chargées
   useEffect(() => {
-    const allLoaded = !stats.vehicles.loading && !stats.events.loading && !stats.members.loading && !stats.revenue.loading;
+    const allLoaded = !stats.vehicles.loading && !stats.events.loading && !stats.members.loading;
     if (allLoaded && loading) {
       console.log('✅ Toutes les données sont chargées');
       setLoading(false);
@@ -544,31 +538,6 @@ export default function DashboardHome() {
                   </Stat>
                 </CardBody>
               </Card>
-
-              <Card bg={cardBg} borderColor={borderColor} shadow="lg">
-                <CardBody>
-                  <Stat>
-                    <StatLabel color="gray.600">Revenus estimés</StatLabel>
-                    <StatNumber color="orange.500">
-                      <HStack>
-                        <Icon as={FiDollarSign} />
-                        {stats.revenue.loading ? (
-                          <Spinner size="sm" />
-                        ) : (
-                          <Text>{stats.revenue.amount.toLocaleString('fr-FR')}€</Text>
-                        )}
-                      </HStack>
-                    </StatNumber>
-                    <Progress 
-                      value={stats.revenue.amount > 0 ? Math.min((stats.revenue.amount / 5000) * 100, 100) : 0} 
-                      colorScheme="orange" 
-                      size="sm" 
-                      mt={2} 
-                      isIndeterminate={stats.revenue.loading}
-                    />
-                  </Stat>
-                </CardBody>
-              </Card>
             </SimpleGrid>
 
             {/* Actions rapides */}
@@ -598,6 +567,74 @@ export default function DashboardHome() {
                 </SimpleGrid>
               </CardBody>
             </Card>
+
+            {/* Les RétroActus */}
+            {retroActus.length > 0 && (
+              <Card bg={cardBg} borderColor={borderColor} shadow="lg">
+                <CardHeader>
+                  <HStack justify="space-between">
+                    <Heading size="md" fontWeight="700">📰 Les RétroActus</Heading>
+                    <HStack spacing={2}>
+                      <IconButton
+                        icon={<FiChevronLeft />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setCurrentActuIndex((prev) => 
+                          prev === 0 ? retroActus.length - 1 : prev - 1
+                        )}
+                        aria-label="Actu précédente"
+                        isDisabled={retroActus.length <= 1}
+                      />
+                      <Text fontSize="xs" color="gray.500">
+                        {currentActuIndex + 1} / {retroActus.length}
+                      </Text>
+                      <IconButton
+                        icon={<FiChevronRight />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setCurrentActuIndex((prev) => 
+                          (prev + 1) % retroActus.length
+                        )}
+                        aria-label="Actu suivante"
+                        isDisabled={retroActus.length <= 1}
+                      />
+                    </HStack>
+                  </HStack>
+                </CardHeader>
+                <CardBody>
+                  <VStack align="start" spacing={3}>
+                    <Heading size="sm" color="blue.600">
+                      {retroActus[currentActuIndex]?.title || 'Sans titre'}
+                    </Heading>
+                    {retroActus[currentActuIndex]?.date && (
+                      <HStack spacing={2} color="gray.500" fontSize="sm">
+                        <Icon as={FiCalendar} />
+                        <Text>
+                          {new Date(retroActus[currentActuIndex].date).toLocaleDateString('fr-FR', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </Text>
+                      </HStack>
+                    )}
+                    <Text fontSize="sm" color="gray.700">
+                      {retroActus[currentActuIndex]?.content || ''}
+                    </Text>
+                    {retroActus[currentActuIndex]?.imageUrl && (
+                      <Image
+                        src={retroActus[currentActuIndex].imageUrl}
+                        alt={retroActus[currentActuIndex]?.title}
+                        maxH="150px"
+                        w="100%"
+                        objectFit="cover"
+                        borderRadius="md"
+                      />
+                    )}
+                  </VStack>
+                </CardBody>
+              </Card>
+            )}
 
             {/* Activité récente */}
             <Card bg={cardBg} borderColor={borderColor} shadow="lg">
