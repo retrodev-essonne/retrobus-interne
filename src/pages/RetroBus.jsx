@@ -153,7 +153,7 @@ export default function RetroBus() {
   const vehicleCards = useMemo(() => {
     if (!vehicles || vehicles.length === 0) return null;
     return (
-      <SimpleGrid> columns={{ base: 1, sm: 2, lg: 3 }} gap={4} mt={4}
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap={4} mt={4}>
         {vehicles.map((v) => {
           const parc = v.parc || v.id || v.slug;
           const status = statusByParc[parc] || {};
