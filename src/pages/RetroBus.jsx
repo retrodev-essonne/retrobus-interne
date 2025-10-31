@@ -272,35 +272,126 @@ export default function RetroBus() {
             <ModalBody>
               <VStack align="stretch" spacing={4}>
                 <FormLabel>Niveau actuel du gasoil (%)</FormLabel>
-                <Slider min={0} max={100} step={1} value={editTechGasoil} onChange={setEditTechGasoil}>
-                  <SliderTrack>
-                    <SliderFilledTrack />
-                  </SliderTrack>
-                  <SliderThumb />
-                </Slider>
-                <Text fontSize="sm">{editTechGasoil}%</Text>
+                <Box>
+                  {/* Graduée personnalisée */}
+                  <Box position="relative" h="60px" mb={6}>
+                    {/* Ligne de base */}
+                    <Box position="absolute" top="20px" left="0" right="0" h="2px" bg="gray.300" />
+                    
+                    {/* Grandes graduations (0, 50, 100) */}
+                    {[0, 50, 100].map((val) => (
+                      <Box
+                        key={val}
+                        position="absolute"
+                        left={`${val}%`}
+                        top="12px"
+                        transform="translateX(-50%)"
+                        textAlign="center"
+                      >
+                        <Box w="3px" h="16px" bg="gray.800" mx="auto" mb={1} />
+                        <Text fontSize="xs" fontWeight="bold">{val}%</Text>
+                      </Box>
+                    ))}
+                    
+                    {/* Petites graduations entre les grands points */}
+                    {Array.from({ length: 99 }).map((_, i) => {
+                      const val = i + 1;
+                      const isBig = val === 50;
+                      if (isBig) return null; // Skip les grands points
+                      return (
+                        <Box
+                          key={`small-${val}`}
+                          position="absolute"
+                          left={`${val}%`}
+                          top="16px"
+                          transform="translateX(-50%)"
+                          w="1px"
+                          h="8px"
+                          bg="gray.400"
+                        />
+                      );
+                    })}
+                    
+                    {/* Curseur interactif */}
+                    <Box
+                      position="absolute"
+                      left={`${editTechGasoil}%`}
+                      top="0"
+                      transform="translateX(-50%)"
+                      cursor="pointer"
+                      w="20px"
+                      h="40px"
+                      bg="blue.500"
+                      borderRadius="md"
+                      opacity="0.8"
+                      _hover={{ opacity: 1, shadow: 'md' }}
+                      onClick={(e) => {
+                        const rect = e.currentTarget.parentElement.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const percent = Math.max(0, Math.min(100, Math.round((x / rect.width) * 100)));
+                        setEditTechGasoil(percent);
+                      }}
+                    />
+                  </Box>
+                  
+                  {/* Slider classique pour plus de précision */}
+                  <Slider 
+                    min={0} 
+                    max={100} 
+                    step={1} 
+                    value={editTechGasoil} 
+                    onChange={setEditTechGasoil}
+                    colorScheme="blue"
+                  >
+                    <SliderTrack bg="gray.200">
+                      <SliderFilledTrack bg="blue.500" />
+                    </SliderTrack>
+                    <SliderThumb boxSize={6} bg="blue.500" />
+                  </Slider>
+                </Box>
+                
+                <HStack justify="space-between">
+                  <Text fontSize="sm" fontWeight="bold">Niveau actuel :</Text>
+                  <Text fontSize="lg" fontWeight="bold" color="blue.600">{editTechGasoil}%</Text>
+                </HStack>
                 <CaracteristiquesEditor value={editTechCaracs} onChange={setEditTechCaracs} />
               </VStack>
             </ModalBody>
             <ModalFooter>
               <Button mr={3} onClick={() => setEditTechOpen(false)} variant="ghost">Annuler</Button>
               <Button colorScheme="blue" isLoading={editTechSaving} onClick={async () => {
-                setEditTechSaving(true);
-                // Mettre à jour ou ajouter le niveau de gasoil dans les caracs
-                let nextCaracs = Array.isArray(editTechCaracs) ? [...editTechCaracs] : [];
-                const idx = nextCaracs.findIndex(c => c.label === 'Niveau gasoil');
-                if (idx >= 0) {
-                  nextCaracs[idx].value = String(editTechGasoil);
-                } else {
-                  nextCaracs.push({ label: 'Niveau gasoil', value: String(editTechGasoil) });
+                try {
+                  setEditTechSaving(true);
+                  // Mettre à jour ou ajouter le niveau de gasoil dans les caracs
+                  let nextCaracs = Array.isArray(editTechCaracs) ? [...editTechCaracs] : [];
+                  const idx = nextCaracs.findIndex(c => c.label === 'Niveau gasoil');
+                  if (idx >= 0) {
+                    nextCaracs[idx].value = String(editTechGasoil);
+                  } else {
+                    nextCaracs.push({ label: 'Niveau gasoil', value: String(editTechGasoil) });
+                  }
+                  
+                  // Sauvegarder via API
+                  await apiClient.put(`/vehicles/${encodeURIComponent(editTechVehicle.parc)}`, {
+                    caracteristiques: JSON.stringify(nextCaracs)
+                  });
+                  
+                  // Mettre à jour localement sans recharger toute la liste (évite la boucle infinie)
+                  setVehicles(prev => prev.map(v => {
+                    const parcKey = v.parc || v.id || v.slug;
+                    if (parcKey === editTechVehicle.parc) {
+                      return { ...v, caracteristiques: JSON.stringify(nextCaracs) };
+                    }
+                    return v;
+                  }));
+                  
+                  toast({ status: 'success', title: 'Caractéristiques mises à jour' });
+                  setEditTechSaving(false);
+                  setEditTechOpen(false);
+                } catch (e) {
+                  toast({ status: 'error', title: 'Erreur lors de la mise à jour', description: e.message });
+                  setEditTechSaving(false);
                 }
-                await updateVehicleCaracs(editTechVehicle.parc, nextCaracs, toast);
-                setEditTechSaving(false);
-                setEditTechOpen(false);
-                // Recharger la liste des véhicules
-                setLoading(true);
-                const list = await apiClient.get('/vehicles');
-                setVehicles(Array.isArray(list) ? list : (list?.vehicles || []));
               }}>Enregistrer</Button>
             </ModalFooter>
           </ModalContent>
