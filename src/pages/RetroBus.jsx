@@ -34,6 +34,8 @@ async function updateVehicleCaracs(parc, caracs, toast) {
     toast({ status: 'error', title: 'Erreur lors de la mise à jour', description: e.message });
   }
 }
+
+export default function RetroBus() {
   const toast = useToast();
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState([]);
@@ -177,122 +179,7 @@ async function updateVehicleCaracs(parc, caracs, toast) {
               }
             }
 
-            export default function RetroBus() {
-              const toast = useToast();
-              const navigate = useNavigate();
-              const [vehicles, setVehicles] = useState([]);
-              const [loading, setLoading] = useState(true);
-              const [statusByParc, setStatusByParc] = useState({}); // { [parc]: { active: bool, startedAt, conducteur } }
-              const [reportsData, setReportsData] = useState({}); // { [parc]: Report[] }
-              const [usagesData, setUsagesData] = useState({}); // { [parc]: Usage[] }
-              const [loadingReports, setLoadingReports] = useState(false);
-              const [loadingUsages, setLoadingUsages] = useState(false);
-              // Modal édition technique
-              const [editTechOpen, setEditTechOpen] = useState(false);
-              const [editTechVehicle, setEditTechVehicle] = useState(null);
-              const [editTechCaracs, setEditTechCaracs] = useState([]);
-              const [editTechGasoil, setEditTechGasoil] = useState(0);
-              const [editTechSaving, setEditTechSaving] = useState(false);
-
-              useEffect(() => {
-                let mounted = true;
-                (async () => {
-                  try {
-                    setLoading(true);
-                    const list = await apiClient.get('/vehicles');
-                    if (!mounted) return;
-                    setVehicles(Array.isArray(list) ? list : (list?.vehicles || []));
-                  } catch (e) {
-                    toast({ status: 'error', title: "Chargement des véhicules", description: e.message || 'Impossible de charger la liste' });
-                  } finally {
-                    if (mounted) setLoading(false);
-                  }
-                })();
-                return () => { mounted = false; };
-              }, [toast]);
-
-              // Charger l'état de pointage (actif) pour chaque véhicule — lazy/background
-              useEffect(() => {
-                if (!vehicles || vehicles.length === 0) return;
-                let cancelled = false;
-                const loadStatuses = async () => {
-                  // limiter à 24 en premier rendu pour éviter l'explosion de requêtes
-                  const slice = vehicles.slice(0, 24);
-                  await Promise.all(
-                    slice.map(async (v) => {
-                      const parc = v.parc || v.id || v.slug;
-                      if (!parc) return;
-                      try {
-                        const usages = await apiClient.get(`/vehicles/${encodeURIComponent(parc)}/usages`);
-                        if (cancelled) return;
-                        const active = Array.isArray(usages) ? usages.find(u => !u.endedAt) : null;
-                        setStatusByParc(prev => ({
-                          ...prev,
-                          [parc]: active ? { active: true, startedAt: active.startedAt, conducteur: active.conducteur } : { active: false }
-                        }));
-                      } catch {
-                        // silencieux: on laisse le statut vide
-                      }
-                    })
-                  );
-                };
-                loadStatuses();
-                return () => { cancelled = true; };
-              }, [vehicles]);
-
-              // Charger les rapports pour tous les véhicules
-              const loadAllReports = async () => {
-                if (!vehicles || vehicles.length === 0) return;
-                setLoadingReports(true);
-                try {
-                  const reportsMap = {};
-                  await Promise.all(
-                    vehicles.map(async (v) => {
-                      const parc = v.parc || v.id || v.slug;
-                      if (!parc) return;
-                      try {
-                        const reports = await apiClient.get(`/vehicles/${encodeURIComponent(parc)}/reports`);
-                        reportsMap[parc] = Array.isArray(reports) ? reports : [];
-                      } catch (e) {
-                        reportsMap[parc] = [];
-                      }
-                    })
-                  );
-                  setReportsData(reportsMap);
-                } catch (error) {
-                  console.error('Erreur chargement rapports:', error);
-                } finally {
-                  setLoadingReports(false);
-                }
-              };
-
-              // Charger l'historique des usages pour tous les véhicules
-              const loadAllUsages = async () => {
-                if (!vehicles || vehicles.length === 0) return;
-                setLoadingUsages(true);
-                try {
-                  const usagesMap = {};
-                  await Promise.all(
-                    vehicles.map(async (v) => {
-                      const parc = v.parc || v.id || v.slug;
-                      if (!parc) return;
-                      try {
-                        const usages = await apiClient.get(`/vehicles/${encodeURIComponent(parc)}/usages`);
-                        usagesMap[parc] = Array.isArray(usages) ? usages : [];
-                      } catch (e) {
-                        usagesMap[parc] = [];
-                      }
-                    })
-                  );
-                  setUsagesData(usagesMap);
-                } catch (error) {
-                  console.error('Erreur chargement usages:', error);
-                } finally {
-                  setLoadingUsages(false);
-                }
-              };
-
-              const vehicleCards = useMemo(() => {
+  const vehicleCards = useMemo(() => {
                 if (!vehicles || vehicles.length === 0) return null;
                 return (
                   <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap={4} mt={4}>
