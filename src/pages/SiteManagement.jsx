@@ -22,6 +22,7 @@ import {
 } from 'react-icons/fi';
 import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
+import { displayNameFromUser, formatMemberLabel } from '../lib/names';
 
 // Garde-fou: s'assurer que la réponse est bien du JSON
 const ensureJsonResponse = (response) => {
@@ -596,7 +597,7 @@ function AccessManagement() {
   }
 
   async function handleDeleteUser(user) {
-    if (!window.confirm(`Supprimer définitivement l'accès de ${user.firstName} ${user.lastName} (${user.username}) ?`)) {
+    if (!window.confirm(`Supprimer définitivement l'accès de ${displayNameFromUser(user)} (${user.username}) ?`)) {
       return;
     }
     try {
@@ -648,7 +649,7 @@ function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs, onDelete })
       <Td>
         <VStack align="start" spacing={0}>
           <Text fontWeight="medium" fontSize="sm">
-            {user.firstName} {user.lastName}
+            {displayNameFromUser(user)}
           </Text>
           <Text fontSize="xs" color="gray.500">{user.email}</Text>
         </VStack>
@@ -675,11 +676,13 @@ function UserRow({ user, onEdit, onToggleStatus, onLink, onViewLogs, onDelete })
         {user.linkedMember ? (
           <VStack align="start" spacing={0}>
             <Text fontSize="sm" color="green.600">
-              {user.linkedMember.firstName} {user.linkedMember.lastName}
+              {formatMemberLabel(user.linkedMember)}
             </Text>
-            <Text fontSize="xs" color="gray.500">
-              #{user.linkedMember.memberNumber}
-            </Text>
+            {user.linkedMember.memberNumber && (
+              <Text fontSize="xs" color="gray.500">
+                #{user.linkedMember.memberNumber}
+              </Text>
+            )}
           </VStack>
         ) : (
           <Button size="xs" variant="outline" onClick={onLink}>
@@ -943,7 +946,7 @@ function CreateAccessModal({ isOpen, onClose, members, onUserSaved, user }) {
                 <option value="">Aucune liaison</option>
                 {members.map(member => (
                   <option key={member.id} value={member.id}>
-                    {member.firstName} {member.lastName} - #{member.memberNumber}
+                    {formatMemberLabel(member)}
                   </option>
                 ))}
               </Select>
@@ -1084,9 +1087,9 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
 
       toast({
         title: "Liaison créée",
-        description: "L'accès a été lié à l'adhésion avec succès",
+        description: "Accès lié à l'adhésion. L'utilisateur verra la page Mon Adhésion après actualisation ou reconnexion.",
         status: "success",
-        duration: 3000
+        duration: 5000
       });
 
       onLinked?.();
@@ -1116,7 +1119,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
             <Alert status="info">
               <AlertIcon />
               <Text fontSize="sm">
-                Fusionner l'accès de <strong>{user?.firstName} {user?.lastName}</strong> avec une adhésion existante.
+                Fusionner l'accès de <strong>{displayNameFromUser(user)}</strong> avec une adhésion existante.
               </Text>
             </Alert>
 
@@ -1131,8 +1134,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
                   .filter(member => !member.hasLinkedAccess) // Seulement les membres sans accès lié
                   .map(member => (
                     <option key={member.id} value={member.id}>
-                      {member.firstName} {member.lastName} - #{member.memberNumber}
-                      {member.email && ` (${member.email})`}
+                      {formatMemberLabel(member)}{member.email ? ` (${member.email})` : ''}
                     </option>
                   ))
                 }

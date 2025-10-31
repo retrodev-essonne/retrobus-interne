@@ -88,7 +88,7 @@ export default function MyMembership() {
   // Chargement du profil adhérent depuis l'API uniquement
   const fetchMemberData = async () => {
     // Keep a manual refresh route for the Retry button
-    await refreshMember();
+    await refreshMember(true);
   };
 
   const handleEditProfile = () => {
@@ -336,7 +336,7 @@ export default function MyMembership() {
                 {lastError === 401 ? (
                   'Vous n’êtes pas autorisé. Veuillez vous reconnecter.'
                 ) : lastError === 404 ? (
-                  'Votre profil n’est pas encore lié. Merci de contacter un administrateur pour l’associer depuis la Gestion des Adhérents.'
+                  'Votre profil n’est pas encore lié. Si vous venez de réaliser une liaison, actualisez la page ou reconnectez-vous. Sinon, merci de contacter un administrateur pour l’associer depuis la Gestion des Adhérents.'
                 ) : lastError === 500 ? (
                   'Erreur serveur lors de la récupération du profil.'
                 ) : lastError === 'network-error' ? (
@@ -966,7 +966,7 @@ export default function MyMembership() {
                   if (!ok) throw new Error(err || 'Erreur de liaison');
                   toast({ status:'success', title:'Compte associé' });
                   onLinkClose();
-                  await refreshMember();
+                  await refreshMember(true);
                 } catch (e) {
                   toast({ status:'error', title:'Échec', description: e.message });
                 } finally { setLinking(false); }

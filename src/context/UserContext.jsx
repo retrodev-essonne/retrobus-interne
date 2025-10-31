@@ -102,11 +102,11 @@ export function UserProvider({ children }) {
     return arr;
   };
 
-  const refreshMember = async () => {
+  const refreshMember = async (force = false) => {
     if (!token) { setMember(null); setMemberError('no-token'); return null; }
     // simple throttle to avoid spamming
     const now = Date.now();
-    if (now - lastMemberFetchRef.current < 500) {
+    if (!force && (now - lastMemberFetchRef.current < 500)) {
       return member;
     }
     lastMemberFetchRef.current = now;
