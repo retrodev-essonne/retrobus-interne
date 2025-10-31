@@ -1386,14 +1386,11 @@ export default function SiteManagement() {
 
   // --- Header config state & lifecycle ---
   const [headerConfig, setHeaderConfig] = useState({
-    headerBgUrl: '',
     headerBgFocalX: 50,
     headerBgFocalY: 50,
     headerBgSize: 'cover',
-    logoUrl: '',
     logoWidth: 44
   });
-  const [headerImageFile, setHeaderImageFile] = useState(null); // Nouveau: stocker le fichier à uploader
 
   const loadSiteConfig = async () => {
     try {
@@ -1403,11 +1400,9 @@ export default function SiteManagement() {
       const data = res?.data || {};
       setHeaderConfig(prev => ({
         ...prev,
-        headerBgUrl: data.headerBgUrl || prev.headerBgUrl || '',
         headerBgFocalX: Number.isFinite(data.headerBgFocalX) ? data.headerBgFocalX : prev.headerBgFocalX,
         headerBgFocalY: Number.isFinite(data.headerBgFocalY) ? data.headerBgFocalY : prev.headerBgFocalY,
         headerBgSize: data.headerBgSize || prev.headerBgSize,
-        logoUrl: data.logoUrl || prev.logoUrl || '',
         logoWidth: Number.isFinite(data.logoWidth) ? data.logoWidth : prev.logoWidth
       }));
     } catch (e) {
@@ -1429,69 +1424,19 @@ export default function SiteManagement() {
 
   const saveHeaderConfig = async () => {
     try {
-      // 1. Si un fichier a été chargé, l'uploader d'abord
-      if (headerImageFile) {
-        const formData = new FormData();
-        formData.append('header', headerImageFile);
-        
-        // Construire les URLs candidates manuellement
-        const apiOrigin = getSiteConfigOrigin();
-        const uploadCandidates = [
-          `${apiOrigin}/api/site-config/upload-header`,
-          '/api/site-config/upload-header'
-        ];
-        
-        // Upload avec fetch raw car FormData
-        const token = localStorage.getItem('token');
-        let uploaded = false;
-        let lastError = null;
-        for (const url of uploadCandidates) {
-          try {
-            console.log('🔼 Tentative upload vers:', url);
-            const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` },
-              body: formData
-            });
-            console.log('📡 Upload response:', res.status);
-            if (res.ok) {
-              uploaded = true;
-              console.log('✅ Upload réussi');
-              break;
-            } else {
-              const text = await res.text().catch(() => '');
-              lastError = `${res.status}: ${text}`;
-            }
-          } catch (e) {
-            lastError = e.message;
-          }
-        }
-        if (!uploaded) {
-          toast({ 
-            title: 'Erreur upload image', 
-            description: `Impossible d'envoyer l'image au serveur. ${lastError || ''}`, 
-            status: 'error', 
-            duration: 5000 
-          });
-          return;
-        }
-      }
-
-      // 2. Sauvegarder la config (focal, size, logo)
+      // Sauvegarder uniquement la config (focal, size, logo width)
       const payload = {
         headerBgFocalX: headerConfig.headerBgFocalX,
         headerBgFocalY: headerConfig.headerBgFocalY,
         headerBgSize: headerConfig.headerBgSize,
-        logoUrl: headerConfig.logoUrl,
         logoWidth: headerConfig.logoWidth
       };
       await apiPut(
         buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin()),
         payload
       );
-      toast({ title: 'Header mis à jour', description: 'Rechargez le site externe pour voir les modifications', status: 'success', duration: 4000 });
+      toast({ title: 'Configuration du header mise à jour', status: 'success', duration: 2500 });
       onCloseHeaderConfig();
-      setHeaderImageFile(null);
     } catch (e) {
       toast({ title: 'Erreur sauvegarde Header', description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`, status: 'error', duration: 6000 });
     }
@@ -1953,37 +1898,23 @@ export default function SiteManagement() {
                     <VStack align="stretch" spacing={3}>
                       <Alert status="info" fontSize="sm">
                         <AlertIcon />
-                        L'image téléchargée remplacera <strong>externe/public/assets/header.jpg</strong>. Les changements seront visibles immédiatement (cache du navigateur permis).
+                        Pour modifier l'image : éditez manuellement <strong>externe/public/assets/header.jpg</strong>
                       </Alert>
                       <HStack>
                         <FormControl maxW="220px">
-                          <FormLabel>Taille</FormLabel>
+                          <FormLabel>Taille d'affichage</FormLabel>
                           <Select
                             value={headerConfig.headerBgSize}
                             onChange={(e) => setHeaderConfig(prev => ({ ...prev, headerBgSize: e.target.value }))}
                           >
-                            <option value="cover">Cover</option>
-                            <option value="contain">Contain</option>
+                            <option value="cover">Cover (remplit tout)</option>
+                            <option value="contain">Contain (contient tout)</option>
                           </Select>
-                        </FormControl>
-                      </HStack>
-                      <HStack>
-                        <FormControl>
-                          <FormLabel>Importer une image (écrase header.jpg)</FormLabel>
-                          <Input type="file" accept="image/*" onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            if (!f) return;
-                            setHeaderImageFile(f);
-                            // Afficher un aperçu local
-                            const dataUrl = await fileToDataUrl(f);
-                            setHeaderConfig(prev => ({ ...prev, headerBgUrl: dataUrl }));
-                          }} />
-                          {headerImageFile && <Text fontSize="xs" color="green.600" mt={1}>✓ {headerImageFile.name} prêt à télécharger</Text>}
                         </FormControl>
                       </HStack>
 
                       <Box>
-                        <Text fontSize="sm" color="gray.600" mb={2}>Aperçu & focale (déplacez le point)</Text>
+                        <Text fontSize="sm" color="gray.600" mb={2}>Point focal (cliquez/glissez pour ajuster)</Text>
                         <Box
                           position="relative"
                           borderRadius="md"
@@ -1993,7 +1924,7 @@ export default function SiteManagement() {
                           w="100%"
                           h="180px"
                           style={{
-                            backgroundImage: headerConfig.headerBgUrl ? `url(${headerConfig.headerBgUrl})` : undefined,
+                            backgroundImage: `url(/assets/header.jpg?t=${Date.now()})`,
                             backgroundSize: headerConfig.headerBgSize || 'cover',
                             backgroundPosition: `${headerConfig.headerBgFocalX}% ${headerConfig.headerBgFocalY}%`
                           }}
@@ -2024,6 +1955,9 @@ export default function SiteManagement() {
                             pointerEvents="none"
                           />
                         </Box>
+                        <HStack mt={2} fontSize="xs" color="gray.500">
+                          <Text>Position: {headerConfig.headerBgFocalX}% , {headerConfig.headerBgFocalY}%</Text>
+                        </HStack>
                       </Box>
                     </VStack>
                   </CardBody>
@@ -2035,6 +1969,10 @@ export default function SiteManagement() {
                   </CardHeader>
                   <CardBody>
                     <VStack align="stretch" spacing={3}>
+                      <Alert status="info" fontSize="sm">
+                        <AlertIcon />
+                        Pour modifier le logo : éditez manuellement les fichiers dans <strong>externe/src/assets/</strong>
+                      </Alert>
                       <HStack>
                         <FormControl>
                           <FormLabel>URL du logo</FormLabel>
