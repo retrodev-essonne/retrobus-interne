@@ -1338,6 +1338,11 @@ export default function SiteManagement() {
   );
   
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isHeaderOpen,
+    onOpen: onOpenHeaderConfig,
+    onClose: onCloseHeaderConfig
+  } = useDisclosure();
   const toast = useToast();
 
   // Charger les changelogs avec gestion d'erreur améliorée
@@ -1376,6 +1381,62 @@ export default function SiteManagement() {
   useEffect(() => {
     fetchChangelogs();
   }, []);
+
+  // --- Header config state & lifecycle ---
+  const [headerConfig, setHeaderConfig] = useState({
+    headerBgUrl: '',
+    headerBgFocalX: 50,
+    headerBgFocalY: 50,
+    headerBgSize: 'cover',
+    logoUrl: '',
+    logoWidth: 44
+  });
+
+  const loadSiteConfig = async () => {
+    try {
+      const res = await apiGet(
+        buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin())
+      );
+      const data = res?.data || {};
+      setHeaderConfig(prev => ({
+        ...prev,
+        headerBgUrl: data.headerBgUrl || prev.headerBgUrl || '',
+        headerBgFocalX: Number.isFinite(data.headerBgFocalX) ? data.headerBgFocalX : prev.headerBgFocalX,
+        headerBgFocalY: Number.isFinite(data.headerBgFocalY) ? data.headerBgFocalY : prev.headerBgFocalY,
+        headerBgSize: data.headerBgSize || prev.headerBgSize,
+        logoUrl: data.logoUrl || prev.logoUrl || '',
+        logoWidth: Number.isFinite(data.logoWidth) ? data.logoWidth : prev.logoWidth
+      }));
+    } catch (e) {
+      console.warn('Chargement site-config (header) échoué:', e?.message || e);
+    }
+  };
+
+  useEffect(() => {
+    if (isHeaderOpen) loadSiteConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHeaderOpen]);
+
+  const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const saveHeaderConfig = async () => {
+    try {
+      const payload = { ...headerConfig };
+      await apiPut(
+        buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin()),
+        payload
+      );
+      toast({ title: 'Header mis à jour', status: 'success', duration: 2500 });
+      onCloseHeaderConfig();
+    } catch (e) {
+      toast({ title: 'Erreur sauvegarde Header', description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`, status: 'error', duration: 6000 });
+    }
+  };
 
   // --- Gestion sauvegarde HelloAsso ---
   const saveHelloAsso = async () => {
@@ -1766,8 +1827,8 @@ export default function SiteManagement() {
                   </CardHeader>
                   <CardBody>
                     <VStack spacing={3} align="stretch">
-                      <Button leftIcon={<FiEdit />} size="sm" variant="outline">
-                        Modifier la page d'accueil
+                      <Button leftIcon={<FiEdit />} size="sm" variant="outline" onClick={onOpenHeaderConfig}>
+                        Modifier le Header
                       </Button>
                       <Button leftIcon={<FiEdit />} size="sm" variant="outline">
                         Gérer les événements
@@ -1816,6 +1877,157 @@ export default function SiteManagement() {
             </TabPanel>
           </TabPanels>
         </Tabs>
+
+        {/* Modal configuration Header */}
+        <Modal isOpen={isHeaderOpen} onClose={onCloseHeaderConfig} size="xl">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>🎛️ Modifier le Header</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={6} align="stretch">
+                <Card>
+                  <CardHeader>
+                    <Heading size="sm">Image de fond</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack align="stretch" spacing={3}>
+                      <HStack>
+                        <FormControl>
+                          <FormLabel>URL de l'image</FormLabel>
+                          <Input
+                            placeholder="https://... ou data:image/..."
+                            value={headerConfig.headerBgUrl}
+                            onChange={(e) => setHeaderConfig(prev => ({ ...prev, headerBgUrl: e.target.value }))}
+                          />
+                        </FormControl>
+                        <FormControl maxW="220px">
+                          <FormLabel>Taille</FormLabel>
+                          <Select
+                            value={headerConfig.headerBgSize}
+                            onChange={(e) => setHeaderConfig(prev => ({ ...prev, headerBgSize: e.target.value }))}
+                          >
+                            <option value="cover">Cover</option>
+                            <option value="contain">Contain</option>
+                          </Select>
+                        </FormControl>
+                      </HStack>
+                      <HStack>
+                        <FormControl>
+                          <FormLabel>Importer une image</FormLabel>
+                          <Input type="file" accept="image/*" onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            const dataUrl = await fileToDataUrl(f);
+                            setHeaderConfig(prev => ({ ...prev, headerBgUrl: dataUrl }));
+                          }} />
+                        </FormControl>
+                      </HStack>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600" mb={2}>Aperçu & focale (déplacez le point)</Text>
+                        <Box
+                          position="relative"
+                          borderRadius="md"
+                          overflow="hidden"
+                          border="1px solid"
+                          borderColor="gray.200"
+                          w="100%"
+                          h="180px"
+                          style={{
+                            backgroundImage: headerConfig.headerBgUrl ? `url(${headerConfig.headerBgUrl})` : undefined,
+                            backgroundSize: headerConfig.headerBgSize || 'cover',
+                            backgroundPosition: `${headerConfig.headerBgFocalX}% ${headerConfig.headerBgFocalY}%`
+                          }}
+                          onMouseDown={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = ((e.clientX - rect.left) / rect.width) * 100;
+                            const y = ((e.clientY - rect.top) / rect.height) * 100;
+                            setHeaderConfig(prev => ({ ...prev, headerBgFocalX: Math.round(x), headerBgFocalY: Math.round(y) }));
+                          }}
+                          onMouseMove={(e) => {
+                            if (e.buttons !== 1) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = ((e.clientX - rect.left) / rect.width) * 100;
+                            const y = ((e.clientY - rect.top) / rect.height) * 100;
+                            setHeaderConfig(prev => ({ ...prev, headerBgFocalX: Math.round(Math.max(0, Math.min(100, x))), headerBgFocalY: Math.round(Math.max(0, Math.min(100, y))) }));
+                          }}
+                        >
+                          <Box
+                            position="absolute"
+                            left={`calc(${headerConfig.headerBgFocalX}% - 6px)`}
+                            top={`calc(${headerConfig.headerBgFocalY}% - 6px)`}
+                            w="12px"
+                            h="12px"
+                            borderRadius="full"
+                            bg="var(--rbe-red)"
+                            border="2px solid white"
+                            boxShadow="sm"
+                            pointerEvents="none"
+                          />
+                        </Box>
+                      </Box>
+                    </VStack>
+                  </CardBody>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <Heading size="sm">Logo</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack align="stretch" spacing={3}>
+                      <HStack>
+                        <FormControl>
+                          <FormLabel>URL du logo</FormLabel>
+                          <Input
+                            placeholder="https://... ou data:image/..."
+                            value={headerConfig.logoUrl}
+                            onChange={(e) => setHeaderConfig(prev => ({ ...prev, logoUrl: e.target.value }))}
+                          />
+                        </FormControl>
+                        <FormControl maxW="240px">
+                          <FormLabel>Largeur (px)</FormLabel>
+                          <Input
+                            type="number"
+                            min={24}
+                            max={240}
+                            value={headerConfig.logoWidth}
+                            onChange={(e) => setHeaderConfig(prev => ({ ...prev, logoWidth: parseInt(e.target.value || '44', 10) }))}
+                          />
+                        </FormControl>
+                      </HStack>
+                      <HStack>
+                        <FormControl>
+                          <FormLabel>Importer un logo</FormLabel>
+                          <Input type="file" accept="image/*" onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            const dataUrl = await fileToDataUrl(f);
+                            setHeaderConfig(prev => ({ ...prev, logoUrl: dataUrl }));
+                          }} />
+                        </FormControl>
+                      </HStack>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600" mb={2}>Aperçu</Text>
+                        <HStack p={3} border="1px solid" borderColor="gray.200" borderRadius="md" justify="space-between">
+                          <Image src={headerConfig.logoUrl || '/assets/rbe_logo.svg'} alt="Logo" height={`${headerConfig.logoWidth || 44}px`} objectFit="contain" />
+                          <Box h={`${headerConfig.logoWidth || 44}px`} w="1px" />
+                          <Text fontSize="xs" color="gray.500">Menu</Text>
+                        </HStack>
+                      </Box>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              </VStack>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onCloseHeaderConfig}>Annuler</Button>
+              <Button colorScheme="blue" onClick={saveHeaderConfig}>Enregistrer</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
 
         {/* Modal de création/édition de Changelog */}
         <Modal isOpen={isOpen} onClose={onClose} size="lg">
