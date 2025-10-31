@@ -3,10 +3,11 @@ import {
   Box, Heading, Text, SimpleGrid, Stat, StatLabel, StatNumber, Card, CardBody,
   Tabs, TabList, TabPanels, Tab, TabPanel, useToast, Spinner, HStack, VStack,
   Badge, Tag, TagLabel, TagLeftIcon, Button, Divider, Table, Thead, Tbody, Tr, Th, Td,
-  Icon, Progress, Alert, AlertIcon
+  Icon, Progress, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton, Slider, SliderTrack, SliderFilledTrack, SliderThumb, FormLabel
 } from "@chakra-ui/react";
-import { FiClock, FiAlertTriangle, FiTool, FiFileText, FiInfo, FiEdit } from "react-icons/fi";
+import { FiClock, FiAlertTriangle, FiTool, FiFileText, FiInfo, FiEdit, FiSliders } from "react-icons/fi";
 import { apiClient } from "../api/config";
+import CaracteristiquesEditor from '../components/vehicle/CaracteristiquesEditor.jsx';
 import { useNavigate } from "react-router-dom";
 
 function EtatBadge({ etat }) {
@@ -22,7 +23,17 @@ function EtatBadge({ etat }) {
   return <Badge colorScheme={colorMap[etat] || "purple"}>{etat || "—"}</Badge>;
 }
 
-export default function RetroBus() {
+// Fonction utilitaire pour mettre à jour les caractéristiques d'un véhicule
+async function updateVehicleCaracs(parc, caracs, toast) {
+  try {
+    await apiClient.put(`/vehicles/${encodeURIComponent(parc)}`, {
+      caracteristiques: JSON.stringify(caracs)
+    });
+    toast({ status: 'success', title: 'Caractéristiques mises à jour' });
+  } catch (e) {
+    toast({ status: 'error', title: 'Erreur lors de la mise à jour', description: e.message });
+  }
+}
   const toast = useToast();
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState([]);
@@ -32,6 +43,12 @@ export default function RetroBus() {
   const [usagesData, setUsagesData] = useState({}); // { [parc]: Usage[] }
   const [loadingReports, setLoadingReports] = useState(false);
   const [loadingUsages, setLoadingUsages] = useState(false);
+  // Modal édition technique
+  const [editTechOpen, setEditTechOpen] = useState(false);
+  const [editTechVehicle, setEditTechVehicle] = useState(null);
+  const [editTechCaracs, setEditTechCaracs] = useState([]);
+  const [editTechGasoil, setEditTechGasoil] = useState(0);
+  const [editTechSaving, setEditTechSaving] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -138,19 +155,19 @@ export default function RetroBus() {
         {vehicles.map((v) => {
           const parc = v.parc || v.id || v.slug;
           const status = statusByParc[parc] || {};
-          
           // Parser les caractéristiques si elles existent
           let carac = [];
+          let gasoil = 0;
           try {
             if (v.caracteristiques) {
               carac = JSON.parse(v.caracteristiques);
+              const found = carac.find(c => c.label === 'Niveau gasoil');
+              if (found) gasoil = Number(found.value) || 0;
             }
           } catch (e) {
             console.warn('Erreur parsing caractéristiques:', e);
           }
-          
           const hasCarac = Array.isArray(carac) && carac.length > 0;
-          
           return (
             <Card key={parc} variant="outline" _hover={{ shadow: 'md' }}>
               <CardBody>
@@ -162,7 +179,6 @@ export default function RetroBus() {
                     </VStack>
                     <EtatBadge etat={v.etat || v.statut} />
                   </HStack>
-                  
                   {/* Indicateur informations techniques */}
                   {hasCarac ? (
                     <HStack w="full">
@@ -175,7 +191,17 @@ export default function RetroBus() {
                       <Text fontSize="sm" color="orange.600">Aucune info technique</Text>
                     </HStack>
                   )}
-                  
+                  {/* Curseur gasoil */}
+                  <HStack w="full" spacing={2}>
+                    <Icon as={FiSliders} color="blue.500" />
+                    <Text fontSize="sm" color="blue.600">Gasoil: {gasoil}%</Text>
+                    <Button size="xs" variant="outline" onClick={() => {
+                      setEditTechVehicle(v);
+                      setEditTechCaracs(carac);
+                      setEditTechGasoil(gasoil);
+                      setEditTechOpen(true);
+                    }}>Infos techniques</Button>
+                  </HStack>
                   <HStack spacing={2} flexWrap="wrap">
                     {status.active ? (
                       <Tag colorScheme="purple" size="sm">
@@ -194,9 +220,7 @@ export default function RetroBus() {
                       </Tag>
                     )}
                   </HStack>
-                  
                   <Divider />
-                  
                   <HStack w="full" spacing={2}>
                     <Button 
                       size="sm" 
@@ -230,6 +254,48 @@ export default function RetroBus() {
       <Text mt={2} opacity={0.85}>Gestion des véhicules, historique, entretien, situation et pointages.</Text>
 
       <Tabs mt={6} variant="enclosed">
+        {/* Modal édition technique véhicule */}
+        <Modal isOpen={editTechOpen} onClose={() => setEditTechOpen(false)} size="lg">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Informations techniques : {editTechVehicle?.parc}</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack align="stretch" spacing={4}>
+                <FormLabel>Niveau actuel du gasoil (%)</FormLabel>
+                <Slider min={0} max={100} step={1} value={editTechGasoil} onChange={setEditTechGasoil}>
+                  <SliderTrack>
+                    <SliderFilledTrack />
+                  </SliderTrack>
+                  <SliderThumb />
+                </Slider>
+                <Text fontSize="sm">{editTechGasoil}%</Text>
+                <CaracteristiquesEditor value={editTechCaracs} onChange={setEditTechCaracs} />
+              </VStack>
+            </ModalBody>
+            <ModalFooter>
+              <Button mr={3} onClick={() => setEditTechOpen(false)} variant="ghost">Annuler</Button>
+              <Button colorScheme="blue" isLoading={editTechSaving} onClick={async () => {
+                setEditTechSaving(true);
+                // Mettre à jour ou ajouter le niveau de gasoil dans les caracs
+                let nextCaracs = Array.isArray(editTechCaracs) ? [...editTechCaracs] : [];
+                const idx = nextCaracs.findIndex(c => c.label === 'Niveau gasoil');
+                if (idx >= 0) {
+                  nextCaracs[idx].value = String(editTechGasoil);
+                } else {
+                  nextCaracs.push({ label: 'Niveau gasoil', value: String(editTechGasoil) });
+                }
+                await updateVehicleCaracs(editTechVehicle.parc, nextCaracs, toast);
+                setEditTechSaving(false);
+                setEditTechOpen(false);
+                // Recharger la liste des véhicules
+                setLoading(true);
+                const list = await apiClient.get('/vehicles');
+                setVehicles(Array.isArray(list) ? list : (list?.vehicles || []));
+              }}>Enregistrer</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
         <TabList overflowX="auto">
           <Tab>Véhicules</Tab>
           <Tab>Historique</Tab>
