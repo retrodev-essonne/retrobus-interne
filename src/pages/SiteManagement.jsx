@@ -1429,13 +1429,55 @@ export default function SiteManagement() {
 
   const saveHeaderConfig = async () => {
     try {
-      const payload = { ...headerConfig };
+      // 1. Si un fichier a été chargé, l'uploader d'abord
+      if (headerImageFile) {
+        const formData = new FormData();
+        formData.append('header', headerImageFile);
+        
+        const uploadCandidates = buildCandidates(
+          ['api/site-config/upload-header'], 
+          'api/site-config', 
+          'upload-header', 
+          getSiteConfigOrigin()
+        );
+        
+        // Upload avec fetch raw car FormData
+        const token = localStorage.getItem('token');
+        let uploaded = false;
+        for (const url of uploadCandidates) {
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              body: formData
+            });
+            if (res.ok) {
+              uploaded = true;
+              break;
+            }
+          } catch {}
+        }
+        if (!uploaded) {
+          toast({ title: 'Erreur upload image', description: 'Impossible d\'envoyer l\'image au serveur', status: 'error', duration: 5000 });
+          return;
+        }
+      }
+
+      // 2. Sauvegarder la config (focal, size, logo)
+      const payload = {
+        headerBgFocalX: headerConfig.headerBgFocalX,
+        headerBgFocalY: headerConfig.headerBgFocalY,
+        headerBgSize: headerConfig.headerBgSize,
+        logoUrl: headerConfig.logoUrl,
+        logoWidth: headerConfig.logoWidth
+      };
       await apiPut(
         buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin()),
         payload
       );
-      toast({ title: 'Header mis à jour', status: 'success', duration: 2500 });
+      toast({ title: 'Header mis à jour', description: 'Rechargez le site externe pour voir les modifications', status: 'success', duration: 4000 });
       onCloseHeaderConfig();
+      setHeaderImageFile(null);
     } catch (e) {
       toast({ title: 'Erreur sauvegarde Header', description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`, status: 'error', duration: 6000 });
     }
@@ -1895,15 +1937,11 @@ export default function SiteManagement() {
                   </CardHeader>
                   <CardBody>
                     <VStack align="stretch" spacing={3}>
+                      <Alert status="info" fontSize="sm">
+                        <AlertIcon />
+                        L'image téléchargée remplacera <strong>externe/src/assets/header.jpg</strong>. La configuration de taille et de focale sera conservée.
+                      </Alert>
                       <HStack>
-                        <FormControl>
-                          <FormLabel>URL de l'image</FormLabel>
-                          <Input
-                            placeholder="https://... ou data:image/..."
-                            value={headerConfig.headerBgUrl}
-                            onChange={(e) => setHeaderConfig(prev => ({ ...prev, headerBgUrl: e.target.value }))}
-                          />
-                        </FormControl>
                         <FormControl maxW="220px">
                           <FormLabel>Taille</FormLabel>
                           <Select
@@ -1917,13 +1955,16 @@ export default function SiteManagement() {
                       </HStack>
                       <HStack>
                         <FormControl>
-                          <FormLabel>Importer une image</FormLabel>
+                          <FormLabel>Importer une image (écrase header.jpg)</FormLabel>
                           <Input type="file" accept="image/*" onChange={async (e) => {
                             const f = e.target.files?.[0];
                             if (!f) return;
+                            setHeaderImageFile(f);
+                            // Afficher un aperçu local
                             const dataUrl = await fileToDataUrl(f);
                             setHeaderConfig(prev => ({ ...prev, headerBgUrl: dataUrl }));
                           }} />
+                          {headerImageFile && <Text fontSize="xs" color="green.600" mt={1}>✓ {headerImageFile.name} prêt à télécharger</Text>}
                         </FormControl>
                       </HStack>
 
