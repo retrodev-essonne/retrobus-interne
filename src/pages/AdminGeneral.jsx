@@ -835,13 +835,34 @@ export default function AdminGeneral() {
   const handleDeleteReport = async (reportId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce RétroReport ?')) return;
     try {
-      const base = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-      const res = await fetch(`${base}/api/retro-reports/${reportId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }});
-      if (!res.ok) throw new Error('delete failed');
+      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast({ title: 'Erreur', description: 'Token non trouvé', status: 'error', duration: 3000 });
+        return;
+      }
+      const url = `${base}/api/retro-reports/${reportId}`;
+      console.log('🗑️ Suppression ticket:', url);
+      const res = await fetch(url, { 
+        method: 'DELETE', 
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } 
+      });
+      console.log('Delete response status:', res.status);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('Delete error:', errText);
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      const result = await res.json();
+      console.log('Delete result:', result);
       setRetroReports(prev => prev.filter(r => r.id !== reportId));
       toast({ title: 'RétroReport supprimé', description: 'Le ticket a été supprimé avec succès', status: 'success', duration: 3000 });
     } catch (e) {
-      toast({ title: 'Erreur', description: 'Suppression impossible', status: 'error', duration: 3000 });
+      console.error('❌ Erreur suppression:', e);
+      toast({ title: 'Erreur', description: `Suppression impossible: ${e.message}`, status: 'error', duration: 5000 });
     }
   };
 
