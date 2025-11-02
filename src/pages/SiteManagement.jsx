@@ -113,26 +113,46 @@ const tryUrls = async (urls, method, data) => {
   
   for (const url of urls) {
     try {
-      const cleanUrl = clean(url);
-      if (!cleanUrl) continue;
-      
-      // Ensure URL starts with / for apiClient
-      const apiUrl = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
-      
-      let response;
-      if (method === 'GET') {
-        response = await apiClient.get(apiUrl);
-      } else if (method === 'POST') {
-        response = await apiClient.post(apiUrl, data);
-      } else if (method === 'PUT') {
-        response = await apiClient.put(apiUrl, data);
-      } else if (method === 'PATCH') {
-        response = await apiClient.patch(apiUrl, data);
-      } else if (method === 'DELETE') {
-        response = await apiClient.delete(apiUrl);
+      // Check if URL is absolute (HTTP/HTTPS)
+      if (/^https?:\/\//i.test(url)) {
+        // Absolute URL: use direct fetch without apiClient
+        const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+        const token = localStorage.getItem('token');
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        
+        const init = { method, headers };
+        if (data) init.body = JSON.stringify(data);
+        
+        const response = await fetch(url, init);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return { 
+          data: await response.json(), 
+          headers: { 'content-type': response.headers.get('content-type') || '' }, 
+          url 
+        };
+      } else {
+        // Relative URL: use apiClient with proper formatting
+        const cleanUrl = clean(url);
+        if (!cleanUrl) continue;
+        const apiUrl = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+        
+        let response;
+        if (method === 'GET') {
+          response = await apiClient.get(apiUrl);
+        } else if (method === 'POST') {
+          response = await apiClient.post(apiUrl, data);
+        } else if (method === 'PUT') {
+          response = await apiClient.put(apiUrl, data);
+        } else if (method === 'PATCH') {
+          response = await apiClient.patch(apiUrl, data);
+        } else if (method === 'DELETE') {
+          response = await apiClient.delete(apiUrl);
+        }
+        
+        return { data: response, headers: {}, url: apiUrl };
       }
-      
-      return { data: response, headers: {}, url: apiUrl };
     } catch (err) {
       errors.push(`${url}: ${err.message}`);
     }
