@@ -498,63 +498,7 @@ export default function RetroBus() {
           </TabPanel>
 
           <TabPanel>
-            <VStack align="start" spacing={4} py={2}>
-              <HStack justify="space-between" w="full">
-                <HStack>
-                  <FiTool />
-                  <Heading size="sm">Rapports d'entretien</Heading>
-                </HStack>
-                <Button size="sm" onClick={loadAllReports} isLoading={loadingReports}>
-                  Charger
-                </Button>
-              </HStack>
-              
-              {loadingReports ? (
-                <HStack spacing={3}>
-                  <Spinner size="sm" />
-                  <Text>Chargement des rapports...</Text>
-                </HStack>
-              ) : Object.keys(reportsData).length === 0 ? (
-                <Alert status="info">
-                  <AlertIcon />
-                  Cliquez sur "Charger" pour afficher les rapports d'entretien
-                </Alert>
-              ) : (
-                <VStack align="stretch" w="full" spacing={4}>
-                  {vehicles.map((v) => {
-                    const parc = v.parc || v.id || v.slug;
-                    const reports = reportsData[parc] || [];
-                    
-                    if (reports.length === 0) return null;
-                    
-                    return (
-                      <Card key={parc} variant="outline">
-                        <CardBody>
-                          <Heading size="sm" mb={3}>{parc} - {reports.length} rapport(s)</Heading>
-                          <VStack align="stretch" spacing={2}>
-                            {reports.slice(0, 5).map((report) => (
-                              <Box key={report.id} p={3} bg="gray.50" borderRadius="md">
-                                <Text fontWeight="600" fontSize="sm">
-                                  {new Date(report.createdAt).toLocaleDateString('fr-FR')}
-                                </Text>
-                                <Text fontSize="sm" color="gray.700" mt={1}>
-                                  {report.description || 'Aucune description'}
-                                </Text>
-                              </Box>
-                            ))}
-                          </VStack>
-                          {reports.length > 5 && (
-                            <Text mt={2} fontSize="sm" color="gray.500">
-                              ... et {reports.length - 5} autre(s) rapport(s)
-                            </Text>
-                          )}
-                        </CardBody>
-                      </Card>
-                    );
-                  })}
-                </VStack>
-              )}
-            </VStack>
+            <MaintenanceTab vehicles={vehicles} apiClient={apiClient} />
           </TabPanel>
 
           <TabPanel>
