@@ -78,7 +78,7 @@ const Vehicules = () => {
         <Heading>Véhicules</Heading>
         <Button
           as={RouterLink}
-          to="/dashboard/vehicules/nouveau"
+          to="/dashboard/vehicules/ajouter"
           leftIcon={<FiPlus />}
           colorScheme="blue"
         >

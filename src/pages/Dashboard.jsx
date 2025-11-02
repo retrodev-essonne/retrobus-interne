@@ -5,7 +5,7 @@ import Vehicules from './Vehicules'
 import QRManager from './QRManager'
 import MobileVehicle from './MobileVehicle'
 import RequireCreator from '../components/RequireCreator';
-import AddVehicule from './VehiculeAdd';
+import VehiculeCreate from './VehiculeCreate';
 import VehiculeShow from './VehiculeShow';
 import MyRBE from './MyRBE';
 import MyRBEActions from './MyRBEActions';
@@ -20,7 +20,7 @@ export default function Dashboard() {
         <Route index element={<DashboardHome />} />
   <Route path="retrobus" element={<RetroBus />} />
         <Route path="vehicules" element={<Vehicules />} />
-        <Route path="vehicules/ajouter" element={<RequireCreator><AddVehicule /></RequireCreator>} />
+        <Route path="vehicules/ajouter" element={<RequireCreator><VehiculeCreate /></RequireCreator>} />
         <Route path="vehicules/:parc" element={<VehiculeShow />} />
         <Route path="retromail" element={<RetroMail />} />
         <Route path="mobile/v/:parc" element={<MobileVehicle />} />

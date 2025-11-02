@@ -4,7 +4,7 @@ import {
   VStack, HStack, SimpleGrid, useToast, Text, Divider,
   Spinner, Center, Flex, Image, IconButton, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton,
-  Badge, Collapse
+  Badge, Collapse, Switch, Card, CardBody
 } from "@chakra-ui/react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FiArrowLeft, FiExternalLink, FiSave, FiUpload, FiTarget, FiChevronDown, FiChevronUp, FiTrash2 } from 'react-icons/fi';
@@ -431,6 +431,7 @@ export default function VehiculeShow() {
         gallery: basicInfo.gallery,
         backgroundImage: basicInfo.backgroundImage,
         backgroundPosition: basicInfo.backgroundPosition,
+        isPublic: vehicle?.isPublic || false,
         // Ajouter tous les nouveaux champs
         numerosFlotte: basicInfo.numerosFlotte,
         constructeur: basicInfo.constructeur,
@@ -748,6 +749,30 @@ export default function VehiculeShow() {
               Exemple avec émojis : "Citaro 1 | € II | ❄️ | ♿"
             </Text>
           </FormControl>
+
+          {/* Publication sur le site public */}
+          <Card mt={6} bg="blue.50" borderWidth="2px" borderColor="blue.200">
+            <CardBody>
+              <FormControl display="flex" alignItems="center">
+                <FormLabel mb={0} flex={1}>
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="bold">🌐 Afficher sur le site public</Text>
+                    <Text fontSize="sm" color="gray.600">
+                      {vehicle?.isPublic 
+                        ? '✅ Ce véhicule est visible par tous' 
+                        : '🔒 Ce véhicule n\'est visible que par les administrateurs'}
+                    </Text>
+                  </VStack>
+                </FormLabel>
+                <Switch 
+                  isChecked={vehicle?.isPublic || false}
+                  onChange={e => setVehicle(v => ({ ...v, isPublic: e.target.checked }))}
+                  size="lg"
+                  colorScheme="green"
+                />
+              </FormControl>
+            </CardBody>
+          </Card>
 
           <Text fontSize="xs" color="blue.600" mt={4} fontStyle="italic">
             💡 Les caractéristiques techniques sont automatiquement mises à jour en fonction des champs ci-dessus

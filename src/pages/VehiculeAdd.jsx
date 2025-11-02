@@ -32,7 +32,7 @@ export default function VehiculeAdd() {
       method:'PUT',
       headers:{
         'Content-Type':'application/json',
-        Authorization: 'Bearer creator123'
+        Authorization: 'Bearer ' + localStorage.getItem('token')
       },
       body: JSON.stringify({
         modele: data.modele,
@@ -45,7 +45,8 @@ export default function VehiculeAdd() {
         description: data.description,
         history: data.history,
         caracteristiques: data.caracteristiques,
-        gallery: data.gallery
+        gallery: data.gallery,
+        isPublic: data.isPublic || false
       })
     })
       .then(r=> r.ok ? r.json() : Promise.reject())
