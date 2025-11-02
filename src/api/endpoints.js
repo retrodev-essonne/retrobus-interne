@@ -98,16 +98,9 @@ export const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', 
     const rel = parts.filter(Boolean).join('/');
     if (!rel) return;
 
-    // Prioritize relative URLs to go through apiClient (JWT, interceptors)
+    // Only use relative URLs to avoid CORS issues
+    // These will be processed by apiClient which handles JWT and CORS properly
     list.add(rel);
-    // Then absolute with explicit origin (fallback)
-    if (overrideOrigin && isHttpOrigin(overrideOrigin)) {
-      list.add(`${overrideOrigin.replace(/\/+$/, '')}/${rel}`);
-    }
-    // Finally absolute same-origin (avoid in dev Vite)
-    if (!skipSameOrigin && sameOrigin) {
-      list.add(`${sameOrigin}/${rel}`);
-    }
   };
 
   const pushPrefixedIfNeeded = (p) => {
