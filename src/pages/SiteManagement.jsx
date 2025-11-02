@@ -106,26 +106,46 @@ const fetchJson = async (method, url, data, config) => {
   return result;
 };
 
-const apiGet = async (url) => {
-  const response = await apiClient.get(url);
-  return { data: response, headers: {} };
+// Fallback helper - tries multiple URLs in order
+const tryUrls = async (urls, method, data) => {
+  if (!Array.isArray(urls)) urls = [urls];
+  const errors = [];
+  
+  for (const url of urls) {
+    try {
+      const cleanUrl = clean(url);
+      if (!cleanUrl) continue;
+      
+      // Ensure URL starts with / for apiClient
+      const apiUrl = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+      
+      let response;
+      if (method === 'GET') {
+        response = await apiClient.get(apiUrl);
+      } else if (method === 'POST') {
+        response = await apiClient.post(apiUrl, data);
+      } else if (method === 'PUT') {
+        response = await apiClient.put(apiUrl, data);
+      } else if (method === 'PATCH') {
+        response = await apiClient.patch(apiUrl, data);
+      } else if (method === 'DELETE') {
+        response = await apiClient.delete(apiUrl);
+      }
+      
+      return { data: response, headers: {}, url: apiUrl };
+    } catch (err) {
+      errors.push(`${url}: ${err.message}`);
+    }
+  }
+  
+  throw new Error(`Toutes les URLs ont échoué: ${errors.join(' | ')}`);
 };
-const apiPost = async (url, data) => {
-  const response = await apiClient.post(url, data);
-  return { data: response, headers: {} };
-};
-const apiPut = async (url, data) => {
-  const response = await apiClient.put(url, data);
-  return { data: response, headers: {} };
-};
-const apiPatch = async (url, data) => {
-  const response = await apiClient.patch(url, data);
-  return { data: response, headers: {} };
-};
-const apiDelete = async (url) => {
-  const response = await apiClient.delete(url);
-  return { data: response, headers: {} };
-};
+
+const apiGet = async (urls) => tryUrls(urls, 'GET');
+const apiPost = async (urls, data) => tryUrls(urls, 'POST', data);
+const apiPut = async (urls, data) => tryUrls(urls, 'PUT', data);
+const apiPatch = async (urls, data) => tryUrls(urls, 'PATCH', data);
+const apiDelete = async (urls) => tryUrls(urls, 'DELETE');
 
 // === COMPOSANTS GESTION ACCÈS ===
 function AccessManagement() {
