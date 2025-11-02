@@ -338,26 +338,6 @@ export default function Header() {
             />
           ) : (
             <HStack spacing={2}>
-              {/* Bell visible to all */}
-              <Tooltip label={unreadCount ? `${unreadCount} flash(s) non lu(s)` : "Aucun flash"}>
-                <IconButton
-                  aria-label="Voir les flashs"
-                  icon={<BellIcon />}
-                  size="sm"
-                  variant="ghost"
-                  color="white"
-                  onClick={() => viewer.onOpen()}
-                  title="Voir les flashs"
-                />
-              </Tooltip>
-
-              {/* small badge count */}
-              {unreadCount > 0 && (
-                <Badge colorScheme="red" variant="solid" ml="-2.5" zIndex={3}>
-                  {unreadCount}
-                </Badge>
-              )}
-
               {/* Megaphone — only admin can manage */}
               <Tooltip label={isAdmin ? "Gérer les flashs" : "Vous n'êtes pas autorisé"}>
                 <span>
