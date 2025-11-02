@@ -24,6 +24,7 @@ import {
 import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
 import { displayNameFromUser, formatMemberLabel } from '../lib/names';
+import EmailTemplateManager from '../components/EmailTemplateManager';
 
 // Garde-fou: s'assurer que la réponse est bien du JSON
 const ensureJsonResponse = (response) => {
@@ -1428,6 +1429,11 @@ export default function SiteManagement() {
     onOpen: onOpenHeaderConfig,
     onClose: onCloseHeaderConfig
   } = useDisclosure();
+  const {
+    isOpen: isTemplatesOpen,
+    onOpen: onOpenTemplates,
+    onClose: onCloseTemplates
+  } = useDisclosure();
   const toast = useToast();
 
   // Charger les changelogs avec gestion d'erreur améliorée
@@ -1950,6 +1956,16 @@ export default function SiteManagement() {
                       <Button leftIcon={<FiSettings />} size="sm" variant="outline">
                         Paramètres généraux
                       </Button>
+                      <Divider my={2} />
+                      <Button 
+                        leftIcon={<FiMail />} 
+                        size="sm" 
+                        variant="outline"
+                        colorScheme="purple"
+                        onClick={onOpenTemplates}
+                      >
+                        📧 Gérer les templates d'email
+                      </Button>
                     </VStack>
                   </CardBody>
                 </Card>
@@ -1958,7 +1974,17 @@ export default function SiteManagement() {
           </TabPanels>
         </Tabs>
 
-        {/* Modal configuration Header */}
+        {/* Modal Templates d'Email */}
+        <Modal isOpen={isTemplatesOpen} onClose={onCloseTemplates} size="4xl">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>📧 Gestion des Templates d'Email</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody maxH="80vh" overflowY="auto">
+              <EmailTemplateManager token={localStorage.getItem('token')} />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
         <Modal isOpen={isHeaderOpen} onClose={onCloseHeaderConfig} size="xl">
           <ModalOverlay />
           <ModalContent>
