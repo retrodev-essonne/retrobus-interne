@@ -779,6 +779,18 @@ export default function DashboardHome() {
                   >
                     Finance
                   </Button>
+                  <Divider my={1} />
+                  <Button
+                    as={RouterLink}
+                    to="/dashboard/api-diagnostics"
+                    variant="ghost"
+                    justifyContent="flex-start"
+                    leftIcon={<FiCpu />}
+                    size="sm"
+                    colorScheme="orange"
+                  >
+                    🔧 Diagnostiques API
+                  </Button>
                 </VStack>
               </CardBody>
             </Card>

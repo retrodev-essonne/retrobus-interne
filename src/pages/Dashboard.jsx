@@ -12,6 +12,7 @@ import MyRBEActions from './MyRBEActions';
 import RetroBus from './RetroBus';
 import DashboardHome from './DashboardHome';
 import RetroMail from './Retromail';
+import ApiDiagnostics from './ApiDiagnostics';
 
 export default function Dashboard() {
   return (
@@ -27,6 +28,7 @@ export default function Dashboard() {
         <Route path="myrbe" element={<MyRBE />} />
         <Route path="myrbe/:parc" element={<MyRBEActions />} />
         <Route path="qr" element={<QRManager />} />
+        <Route path="api-diagnostics" element={<ApiDiagnostics />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Box>
