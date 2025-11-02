@@ -25,6 +25,7 @@ import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
 import { displayNameFromUser, formatMemberLabel } from '../lib/names';
 import EmailTemplateManager from '../components/EmailTemplateManager';
+import RolePermissionsManager from '../components/RolePermissionsManager';
 
 // Garde-fou: s'assurer que la réponse est bien du JSON
 const ensureJsonResponse = (response) => {
@@ -1826,6 +1827,7 @@ export default function SiteManagement() {
             <Tab>📝 Changelog & Versions</Tab>
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
+            <Tab>🛡️ Permissions des Rôles</Tab>
           </TabList>
 
           <TabPanels>
@@ -1970,6 +1972,34 @@ export default function SiteManagement() {
                   </CardBody>
                 </Card>
               </SimpleGrid>
+            </TabPanel>
+
+            <TabPanel>
+              <VStack spacing={6} align="stretch">
+                <Box>
+                  <Heading size="lg" mb={2}>⚡ Configuration des APIs</Heading>
+                  <Text color="gray.600">Gestionnaire avancé pour configurer les routes et origins API</Text>
+                </Box>
+                <Card>
+                  <CardHeader>
+                    <Heading size="md">API Endpoints</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <ApiConfigPanel onChanged={() => {
+                      // Recharger après changement de config
+                      fetchChangelogs();
+                    }} />
+                  </CardBody>
+                </Card>
+
+                <Divider />
+
+                <Box>
+                  <Heading size="lg" mb={2}>🛡️ Gestion des Permissions par Rôle</Heading>
+                  <Text color="gray.600">Définissez les autorisations d'accès, de vue et de modification pour chaque rôle</Text>
+                </Box>
+                <RolePermissionsManager />
+              </VStack>
             </TabPanel>
           </TabPanels>
         </Tabs>
