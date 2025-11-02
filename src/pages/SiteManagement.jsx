@@ -26,11 +26,17 @@ import { API_BASE_URL } from '../api/config';
 import { displayNameFromUser, formatMemberLabel } from '../lib/names';
 import EmailTemplateManager from '../components/EmailTemplateManager';
 import MemberPermissionsManager from '../components/MemberPermissionsManager';
+import {
+  ENDPOINTS,
+  getUsersPath, getMembersPath, getSiteConfigPath, getChangelogPath,
+  getUsersOrigin, getMembersOrigin, getSiteConfigOrigin, getChangelogOrigin, getGlobalOrigin,
+  clean, getApiPrefix, isAbsoluteUrl, ensureJsonResponse, buildCandidates
+} from '../api/endpoints';
 
 // === API Helpers - Use apiClient directly, no localStorage overrides ===
 // This ensures consistent API behavior without manual misconfiguration
 
-const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrideOrigin) => {
+const buildCandidatesLegacy = (baseCandidates, overridePath, extraSuffix = '', overrideOrigin) => {
   const suffix = clean(extraSuffix);
   const API_PREFIX = getApiPrefix();
   const list = new Set();
@@ -76,8 +82,6 @@ const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrid
 };
 
 // === helpers HTTP avec fallback ===
-const isAbsoluteUrl = (u) => /^https?:\/\//i.test(u || '');
-
 const fetchJson = async (method, url, data, config) => {
   const headers = { Accept: 'application/json', ...(config?.headers || {}) };
   const init = { method, headers };
