@@ -11,6 +11,7 @@ export default function ApiDiagnostics() {
   const toast = useToast();
   const [tests, setTests] = useState({
     token: { status: null, data: null, error: null, time: null },
+    health: { status: null, data: null, error: null, time: null },
     vehicles: { status: null, data: null, error: null, time: null },
     siteUsers: { status: null, data: null, error: null, time: null },
     members: { status: null, data: null, error: null, time: null },

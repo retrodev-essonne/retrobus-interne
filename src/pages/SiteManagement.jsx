@@ -25,7 +25,7 @@ import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
 import { displayNameFromUser, formatMemberLabel } from '../lib/names';
 import EmailTemplateManager from '../components/EmailTemplateManager';
-import RolePermissionsManager from '../components/RolePermissionsManager';
+import MemberPermissionsManager from '../components/MemberPermissionsManager';
 
 // Garde-fou: s'assurer que la réponse est bien du JSON
 const ensureJsonResponse = (response) => {
@@ -1995,10 +1995,10 @@ export default function SiteManagement() {
                 <Divider />
 
                 <Box>
-                  <Heading size="lg" mb={2}>🛡️ Gestion des Permissions par Rôle</Heading>
-                  <Text color="gray.600">Définissez les autorisations d'accès, de vue et de modification pour chaque rôle</Text>
+                  <Heading size="lg" mb={2}>🛡️ Gestion des Permissions par Membre</Heading>
+                  <Text color="gray.600">Définissez les autorisations individuelles de chaque utilisateur du site</Text>
                 </Box>
-                <RolePermissionsManager />
+                <MemberPermissionsManager />
               </VStack>
             </TabPanel>
           </TabPanels>
