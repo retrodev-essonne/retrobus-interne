@@ -129,20 +129,7 @@ const AdminFinance = () => {
 
   // Catégories et allocations
   const [financeCategories, setFinanceCategories] = useState([]);
-  const [categoryReport, setCategoryReport] = useState(null);
-  const [selectedTxForAllocation, setSelectedTxForAllocation] = useState(null);
-  const [transactionAllocations, setTransactionAllocations] = useState([]);
-  const [newAllocation, setNewAllocation] = useState({
-    categoryId: '',
-    allocatedAmount: '',
-    notes: ''
-  });
-  const [filterByCategory, setFilterByCategory] = useState('');
-  const [allocationDateRange, setAllocationDateRange] = useState({
-    startDate: '',
-    endDate: ''
-  });
-
+  
   // Devis & Factures
   const [documents, setDocuments] = useState([]); // {id,type:'QUOTE'|'INVOICE', number, title, date, amount, status, eventId?}
   const [editingDocument, setEditingDocument] = useState(null);
@@ -168,8 +155,6 @@ const AdminFinance = () => {
   const { isOpen: isSimulationResultsOpen, onOpen: onSimulationResultsOpen, onClose: onSimulationResultsClose } = useDisclosure();
   const { isOpen: isDeclarePaymentOpen, onOpen: onDeclarePaymentOpen, onClose: onDeclarePaymentClose } = useDisclosure();
   const { isOpen: isPaymentsListOpen, onOpen: onPaymentsListOpen, onClose: onPaymentsListClose } = useDisclosure();
-  const { isOpen: isAllocationsOpen, onOpen: onAllocationsOpen, onClose: onAllocationsClose } = useDisclosure();
-  const { isOpen: isCategoryManageOpen, onOpen: onCategoryManageOpen, onClose: onCategoryManageClose } = useDisclosure();
 
   // === API HELPERS ===
   // Base API: prefer same-origin relative in prod to avoid CORS; in local dev use VITE_API_* or localhost:3000
@@ -489,20 +474,6 @@ const AdminFinance = () => {
     }
   };
 
-  const loadTransactionAllocations = async (transactionId) => {
-    try {
-      const response = await fetch(apiUrl(`/api/finance/transactions/${transactionId}/categories`), {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.ok) {
-        const tx = await response.json();
-        setTransactionAllocations(tx.categoryAllocations || []);
-      }
-    } catch (e) {
-      console.error('❌ Erreur chargement allocations:', e);
-    }
-  };
-
   const saveTransactionAllocations = async (transactionId, allocations) => {
     try {
       const response = await fetch(apiUrl(`/api/finance/transactions/${transactionId}/categories`), {
@@ -514,36 +485,14 @@ const AdminFinance = () => {
         body: JSON.stringify({ allocations })
       });
       if (response.ok) {
-        toast({ status: 'success', title: 'Allocations sauvegardées' });
-        await loadTransactionAllocations(transactionId);
         return true;
       } else {
-        toast({ status: 'error', title: 'Erreur lors de la sauvegarde' });
+        console.error('Erreur lors de la sauvegarde des allocations');
         return false;
       }
     } catch (e) {
       console.error('❌ Erreur sauvegarde allocations:', e);
-      toast({ status: 'error', title: 'Erreur lors de la sauvegarde' });
       return false;
-    }
-  };
-
-  const loadCategoryReport = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (allocationDateRange.startDate) params.append('startDate', allocationDateRange.startDate);
-      if (allocationDateRange.endDate) params.append('endDate', allocationDateRange.endDate);
-      if (filterByCategory) params.append('type', filterByCategory);
-
-      const response = await fetch(apiUrl(`/api/finance/reports/by-category?${params}`), {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setCategoryReport(data);
-      }
-    } catch (e) {
-      console.error('❌ Erreur rapport catégories:', e);
     }
   };
 
@@ -929,10 +878,31 @@ const AdminFinance = () => {
       });
 
       if (data) {
+        // Sauvegarder les allocations si présentes
+        if (transactionAllocations.length > 0) {
+          const allocPaths = buildPathCandidates(`/api/finance/transactions/${data.id}/categories`);
+          const allocations = transactionAllocations.map(a => ({
+            categoryId: a.categoryId,
+            allocatedAmount: parseFloat(a.allocatedAmount),
+            notes: a.notes || null
+          }));
+          
+          await fetchJsonFirst(allocPaths, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ allocations })
+          });
+        }
+
         toast({
           status: "success",
           title: "Transaction ajoutée",
-          description: "La transaction a été enregistrée avec succès",
+          description: transactionAllocations.length > 0 
+            ? `Transaction ajoutée avec ${transactionAllocations.length} allocation(s)`
+            : "La transaction a été enregistrée avec succès",
           duration: 3000,
           isClosable: true
         });
@@ -944,6 +914,8 @@ const AdminFinance = () => {
           category: 'ADHESION',
           date: new Date().toISOString().split('T')[0]
         });
+        setTransactionAllocations([]);
+        setNewAllocationInForm({ categoryId: '', allocatedAmount: '', notes: '' });
         
         onTransactionClose();
         
@@ -2540,199 +2512,6 @@ const AdminFinance = () => {
               </VStack>
             </TabPanel>
 
-            {/* Onglet Étiquettes & Allocations */}
-            <TabPanel>
-              <VStack spacing={6} align="stretch">
-                <HStack justify="space-between">
-                  <Heading size="md">🏷️ Étiquettes & Allocations</Heading>
-                  <HStack>
-                    <Button
-                      leftIcon={<FiPlus />}
-                      colorScheme="blue"
-                      size="sm"
-                      onClick={onCategoryManageOpen}
-                    >
-                      Gérer catégories
-                    </Button>
-                    <Button
-                      leftIcon={<FiTrendingUp />}
-                      colorScheme="teal"
-                      size="sm"
-                      onClick={() => {
-                        loadCategoryReport();
-                        onAllocationsOpen();
-                      }}
-                    >
-                      Rapport par catégorie
-                    </Button>
-                  </HStack>
-                </HStack>
-
-                {/* Filtres pour le rapport */}
-                <Card>
-                  <CardBody>
-                    <VStack spacing={3}>
-                      <Heading size="sm">Filtres du rapport</Heading>
-                      <Grid templateColumns="repeat(3, 1fr)" gap={4} width="full">
-                        <FormControl>
-                          <FormLabel fontSize="sm">Date début</FormLabel>
-                          <Input
-                            type="date"
-                            value={allocationDateRange.startDate}
-                            onChange={(e) => setAllocationDateRange({...allocationDateRange, startDate: e.target.value})}
-                            size="sm"
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel fontSize="sm">Date fin</FormLabel>
-                          <Input
-                            type="date"
-                            value={allocationDateRange.endDate}
-                            onChange={(e) => setAllocationDateRange({...allocationDateRange, endDate: e.target.value})}
-                            size="sm"
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel fontSize="sm">Type</FormLabel>
-                          <Select
-                            value={filterByCategory}
-                            onChange={(e) => setFilterByCategory(e.target.value)}
-                            size="sm"
-                          >
-                            <option value="">Tous les types</option>
-                            <option value="CREDIT">Recette</option>
-                            <option value="DEBIT">Dépense</option>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Button
-                        colorScheme="teal"
-                        size="sm"
-                        onClick={loadCategoryReport}
-                      >
-                        Appliquer les filtres
-                      </Button>
-                    </VStack>
-                  </CardBody>
-                </Card>
-
-                {/* Liste des catégories disponibles */}
-                <Card>
-                  <CardHeader>
-                    <Heading size="sm">Catégories disponibles</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <SimpleGrid columns={[2, 3, 4]} spacing={3}>
-                      {financeCategories.map(cat => (
-                        <Box
-                          key={cat.id}
-                          p={3}
-                          borderLeft="4px solid"
-                          borderColor={cat.color}
-                          borderRadius="md"
-                          bg={useColorModeValue('gray.50', 'gray.700')}
-                          cursor="pointer"
-                          _hover={{ shadow: 'md' }}
-                        >
-                          <Text fontWeight="bold" fontSize="sm">{cat.name}</Text>
-                          <Text fontSize="xs" color="gray.500">{cat.type}</Text>
-                        </Box>
-                      ))}
-                    </SimpleGrid>
-                  </CardBody>
-                </Card>
-
-                {/* Rapport par catégorie */}
-                {categoryReport && Object.keys(categoryReport).length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <Heading size="sm">💹 Totaux par catégorie</Heading>
-                    </CardHeader>
-                    <CardBody>
-                      <Table variant="striped" size="sm">
-                        <Thead>
-                          <Tr>
-                            <Th>Catégorie</Th>
-                            <Th isNumeric>Total</Th>
-                            <Th isNumeric>Transactions</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {Object.values(categoryReport).map((catData, idx) => (
-                            <Tr key={idx}>
-                              <Td>
-                                <HStack>
-                                  <Box
-                                    w={3}
-                                    h={3}
-                                    borderRadius="full"
-                                    bg={catData.category?.color || '#999'}
-                                  />
-                                  <Text>{catData.category?.name}</Text>
-                                </HStack>
-                              </Td>
-                              <Td isNumeric fontWeight="bold">
-                                {formatCurrency(catData.total)}
-                              </Td>
-                              <Td isNumeric>{catData.count}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </CardBody>
-                  </Card>
-                )}
-
-                {/* Transactions et allocations */}
-                <Card>
-                  <CardHeader>
-                    <Heading size="sm">Allouer des catégories aux transactions</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack spacing={4}>
-                      {transactions.length === 0 ? (
-                        <Text color="gray.500">Aucune transaction</Text>
-                      ) : (
-                        <Box width="full" maxH="400px" overflowY="auto">
-                          <VStack spacing={2} align="stretch">
-                            {transactions.map(tx => (
-                              <Box
-                                key={tx.id}
-                                p={3}
-                                borderRadius="md"
-                                bg={useColorModeValue('gray.50', 'gray.700')}
-                                borderLeft="3px solid"
-                                borderColor={tx.type === 'CREDIT' ? 'green.500' : 'red.500'}
-                                cursor="pointer"
-                                _hover={{ shadow: 'md' }}
-                                onClick={() => {
-                                  setSelectedTxForAllocation(tx);
-                                  loadTransactionAllocations(tx.id);
-                                  onAllocationsOpen();
-                                }}
-                              >
-                                <HStack justify="space-between">
-                                  <VStack align="start" spacing={0}>
-                                    <Text fontWeight="bold">{tx.description}</Text>
-                                    <Text fontSize="xs" color="gray.500">
-                                      {formatDate(tx.date)} - {tx.type === 'CREDIT' ? '🟢 Recette' : '🔴 Dépense'}
-                                    </Text>
-                                  </VStack>
-                                  <Text fontWeight="bold" fontSize="lg">
-                                    {formatCurrency(tx.amount)}
-                                  </Text>
-                                </HStack>
-                              </Box>
-                            ))}
-                          </VStack>
-                        </Box>
-                      )}
-                    </VStack>
-                  </CardBody>
-                </Card>
-              </VStack>
-            </TabPanel>
-
             {/* Onglet Rapports */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
@@ -3325,71 +3104,197 @@ const AdminFinance = () => {
         </Modal>
 
         {/* Modal Nouvelle Transaction */}
-        <Modal isOpen={isTransactionOpen} onClose={onTransactionClose}>
+        <Modal isOpen={isTransactionOpen} onClose={onTransactionClose} size="xl">
           <ModalOverlay />
-          <ModalContent>
+          <ModalContent maxH="90vh" overflowY="auto">
             <ModalHeader>Nouvelle Transaction</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Type</FormLabel>
-                  <Select
-                    value={newTransaction.type}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, type: e.target.value }))}
-                  >
-                    <option value="CREDIT">Recette</option>
-                    <option value="DEBIT">Dépense</option>
-                  </Select>
-                </FormControl>
+              <VStack spacing={6}>
+                {/* Infos principales */}
+                <VStack spacing={4} width="full">
+                  <Heading size="sm">Informations de la transaction</Heading>
+                  
+                  <FormControl isRequired>
+                    <FormLabel>Type</FormLabel>
+                    <Select
+                      value={newTransaction.type}
+                      onChange={(e) => setNewTransaction(prev => ({ ...prev, type: e.target.value }))}
+                    >
+                      <option value="CREDIT">Recette</option>
+                      <option value="DEBIT">Dépense</option>
+                    </Select>
+                  </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel>Montant (€)</FormLabel>
-                  <NumberInput
-                    value={newTransaction.amount}
-                    onChange={(value) => setNewTransaction(prev => ({ ...prev, amount: value }))}
-                    precision={2}
-                    step={0.01}
-                  >
-                    <NumberInputField placeholder="0.00" />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
+                  <FormControl isRequired>
+                    <FormLabel>Montant (€)</FormLabel>
+                    <NumberInput
+                      value={newTransaction.amount}
+                      onChange={(value) => setNewTransaction(prev => ({ ...prev, amount: value }))}
+                      precision={2}
+                      step={0.01}
+                    >
+                      <NumberInputField placeholder="0.00" />
+                      <NumberInputStepper>
+                        <NumberIncrementStepper />
+                        <NumberDecrementStepper />
+                      </NumberInputStepper>
+                    </NumberInput>
+                  </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel>Description</FormLabel>
-                  <Input
-                    value={newTransaction.description}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Description de la transaction"
-                  />
-                </FormControl>
+                  <FormControl isRequired>
+                    <FormLabel>Description</FormLabel>
+                    <Input
+                      value={newTransaction.description}
+                      onChange={(e) => setNewTransaction(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Description de la transaction"
+                    />
+                  </FormControl>
 
-                <FormControl>
-                  <FormLabel>Catégorie</FormLabel>
-                  <Select
-                    value={newTransaction.category}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, category: e.target.value }))}
-                  >
-                    <option value="ADHESION">Adhésion</option>
-                    <option value="MAINTENANCE">Maintenance</option>
-                    <option value="CARBURANT">Carburant</option>
-                    <option value="ASSURANCE">Assurance</option>
-                    <option value="AUTRE">Autre</option>
-                  </Select>
-                </FormControl>
+                  <FormControl>
+                    <FormLabel>Date</FormLabel>
+                    <Input
+                      type="date"
+                      value={newTransaction.date}
+                      onChange={(e) => setNewTransaction(prev => ({ ...prev, date: e.target.value }))}
+                    />
+                  </FormControl>
+                </VStack>
 
-                <FormControl>
-                  <FormLabel>Date</FormLabel>
-                  <Input
-                    type="date"
-                    value={newTransaction.date}
-                    onChange={(e) => setNewTransaction(prev => ({ ...prev, date: e.target.value }))}
-                  />
-                </FormControl>
+                {/* Allocations par catégorie */}
+                <Divider />
+                
+                <VStack spacing={3} width="full">
+                  <Heading size="sm">Allouer par catégorie</Heading>
+                  <Text fontSize="sm" color="gray.500">
+                    Vous pouvez diviser ce montant entre plusieurs catégories (ex: 100€ gasoil + 13€ assurance)
+                  </Text>
+
+                  {/* Allocations existantes */}
+                  {transactionAllocations.length > 0 && (
+                    <Box width="full">
+                      <Text fontSize="sm" fontWeight="bold" mb={2}>Allocations actuelles:</Text>
+                      <VStack spacing={2} align="stretch">
+                        {transactionAllocations.map((alloc, idx) => (
+                          <HStack
+                            key={idx}
+                            p={2}
+                            borderRadius="md"
+                            bg={useColorModeValue('gray.100', 'gray.600')}
+                            justify="space-between"
+                          >
+                            <VStack align="start" spacing={0}>
+                              <HStack>
+                                <Box
+                                  w={3}
+                                  h={3}
+                                  borderRadius="full"
+                                  bg={alloc.category?.color}
+                                />
+                                <Text fontWeight="bold">{alloc.category?.name}</Text>
+                              </HStack>
+                              {alloc.notes && (
+                                <Text fontSize="xs" color="gray.500">{alloc.notes}</Text>
+                              )}
+                            </VStack>
+                            <HStack>
+                              <Text fontWeight="bold">{formatCurrency(alloc.allocatedAmount)}</Text>
+                              <IconButton
+                                size="sm"
+                                icon={<FiTrash2 />}
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() => {
+                                  setTransactionAllocations(transactionAllocations.filter((_, i) => i !== idx));
+                                }}
+                              />
+                            </HStack>
+                          </HStack>
+                        ))}
+                      </VStack>
+                      <Text fontSize="xs" color="gray.500" mt={2}>
+                        Total alloué: {formatCurrency(transactionAllocations.reduce((sum, a) => sum + (parseFloat(a.allocatedAmount) || 0), 0))} / {formatCurrency(parseFloat(newTransaction.amount) || 0)}
+                      </Text>
+                    </Box>
+                  )}
+
+                  {/* Formulaire pour ajouter une allocation */}
+                  <Card width="full">
+                    <CardBody>
+                      <VStack spacing={3}>
+                        <Heading size="xs">Ajouter une allocation</Heading>
+                        
+                        <FormControl>
+                          <FormLabel fontSize="sm">Catégorie</FormLabel>
+                          <Select
+                            value={newAllocationInForm.categoryId}
+                            onChange={(e) => setNewAllocationInForm({...newAllocationInForm, categoryId: e.target.value})}
+                            size="sm"
+                          >
+                            <option value="">Sélectionner une catégorie</option>
+                            {financeCategories.map(cat => (
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                          </Select>
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel fontSize="sm">Montant (€)</FormLabel>
+                          <NumberInput
+                            value={newAllocationInForm.allocatedAmount}
+                            onChange={(val) => setNewAllocationInForm({...newAllocationInForm, allocatedAmount: val})}
+                            precision={2}
+                            step={0.01}
+                            size="sm"
+                          >
+                            <NumberInputField placeholder="0.00" />
+                            <NumberInputStepper>
+                              <NumberIncrementStepper />
+                              <NumberDecrementStepper />
+                            </NumberInputStepper>
+                          </NumberInput>
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel fontSize="sm">Notes (optionnel)</FormLabel>
+                          <Textarea
+                            value={newAllocationInForm.notes}
+                            onChange={(e) => setNewAllocationInForm({...newAllocationInForm, notes: e.target.value})}
+                            placeholder="ex: gasoil station Shell"
+                            rows={2}
+                            size="sm"
+                          />
+                        </FormControl>
+
+                        <Button
+                          colorScheme="blue"
+                          width="full"
+                          size="sm"
+                          onClick={() => {
+                            if (!newAllocationInForm.categoryId || !newAllocationInForm.allocatedAmount) {
+                              toast({ status: 'error', title: 'Remplissez catégorie et montant' });
+                              return;
+                            }
+
+                            const category = financeCategories.find(c => c.id === newAllocationInForm.categoryId);
+                            setTransactionAllocations([
+                              ...transactionAllocations,
+                              {
+                                categoryId: newAllocationInForm.categoryId,
+                                category,
+                                allocatedAmount: parseFloat(newAllocationInForm.allocatedAmount),
+                                notes: newAllocationInForm.notes
+                              }
+                            ]);
+                            setNewAllocationInForm({ categoryId: '', allocatedAmount: '', notes: '' });
+                          }}
+                        >
+                          <FiPlus /> Ajouter l'allocation
+                        </Button>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                </VStack>
               </VStack>
             </ModalBody>
             <ModalFooter>
@@ -3398,7 +3303,13 @@ const AdminFinance = () => {
               </Button>
               <Button
                 colorScheme="blue"
-                onClick={handleAddTransaction}
+                onClick={() => {
+                  if (!newTransaction.type || !newTransaction.amount || !newTransaction.description) {
+                    toast({ status: 'error', title: 'Remplissez les champs obligatoires' });
+                    return;
+                  }
+                  handleAddTransaction();
+                }}
                 isLoading={loading}
               >
                 Ajouter
@@ -3932,268 +3843,6 @@ const AdminFinance = () => {
             </ModalBody>
             <ModalFooter>
               <Button onClick={onSimulationResultsClose}>
-                Fermer
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-
-        {/* Modal - Gérer les catégories */}
-        <Modal isOpen={isCategoryManageOpen} onClose={onCategoryManageClose} size="lg">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Gérer les catégories</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4} align="stretch">
-                <Box maxH="400px" overflowY="auto">
-                  <VStack spacing={2} align="stretch">
-                    {financeCategories.map(cat => (
-                      <HStack
-                        key={cat.id}
-                        p={3}
-                        borderRadius="md"
-                        bg={useColorModeValue('gray.50', 'gray.700')}
-                        justify="space-between"
-                      >
-                        <HStack>
-                          <Box
-                            w={4}
-                            h={4}
-                            borderRadius="md"
-                            bg={cat.color}
-                          />
-                          <VStack align="start" spacing={0}>
-                            <Text fontWeight="bold">{cat.name}</Text>
-                            <Text fontSize="xs" color="gray.500">{cat.type}</Text>
-                          </VStack>
-                        </HStack>
-                        <Button
-                          size="sm"
-                          colorScheme="red"
-                          variant="ghost"
-                          onClick={async () => {
-                            try {
-                              const res = await fetch(apiUrl(`/api/finance/categories/${cat.id}`), {
-                                method: 'DELETE',
-                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                              });
-                              if (res.ok) {
-                                setFinanceCategories(financeCategories.filter(c => c.id !== cat.id));
-                                toast({ status: 'success', title: 'Catégorie supprimée' });
-                              }
-                            } catch (e) {
-                              console.error('Error deleting category:', e);
-                            }
-                          }}
-                        >
-                          <FiTrash2 />
-                        </Button>
-                      </HStack>
-                    ))}
-                  </VStack>
-                </Box>
-              </VStack>
-            </ModalBody>
-            <ModalFooter>
-              <Button onClick={onCategoryManageClose}>
-                Fermer
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-
-        {/* Modal - Allouer catégories à une transaction */}
-        <Modal isOpen={isAllocationsOpen} onClose={onAllocationsClose} size="xl">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>
-              {selectedTxForAllocation
-                ? `Allocations: ${selectedTxForAllocation.description} (${formatCurrency(selectedTxForAllocation.amount)})`
-                : 'Rapport par catégorie'
-              }
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4} align="stretch">
-                {selectedTxForAllocation ? (
-                  <>
-                    {/* Allocations existantes */}
-                    {transactionAllocations.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <Heading size="sm">Allocations actuelles</Heading>
-                        </CardHeader>
-                        <CardBody>
-                          <VStack spacing={2} align="stretch">
-                            {transactionAllocations.map(alloc => (
-                              <HStack
-                                key={alloc.id}
-                                p={2}
-                                borderRadius="md"
-                                bg={useColorModeValue('gray.100', 'gray.600')}
-                                justify="space-between"
-                              >
-                                <VStack align="start" spacing={0}>
-                                  <HStack>
-                                    <Box
-                                      w={3}
-                                      h={3}
-                                      borderRadius="full"
-                                      bg={alloc.category?.color}
-                                    />
-                                    <Text fontWeight="bold">{alloc.category?.name}</Text>
-                                  </HStack>
-                                  {alloc.notes && (
-                                    <Text fontSize="xs" color="gray.500">{alloc.notes}</Text>
-                                  )}
-                                </VStack>
-                                <HStack>
-                                  <Text fontWeight="bold">{formatCurrency(alloc.allocatedAmount)}</Text>
-                                  <IconButton
-                                    size="sm"
-                                    icon={<FiTrash2 />}
-                                    colorScheme="red"
-                                    variant="ghost"
-                                    onClick={async () => {
-                                      try {
-                                        const res = await fetch(apiUrl(`/api/finance/transaction-categories/${alloc.id}`), {
-                                          method: 'DELETE',
-                                          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                                        });
-                                        if (res.ok) {
-                                          await loadTransactionAllocations(selectedTxForAllocation.id);
-                                        }
-                                      } catch (e) {
-                                        console.error('Error:', e);
-                                      }
-                                    }}
-                                  />
-                                </HStack>
-                              </HStack>
-                            ))}
-                          </VStack>
-                        </CardBody>
-                      </Card>
-                    )}
-
-                    {/* Formulaire pour ajouter une allocation */}
-                    <Card>
-                      <CardHeader>
-                        <Heading size="sm">Ajouter une allocation</Heading>
-                      </CardHeader>
-                      <CardBody>
-                        <VStack spacing={3}>
-                          <FormControl>
-                            <FormLabel>Catégorie</FormLabel>
-                            <Select
-                              value={newAllocation.categoryId}
-                              onChange={(e) => setNewAllocation({...newAllocation, categoryId: e.target.value})}
-                            >
-                              <option value="">Sélectionner une catégorie</option>
-                              {financeCategories.map(cat => (
-                                <option key={cat.id} value={cat.id}>{cat.name}</option>
-                              ))}
-                            </Select>
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel>Montant alloué</FormLabel>
-                            <NumberInput
-                              value={newAllocation.allocatedAmount}
-                              onChange={(val) => setNewAllocation({...newAllocation, allocatedAmount: parseFloat(val) || ''})}
-                              max={selectedTxForAllocation.amount}
-                            >
-                              <NumberInputField />
-                              <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                              </NumberInputStepper>
-                            </NumberInput>
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel>Notes (optionnel)</FormLabel>
-                            <Textarea
-                              value={newAllocation.notes}
-                              onChange={(e) => setNewAllocation({...newAllocation, notes: e.target.value})}
-                              placeholder="ex: 100€ gasoil, 13€ assurance"
-                              rows={2}
-                            />
-                          </FormControl>
-                          <Button
-                            colorScheme="blue"
-                            width="full"
-                            onClick={async () => {
-                              if (!newAllocation.categoryId || !newAllocation.allocatedAmount) {
-                                toast({ status: 'error', title: 'Remplissez tous les champs' });
-                                return;
-                              }
-
-                              const allocs = [
-                                ...transactionAllocations.map(a => ({
-                                  categoryId: a.categoryId,
-                                  allocatedAmount: a.allocatedAmount,
-                                  notes: a.notes
-                                })),
-                                {
-                                  categoryId: newAllocation.categoryId,
-                                  allocatedAmount: newAllocation.allocatedAmount,
-                                  notes: newAllocation.notes || null
-                                }
-                              ];
-
-                              const success = await saveTransactionAllocations(selectedTxForAllocation.id, allocs);
-                              if (success) {
-                                setNewAllocation({ categoryId: '', allocatedAmount: '', notes: '' });
-                              }
-                            }}
-                          >
-                            Ajouter l'allocation
-                          </Button>
-                        </VStack>
-                      </CardBody>
-                    </Card>
-                  </>
-                ) : (
-                  /* Afficher le rapport par catégorie */
-                  categoryReport && Object.keys(categoryReport).length > 0 ? (
-                    <Box width="full">
-                      <Table variant="striped" size="sm">
-                        <Thead>
-                          <Tr>
-                            <Th>Catégorie</Th>
-                            <Th isNumeric>Total</Th>
-                            <Th isNumeric>Transactions</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {Object.values(categoryReport).map((catData, idx) => (
-                            <Tr key={idx}>
-                              <Td>
-                                <HStack>
-                                  <Box
-                                    w={3}
-                                    h={3}
-                                    borderRadius="full"
-                                    bg={catData.category?.color}
-                                  />
-                                  <Text>{catData.category?.name}</Text>
-                                </HStack>
-                              </Td>
-                              <Td isNumeric fontWeight="bold">{formatCurrency(catData.total)}</Td>
-                              <Td isNumeric>{catData.count}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </Box>
-                  ) : (
-                    <Text color="gray.500">Aucune donnée</Text>
-                  )
-                )}
-              </VStack>
-            </ModalBody>
-            <ModalFooter>
-              <Button onClick={onAllocationsClose}>
                 Fermer
               </Button>
             </ModalFooter>
