@@ -12,7 +12,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { 
   FiEdit, FiPlus, FiEye, FiTrash2, FiCalendar, FiGrid, FiList, 
   FiUsers, FiLock, FiGlobe, FiDollarSign, FiGift, FiClock, FiMapPin,
-  FiDownload, FiExternalLink, FiEyeOff
+  FiDownload, FiExternalLink, FiEyeOff, FiTruck
 } from 'react-icons/fi';
 import { eventsAPI } from '../api/events.js';
 import { vehiculesAPI } from '../api/vehicles.js';
@@ -144,6 +144,25 @@ const EVENT_TEMPLATES = {
       status: 'PUBLISHED'
     },
     description: "Événement public avec formulaire PDF à télécharger"
+  },
+  parade_classic_vehicles: {
+    name: "🚗 Défilé Anciennes",
+    icon: FiTruck,
+    color: "red",
+    defaults: {
+      isVisible: true,
+      allowPublicRegistration: true,   // ← Le public PEUT s'inscrire
+      requiresRegistration: true,      // ← Inscription REQUISE
+      isFree: true,
+      adultPrice: null,
+      childPrice: null,
+      maxParticipants: null,
+      registrationDeadline: '',
+      registrationMethod: 'internal',  // ← Formulaire interne avec champs spécifiques
+      status: 'PUBLISHED',
+      registrationType: 'parade_vehicles'  // ← Champs spécialisés
+    },
+    description: "Défilé de véhicules anciens - Inscription avec nom, véhicule et club"
   }
 };
 
