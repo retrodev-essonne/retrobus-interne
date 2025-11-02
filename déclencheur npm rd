@@ -27,6 +27,7 @@ cd C:\Dev\RETROBUS_ESSONNE\interne\api
 git commit -m "mise à jour"
 git push origin main 
  
+
 cd C:\Dev\RETROBUS_ESSONNE\externe
 git add .
 git commit -m "mise à jour"

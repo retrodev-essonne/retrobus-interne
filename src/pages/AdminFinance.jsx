@@ -52,6 +52,12 @@ const AdminFinance = () => {
     category: 'ADHESION',
     date: new Date().toISOString().split('T')[0]
   });
+  const [transactionAllocations, setTransactionAllocations] = useState([]); // Allocations pour la transaction actuelle
+  const [newAllocationInForm, setNewAllocationInForm] = useState({
+    categoryId: '',
+    allocatedAmount: '',
+    notes: ''
+  });
   
   // États des opérations programmées
   const [scheduledOperations, setScheduledOperations] = useState([]);
@@ -1914,7 +1920,6 @@ const AdminFinance = () => {
             {/* Nouvel onglet Notes de frais */}
             <Tab>🧾 Notes de frais</Tab>
             <Tab>🧮 Simulations</Tab>
-            <Tab>🏷️ Étiquettes & Allocations</Tab>
             <Tab>📊 Rapports</Tab>
             <Tab>⚙️ Configuration</Tab>
           </TabList>
