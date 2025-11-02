@@ -1753,7 +1753,7 @@ const AdminFinance = () => {
           <Card>
             <CardBody>
               <Stat>
-                <StatLabel>Crédits Total</StatLabel>
+                <StatLabel>Recettes Total</StatLabel>
                 <StatNumber color="green.600">
                   {formatCurrency(stats.totalCredits)}
                 </StatNumber>
@@ -1768,7 +1768,7 @@ const AdminFinance = () => {
           <Card>
             <CardBody>
               <Stat>
-                <StatLabel>Débits Total</StatLabel>
+                <StatLabel>Dépenses Total</StatLabel>
                 <StatNumber color="red.600">
                   {formatCurrency(stats.totalDebits)}
                 </StatNumber>
@@ -1895,7 +1895,7 @@ const AdminFinance = () => {
                                   colorScheme={transaction.type === 'CREDIT' ? 'green' : 'red'}
                                   size="sm"
                                 >
-                                  {transaction.type === 'CREDIT' ? 'Crédit' : 'Débit'}
+                                  {transaction.type === 'CREDIT' ? 'Recette' : 'Dépense'}
                                 </Badge>
                               </Td>
                               <Td isNumeric>
@@ -2478,7 +2478,7 @@ const AdminFinance = () => {
                       <Card>
                         <CardBody>
                           <Stat>
-                            <StatLabel>Total crédits (période)</StatLabel>
+                            <StatLabel>Total recettes (période)</StatLabel>
                             <StatNumber color="green.600">{formatCurrency(reportData?.totals?.credits || 0)}</StatNumber>
                           </Stat>
                         </CardBody>
@@ -2486,7 +2486,7 @@ const AdminFinance = () => {
                       <Card>
                         <CardBody>
                           <Stat>
-                            <StatLabel>Total débits (période)</StatLabel>
+                            <StatLabel>Total dépenses (période)</StatLabel>
                             <StatNumber color="red.600">{formatCurrency(reportData?.totals?.debits || 0)}</StatNumber>
                           </Stat>
                         </CardBody>
@@ -2540,8 +2540,8 @@ const AdminFinance = () => {
                           <Thead>
                             <Tr>
                               <Th>Mois</Th>
-                              <Th isNumeric>Crédits</Th>
-                              <Th isNumeric>Débits</Th>
+                              <Th isNumeric>Recettes</Th>
+                              <Th isNumeric>Dépenses</Th>
                               <Th isNumeric>Net</Th>
                             </Tr>
                           </Thead>
@@ -2571,8 +2571,8 @@ const AdminFinance = () => {
                           <Thead>
                             <Tr>
                               <Th>Catégorie</Th>
-                              <Th isNumeric>Crédits</Th>
-                              <Th isNumeric>Débits</Th>
+                              <Th isNumeric>Recettes</Th>
+                              <Th isNumeric>Dépenses</Th>
                               <Th isNumeric>Net</Th>
                             </Tr>
                           </Thead>
@@ -2756,8 +2756,8 @@ const AdminFinance = () => {
                   <FormControl>
                     <FormLabel>Type</FormLabel>
                     <Select value={editingTransaction.type || 'CREDIT'} onChange={(e)=>setEditingTransaction(prev=>({...prev, type: e.target.value}))}>
-                      <option value="CREDIT">Crédit</option>
-                      <option value="DEBIT">Débit</option>
+                      <option value="CREDIT">Recette</option>
+                      <option value="DEBIT">Dépense</option>
                     </Select>
                   </FormControl>
                   <FormControl>
@@ -3047,8 +3047,8 @@ const AdminFinance = () => {
                     value={newTransaction.type}
                     onChange={(e) => setNewTransaction(prev => ({ ...prev, type: e.target.value }))}
                   >
-                    <option value="CREDIT">Crédit</option>
-                    <option value="DEBIT">Débit</option>
+                    <option value="CREDIT">Recette</option>
+                    <option value="DEBIT">Dépense</option>
                   </Select>
                 </FormControl>
 
