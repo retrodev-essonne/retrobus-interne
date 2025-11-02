@@ -1977,24 +1977,6 @@ export default function SiteManagement() {
             <TabPanel>
               <VStack spacing={6} align="stretch">
                 <Box>
-                  <Heading size="lg" mb={2}>⚡ Configuration des APIs</Heading>
-                  <Text color="gray.600">Gestionnaire avancé pour configurer les routes et origins API</Text>
-                </Box>
-                <Card>
-                  <CardHeader>
-                    <Heading size="md">API Endpoints</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <ApiConfigPanel onChanged={() => {
-                      // Recharger après changement de config
-                      fetchChangelogs();
-                    }} />
-                  </CardBody>
-                </Card>
-
-                <Divider />
-
-                <Box>
                   <Heading size="lg" mb={2}>🛡️ Gestion des Permissions par Membre</Heading>
                   <Text color="gray.600">Définissez les autorisations individuelles de chaque utilisateur du site</Text>
                 </Box>
