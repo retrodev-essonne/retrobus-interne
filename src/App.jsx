@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RequireCreator from "./components/RequireCreator";
 
 // Pages principales
 import Dashboard from "./pages/Dashboard";
@@ -12,6 +13,7 @@ import MyRBEActions from "./pages/MyRBEActions";
 import AdminFinance from "./pages/AdminFinance";
 import Vehicules from "./pages/Vehicules";
 import VehiculeShow from "./pages/VehiculeShow";
+import VehiculeCreate from "./pages/VehiculeCreate";
 import Evenements from "./pages/Evenements";
 import EventsManagement from "./pages/EventsManagement";
 import EventsCreation from "./pages/EventsCreation";
@@ -46,7 +48,6 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         
         {/* Routes du dashboard principal */}
-        <Route path="/dashboard/*" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/dashboard/home" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
   <Route path="/dashboard/myrbe" element={<ProtectedRoute><MyRBE /></ProtectedRoute>} />
   <Route path="/dashboard/myrbe/:parc" element={<ProtectedRoute><MyRBEActions /></ProtectedRoute>} />
@@ -60,6 +61,7 @@ export default function App() {
         
         {/* 🚗 Routes des véhicules */}
         <Route path="/dashboard/vehicules" element={<ProtectedRoute><Vehicules /></ProtectedRoute>} />
+        <Route path="/dashboard/vehicules/ajouter" element={<ProtectedRoute><RequireCreator><VehiculeCreate /></RequireCreator></ProtectedRoute>} />
         <Route path="/dashboard/vehicules/:parc" element={<ProtectedRoute><VehiculeShow /></ProtectedRoute>} />
         
         {/* 📅 Routes des événements */}
