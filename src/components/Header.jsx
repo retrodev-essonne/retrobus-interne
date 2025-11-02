@@ -10,6 +10,7 @@ import {
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
 import { flashAPI } from "../api/flash.js";
+import NotificationCenter from './NotificationCenter';
 import logo from "../assets/retro_intranet_essonne.svg";
 import infoPng from "../assets/icons/flash-info.png";
 import notifPng from "../assets/icons/flash-notif.png";
@@ -372,6 +373,9 @@ export default function Header() {
                   />
                 </span>
               </Tooltip>
+
+              {/* RétroBus Mail Notifications */}
+              <NotificationCenter />
 
               <Menu>
                 <MenuButton as={Button} colorScheme="red">
