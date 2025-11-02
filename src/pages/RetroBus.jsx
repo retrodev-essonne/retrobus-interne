@@ -35,6 +35,475 @@ async function updateVehicleCaracs(parc, caracs, toast) {
   }
 }
 
+// Component: MaintenanceTab - Complete maintenance tracking interface
+function MaintenanceTab({ vehicles, apiClient }) {
+  const toast = useToast();
+  const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [maintenance, setMaintenance] = useState([]);
+  const [schedule, setSchedule] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
+  // Modal for new maintenance
+  const [showAddMaintenance, setShowAddMaintenance] = useState(false);
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    type: 'other',
+    description: '',
+    cost: '',
+    mileage: '',
+    performedBy: '',
+    location: '',
+    status: 'completed',
+    notes: ''
+  });
+  
+  // Modal for service schedule
+  const [showAddSchedule, setShowAddSchedule] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    serviceType: 'oil_change',
+    description: '',
+    frequency: 'yearly',
+    priority: 'medium',
+    notes: ''
+  });
+
+  const loadMaintenanceData = async (parc) => {
+    try {
+      setLoading(true);
+      const [maintenanceData, scheduleData, summaryData] = await Promise.all([
+        apiClient.get(`/vehicles/${encodeURIComponent(parc)}/maintenance`),
+        apiClient.get(`/vehicles/${encodeURIComponent(parc)}/service-schedule`),
+        apiClient.get(`/vehicles/${encodeURIComponent(parc)}/maintenance-summary`)
+      ]);
+      
+      setMaintenance(Array.isArray(maintenanceData) ? maintenanceData : []);
+      setSchedule(Array.isArray(scheduleData) ? scheduleData : []);
+      setSummary(summaryData);
+    } catch (e) {
+      console.error('Error loading maintenance data:', e);
+      toast({ status: 'error', title: 'Erreur de chargement', description: e.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVehicleSelect = (v) => {
+    const parc = v.parc || v.id || v.slug;
+    setSelectedVehicle(parc);
+    loadMaintenanceData(parc);
+  };
+
+  const handleAddMaintenance = async () => {
+    if (!selectedVehicle || !maintenanceForm.type || !maintenanceForm.description) {
+      toast({ status: 'warning', title: 'Formulaire incomplet' });
+      return;
+    }
+    
+    try {
+      const response = await apiClient.post(
+        `/vehicles/${encodeURIComponent(selectedVehicle)}/maintenance`,
+        maintenanceForm
+      );
+      setMaintenance([response, ...maintenance]);
+      setMaintenanceForm({ type: 'other', description: '', cost: '', mileage: '', performedBy: '', location: '', status: 'completed', notes: '' });
+      setShowAddMaintenance(false);
+      toast({ status: 'success', title: 'Entretien ajouté' });
+      await loadMaintenanceData(selectedVehicle);
+    } catch (e) {
+      toast({ status: 'error', title: 'Erreur', description: e.message });
+    }
+  };
+
+  const handleAddSchedule = async () => {
+    if (!selectedVehicle || !scheduleForm.serviceType) {
+      toast({ status: 'warning', title: 'Formulaire incomplet' });
+      return;
+    }
+    
+    try {
+      const response = await apiClient.post(
+        `/vehicles/${encodeURIComponent(selectedVehicle)}/service-schedule`,
+        scheduleForm
+      );
+      setSchedule([response, ...schedule]);
+      setScheduleForm({ serviceType: 'oil_change', description: '', frequency: 'yearly', priority: 'medium', notes: '' });
+      setShowAddSchedule(false);
+      toast({ status: 'success', title: 'Tâche programmée' });
+      await loadMaintenanceData(selectedVehicle);
+    } catch (e) {
+      toast({ status: 'error', title: 'Erreur', description: e.message });
+    }
+  };
+
+  const maintenanceTypes = {
+    oil_change: { label: 'Vidange', color: 'blue' },
+    tire_change: { label: 'Changement pneus', color: 'purple' },
+    brake_service: { label: 'Service freins', color: 'red' },
+    inspection: { label: 'Inspection', color: 'green' },
+    repair: { label: 'Réparation', color: 'orange' },
+    washing: { label: 'Lavage', color: 'cyan' },
+    other: { label: 'Autre', color: 'gray' }
+  };
+
+  const statusColors = {
+    completed: 'green',
+    in_progress: 'yellow',
+    pending: 'orange',
+    cancelled: 'gray'
+  };
+
+  if (!selectedVehicle) {
+    return (
+      <VStack align="start" spacing={4} py={2}>
+        <Alert status="info">
+          <AlertIcon />
+          <VStack align="start">
+            <Text fontWeight="600">Sélectionnez un véhicule</Text>
+            <Text fontSize="sm">Choisissez un véhicule ci-dessous pour voir son historique d'entretien et son planning.</Text>
+          </VStack>
+        </Alert>
+        <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} gap={3} w="full">
+          {vehicles && vehicles.map(v => {
+            const parc = v.parc || v.id || v.slug;
+            return (
+              <Card key={parc} variant="outline" cursor="pointer" _hover={{ shadow: 'md' }} onClick={() => handleVehicleSelect(v)}>
+                <CardBody>
+                  <Heading size="sm">{parc}</Heading>
+                  <Text fontSize="sm" color="gray.600">{v.marque} {v.modele}</Text>
+                  <Button mt={2} size="sm" colorScheme="blue" w="full">Consulter</Button>
+                </CardBody>
+              </Card>
+            );
+          })}
+        </SimpleGrid>
+      </VStack>
+    );
+  }
+
+  return (
+    <VStack align="start" spacing={4} w="full">
+      {/* Header */}
+      <HStack justify="space-between" w="full">
+        <HStack>
+          <FiTool />
+          <Heading size="sm">Entretien - {selectedVehicle}</Heading>
+        </HStack>
+        <Button size="sm" variant="outline" onClick={() => setSelectedVehicle(null)}>
+          ← Retour
+        </Button>
+      </HStack>
+
+      {loading ? (
+        <HStack spacing={3}>
+          <Spinner size="sm" />
+          <Text>Chargement...</Text>
+        </HStack>
+      ) : (
+        <>
+          {/* Summary Stats */}
+          {summary && (
+            <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} w="full">
+              <Card>
+                <CardBody>
+                  <Stat>
+                    <StatLabel fontSize="xs">Coût total</StatLabel>
+                    <StatNumber fontSize="lg">{summary.totalCost.toFixed(2)}€</StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody>
+                  <Stat>
+                    <StatLabel fontSize="xs">Entretiens</StatLabel>
+                    <StatNumber fontSize="lg">{summary.maintenanceCount}</StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody>
+                  <Stat>
+                    <StatLabel fontSize="xs">Tâches en retard</StatLabel>
+                    <StatNumber fontSize="lg" color="red.500">{summary.overdueTasks}</StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+              <Card>
+                <CardBody>
+                  <Stat>
+                    <StatLabel fontSize="xs">En attente</StatLabel>
+                    <StatNumber fontSize="lg" color="orange.500">{summary.pendingTasks}</StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+            </SimpleGrid>
+          )}
+
+          {/* Tabs within vehicle */}
+          <Tabs w="full" colorScheme="blue">
+            <TabList>
+              <Tab>Historique ({maintenance.length})</Tab>
+              <Tab>Planning ({schedule.length})</Tab>
+            </TabList>
+
+            <TabPanels>
+              {/* Maintenance History */}
+              <TabPanel>
+                <VStack align="stretch" spacing={3}>
+                  <HStack justify="space-between">
+                    <Heading size="sm">Historique d'entretien</Heading>
+                    <Button size="sm" colorScheme="green" onClick={() => setShowAddMaintenance(true)}>
+                      + Ajouter
+                    </Button>
+                  </HStack>
+
+                  {maintenance.length === 0 ? (
+                    <Alert status="info">
+                      <AlertIcon />
+                      Aucun entretien enregistré
+                    </Alert>
+                  ) : (
+                    <VStack align="stretch" spacing={2} maxH="500px" overflowY="auto">
+                      {maintenance.map(m => (
+                        <Card key={m.id} variant="outline" size="sm">
+                          <CardBody py={2}>
+                            <HStack justify="space-between" mb={1}>
+                              <HStack spacing={2}>
+                                <Badge colorScheme={maintenanceTypes[m.type]?.color || 'gray'}>
+                                  {maintenanceTypes[m.type]?.label || m.type}
+                                </Badge>
+                                <Text fontSize="sm" fontWeight="600">
+                                  {new Date(m.date).toLocaleDateString('fr-FR')}
+                                </Text>
+                              </HStack>
+                              <Badge colorScheme={statusColors[m.status] || 'gray'}>
+                                {m.status}
+                              </Badge>
+                            </HStack>
+                            <Text fontSize="sm" color="gray.700">{m.description}</Text>
+                            <HStack spacing={4} mt={2} fontSize="xs" color="gray.600">
+                              {m.cost > 0 && <Text>💰 {m.cost.toFixed(2)}€</Text>}
+                              {m.mileage && <Text>📍 {m.mileage} km</Text>}
+                              {m.performedBy && <Text>👤 {m.performedBy}</Text>}
+                              {m.nextDueDate && <Text>📅 Prochainement: {new Date(m.nextDueDate).toLocaleDateString('fr-FR')}</Text>}
+                            </HStack>
+                          </CardBody>
+                        </Card>
+                      ))}
+                    </VStack>
+                  )}
+                </VStack>
+
+                {/* Add Maintenance Modal */}
+                <Modal isOpen={showAddMaintenance} onClose={() => setShowAddMaintenance(false)}>
+                  <ModalOverlay />
+                  <ModalContent>
+                    <ModalHeader>Ajouter un entretien</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                      <VStack spacing={3}>
+                        <Box w="full">
+                          <FormLabel>Type</FormLabel>
+                          <select
+                            value={maintenanceForm.type}
+                            onChange={(e) => setMaintenanceForm({ ...maintenanceForm, type: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          >
+                            {Object.entries(maintenanceTypes).map(([k, v]) => (
+                              <option key={k} value={k}>{v.label}</option>
+                            ))}
+                          </select>
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Description *</FormLabel>
+                          <textarea
+                            value={maintenanceForm.description}
+                            onChange={(e) => setMaintenanceForm({ ...maintenanceForm, description: e.target.value })}
+                            placeholder="Détails de l'intervention..."
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', minHeight: '80px' }}
+                          />
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Coût (€)</FormLabel>
+                          <input
+                            type="number"
+                            value={maintenanceForm.cost}
+                            onChange={(e) => setMaintenanceForm({ ...maintenanceForm, cost: e.target.value })}
+                            placeholder="0.00"
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          />
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Kilométrage</FormLabel>
+                          <input
+                            type="number"
+                            value={maintenanceForm.mileage}
+                            onChange={(e) => setMaintenanceForm({ ...maintenanceForm, mileage: e.target.value })}
+                            placeholder="12345"
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          />
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Effectué par</FormLabel>
+                          <input
+                            type="text"
+                            value={maintenanceForm.performedBy}
+                            onChange={(e) => setMaintenanceForm({ ...maintenanceForm, performedBy: e.target.value })}
+                            placeholder="Nom du mécanicien/atelier"
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          />
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Lieu</FormLabel>
+                          <input
+                            type="text"
+                            value={maintenanceForm.location}
+                            onChange={(e) => setMaintenanceForm({ ...maintenanceForm, location: e.target.value })}
+                            placeholder="Garage, atelier..."
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          />
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Statut</FormLabel>
+                          <select
+                            value={maintenanceForm.status}
+                            onChange={(e) => setMaintenanceForm({ ...maintenanceForm, status: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          >
+                            <option value="completed">Complété</option>
+                            <option value="in_progress">En cours</option>
+                            <option value="pending">En attente</option>
+                            <option value="cancelled">Annulé</option>
+                          </select>
+                        </Box>
+                      </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                      <Button mr={3} onClick={() => setShowAddMaintenance(false)} variant="ghost">Annuler</Button>
+                      <Button colorScheme="green" onClick={handleAddMaintenance}>Ajouter</Button>
+                    </ModalFooter>
+                  </ModalContent>
+                </Modal>
+              </TabPanel>
+
+              {/* Service Schedule */}
+              <TabPanel>
+                <VStack align="stretch" spacing={3}>
+                  <HStack justify="space-between">
+                    <Heading size="sm">Planning de maintenance</Heading>
+                    <Button size="sm" colorScheme="blue" onClick={() => setShowAddSchedule(true)}>
+                      + Programmer
+                    </Button>
+                  </HStack>
+
+                  {schedule.length === 0 ? (
+                    <Alert status="info">
+                      <AlertIcon />
+                      Aucune tâche programmée
+                    </Alert>
+                  ) : (
+                    <VStack align="stretch" spacing={2} maxH="500px" overflowY="auto">
+                      {schedule.map(s => (
+                        <Card key={s.id} variant="outline" size="sm" borderLeftWidth="4px" borderLeftColor={s.status === 'overdue' ? 'red.500' : s.status === 'pending' ? 'orange.500' : 'green.500'}>
+                          <CardBody py={2}>
+                            <HStack justify="space-between" mb={1}>
+                              <HStack spacing={2}>
+                                <Badge colorScheme={s.priority === 'critical' ? 'red' : s.priority === 'high' ? 'orange' : 'blue'}>
+                                  {s.priority}
+                                </Badge>
+                                <Text fontSize="sm" fontWeight="600">{s.serviceType}</Text>
+                              </HStack>
+                              <Badge colorScheme={s.status === 'completed' ? 'green' : s.status === 'overdue' ? 'red' : s.status === 'pending' ? 'yellow' : 'gray'}>
+                                {s.status}
+                              </Badge>
+                            </HStack>
+                            {s.description && <Text fontSize="sm" color="gray.700">{s.description}</Text>}
+                            <HStack spacing={4} mt={2} fontSize="xs" color="gray.600">
+                              {s.plannedDate && <Text>📅 {new Date(s.plannedDate).toLocaleDateString('fr-FR')}</Text>}
+                              <Text>🔄 {s.frequency}</Text>
+                            </HStack>
+                          </CardBody>
+                        </Card>
+                      ))}
+                    </VStack>
+                  )}
+                </VStack>
+
+                {/* Add Schedule Modal */}
+                <Modal isOpen={showAddSchedule} onClose={() => setShowAddSchedule(false)}>
+                  <ModalOverlay />
+                  <ModalContent>
+                    <ModalHeader>Programmer une maintenance</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                      <VStack spacing={3}>
+                        <Box w="full">
+                          <FormLabel>Type de service *</FormLabel>
+                          <select
+                            value={scheduleForm.serviceType}
+                            onChange={(e) => setScheduleForm({ ...scheduleForm, serviceType: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          >
+                            <option value="oil_change">Vidange</option>
+                            <option value="tire_inspection">Inspection pneus</option>
+                            <option value="brake_check">Vérification freins</option>
+                            <option value="full_inspection">Inspection complète</option>
+                            <option value="other">Autre</option>
+                          </select>
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Description</FormLabel>
+                          <input
+                            type="text"
+                            value={scheduleForm.description}
+                            onChange={(e) => setScheduleForm({ ...scheduleForm, description: e.target.value })}
+                            placeholder="Détails..."
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          />
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Fréquence</FormLabel>
+                          <select
+                            value={scheduleForm.frequency}
+                            onChange={(e) => setScheduleForm({ ...scheduleForm, frequency: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          >
+                            <option value="weekly">Hebdomadaire</option>
+                            <option value="monthly">Mensuelle</option>
+                            <option value="quarterly">Trimestrielle</option>
+                            <option value="yearly">Annuelle</option>
+                            <option value="as_needed">À la demande</option>
+                          </select>
+                        </Box>
+                        <Box w="full">
+                          <FormLabel>Priorité</FormLabel>
+                          <select
+                            value={scheduleForm.priority}
+                            onChange={(e) => setScheduleForm({ ...scheduleForm, priority: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          >
+                            <option value="low">Basse</option>
+                            <option value="medium">Moyenne</option>
+                            <option value="high">Haute</option>
+                            <option value="critical">Critique</option>
+                          </select>
+                        </Box>
+                      </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                      <Button mr={3} onClick={() => setShowAddSchedule(false)} variant="ghost">Annuler</Button>
+                      <Button colorScheme="blue" onClick={handleAddSchedule}>Programmer</Button>
+                    </ModalFooter>
+                  </ModalContent>
+                </Modal>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </>
+      )}
+    </VStack>
+  );
+}
+
 export default function RetroBus() {
   const toast = useToast();
   const navigate = useNavigate();
