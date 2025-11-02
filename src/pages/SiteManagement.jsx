@@ -27,88 +27,8 @@ import { displayNameFromUser, formatMemberLabel } from '../lib/names';
 import EmailTemplateManager from '../components/EmailTemplateManager';
 import MemberPermissionsManager from '../components/MemberPermissionsManager';
 
-// Garde-fou: s'assurer que la réponse est bien du JSON
-const ensureJsonResponse = (response) => {
-  const ct = (response?.headers?.['content-type'] || '').toLowerCase();
-  if (!(ct.includes('application/json') || ct.includes('+json'))) {
-    throw new Error("Le serveur a renvoyé une page HTML au lieu de JSON. Vérifiez l'URL de l'API.");
-  }
-};
-
-// Petits utilitaires pour essayer plusieurs chemins candidats (ex: '/site-users' puis '/api/site-users')
-const ENDPOINTS = {
-  // Priorité sur /api/* puis fallback sur variantes historiques
-  siteUsers: [
-    'api/site-users',
-    'api/users',
-    'site-users',
-    'users',
-    // Fallback statique si aucune API n'est disponible
-    'data/site-users.json'
-  ],
-  members: ['api/members', 'members', 'api/v1/members', 'v1/members'],
-  siteUsersStats: ['api/site-users/stats', 'api/users/stats', 'site-users/stats', 'users/stats'],
-  // Ajout de variantes fréquentes côté back
-  changelog: [
-    'api/changelog',
-    'api/site/changelog',
-    'api/website/changelog',
-    'changelog',
-    'site/changelog',
-    'website/changelog',
-    'api/changelogs',
-    'changelogs',
-    // Fallback statique servi par l'app interne (placer le fichier dans public/data/changelog.json)
-    'data/changelog.json'
-  ],
-  retroNews: [
-    'api/retro-news',
-    'api/news',
-    'retro-news',
-    'news',
-    // Fallback statique
-    'data/retro-news.json'
-  ],
-  siteConfig: [
-    'api/site-config',
-    'site-config'
-  ]
-};
-const toUrls = (candidates) =>
-  candidates
-    .filter(Boolean)
-    .map((p) => {
-      const s = String(p);
-      return s.startsWith('http') ? s : `/${(s || '').replace(/^\/+|\/+$/g, '')}`;
-    });
-const shouldFallback = (err) => {
-  const status = err?.response?.status;
-  const isHtml = (err?.response?.headers?.['content-type'] || '').toLowerCase().includes('text/html');
-  return status === 404 || status === 405 || isHtml || err?.message?.includes('page HTML');
-};
-
-// === nouveau: résolveur de chemins basé sur .env et sur overrides runtime ===
-const clean = (s) => (s || '').replace(/^\/+|\/+$/g, '');
-const getApiPrefix = () => clean(localStorage.getItem('rbe_api_prefix') || import.meta.env?.VITE_API_PREFIX);
-const getUsersPath = () => clean(localStorage.getItem('rbe_api_site_users_path') || import.meta.env?.VITE_API_SITE_USERS_PATH);
-const getMembersPath = () => clean(localStorage.getItem('rbe_api_members_path') || import.meta.env?.VITE_API_MEMBERS_PATH);
-const getChangelogPath = () => clean(localStorage.getItem('rbe_api_changelog_path') || import.meta.env?.VITE_API_CHANGELOG_PATH);
-const getSiteConfigPath = () => clean(localStorage.getItem('rbe_api_site_config_path') || import.meta.env?.VITE_API_SITE_CONFIG_PATH);
-
-// Origins (priorité: spécifique ressource > globale > même origine)
-const getGlobalOrigin = () => {
-  const baseEnv = (import.meta.env?.VITE_API_ORIGIN || '').trim();
-  const baseFromConfig = (/^https?:\/\//i.test(API_BASE_URL || '') ? API_BASE_URL : '').trim();
-  return (localStorage.getItem('rbe_api_origin') || baseEnv || baseFromConfig || '').replace(/\/+$/,'');
-};
-const getUsersOrigin = () =>
-  (localStorage.getItem('rbe_api_site_users_origin') || import.meta.env?.VITE_API_SITE_USERS_ORIGIN || getGlobalOrigin() || '').trim();
-const getMembersOrigin = () =>
-  (localStorage.getItem('rbe_api_members_origin') || import.meta.env?.VITE_API_MEMBERS_ORIGIN || getGlobalOrigin() || '').trim();
-const getChangelogOrigin = () =>
-  (localStorage.getItem('rbe_api_changelog_origin') || import.meta.env?.VITE_API_CHANGELOG_ORIGIN || getGlobalOrigin() || '').trim();
-const getSiteConfigOrigin = () =>
-  (localStorage.getItem('rbe_api_site_config_origin') || import.meta.env?.VITE_API_SITE_CONFIG_ORIGIN || getGlobalOrigin() || '').trim();
+// === API Helpers - Use apiClient directly, no localStorage overrides ===
+// This ensures consistent API behavior without manual misconfiguration
 
 const buildCandidates = (baseCandidates, overridePath, extraSuffix = '', overrideOrigin) => {
   const suffix = clean(extraSuffix);
@@ -182,95 +102,25 @@ const fetchJson = async (method, url, data, config) => {
   return result;
 };
 
-const apiGet = async (candidates, config) => {
-  const urlsTried = [];
-  for (const url of toUrls(candidates)) {
-    try {
-      urlsTried.push(url);
-      const res = isAbsoluteUrl(url)
-        ? await fetchJson('GET', url, undefined, config)
-        : await apiClient.get(url, config);
-      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
-      return res;
-    } catch (e) {
-      if (!shouldFallback(e)) throw e;
-    }
-  }
-  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
-  error.urlsTried = urlsTried;
-  throw error;
+const apiGet = async (url) => {
+  const response = await apiClient.get(url);
+  return { data: response, headers: {} };
 };
-const apiPost = async (candidates, data, config) => {
-  const urlsTried = [];
-  for (const url of toUrls(candidates)) {
-    try {
-      urlsTried.push(url);
-      const res = isAbsoluteUrl(url)
-        ? await fetchJson('POST', url, data, config)
-        : await apiClient.post(url, data, config);
-      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
-      return res;
-    } catch (e) {
-      if (!shouldFallback(e)) throw e;
-    }
-  }
-  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
-  error.urlsTried = urlsTried;
-  throw error;
+const apiPost = async (url, data) => {
+  const response = await apiClient.post(url, data);
+  return { data: response, headers: {} };
 };
-const apiPut = async (candidates, data, config) => {
-  const urlsTried = [];
-  for (const url of toUrls(candidates)) {
-    try {
-      urlsTried.push(url);
-      const res = isAbsoluteUrl(url)
-        ? await fetchJson('PUT', url, data, config)
-        : await apiClient.put(url, data, config);
-      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
-      return res;
-    } catch (e) {
-      if (!shouldFallback(e)) throw e;
-    }
-  }
-  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
-  error.urlsTried = urlsTried;
-  throw error;
+const apiPut = async (url, data) => {
+  const response = await apiClient.put(url, data);
+  return { data: response, headers: {} };
 };
-const apiPatch = async (candidates, data, config) => {
-  const urlsTried = [];
-  for (const url of toUrls(candidates)) {
-    try {
-      urlsTried.push(url);
-      const res = isAbsoluteUrl(url)
-        ? await fetchJson('PATCH', url, data, config)
-        : await apiClient.patch(url, data, config);
-      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
-      return res;
-    } catch (e) {
-      if (!shouldFallback(e)) throw e;
-    }
-  }
-  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
-  error.urlsTried = urlsTried;
-  throw error;
+const apiPatch = async (url, data) => {
+  const response = await apiClient.patch(url, data);
+  return { data: response, headers: {} };
 };
-const apiDelete = async (candidates, config) => {
-  const urlsTried = [];
-  for (const url of toUrls(candidates)) {
-    try {
-      urlsTried.push(url);
-      const res = isAbsoluteUrl(url)
-        ? await fetchJson('DELETE', url, undefined, config)
-        : await apiClient.delete(url, config);
-      if (!isAbsoluteUrl(url)) ensureJsonResponse(res);
-      return res;
-    } catch (e) {
-      if (!shouldFallback(e)) throw e;
-    }
-  }
-  const error = new Error(`Aucune route API valide. Testé: ${urlsTried.join(', ')}`);
-  error.urlsTried = urlsTried;
-  throw error;
+const apiDelete = async (url) => {
+  const response = await apiClient.delete(url);
+  return { data: response, headers: {} };
 };
 
 // === COMPOSANTS GESTION ACCÈS ===
@@ -1260,149 +1110,6 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
         </ModalFooter>
       </ModalContent>
     </Modal>
-  );
-}
-
-// Petit panneau de configuration pour régler origin/prefix/paths & tester les endpoints
-function ApiConfigPanel({ onChanged }) {
-  const [origin, setOrigin] = useState(localStorage.getItem('rbe_api_origin') || '');
-  const [prefix, setPrefix] = useState(localStorage.getItem('rbe_api_prefix') || (import.meta.env?.VITE_API_PREFIX || ''));
-  const [usersPath, setUsersPath] = useState(localStorage.getItem('rbe_api_site_users_path') || (import.meta.env?.VITE_API_SITE_USERS_PATH || ''));
-  const [membersPath, setMembersPath] = useState(localStorage.getItem('rbe_api_members_path') || (import.meta.env?.VITE_API_MEMBERS_PATH || ''));
-  const [changelogPath, setChangelogPath] = useState(localStorage.getItem('rbe_api_changelog_path') || (import.meta.env?.VITE_API_CHANGELOG_PATH || ''));
-  const [siteConfigPath, setSiteConfigPath] = useState(localStorage.getItem('rbe_api_site_config_path') || (import.meta.env?.VITE_API_SITE_CONFIG_PATH || ''));
-  const [vehiclesPath, setVehiclesPath] = useState(localStorage.getItem('rbe_api_vehicles_path') || (import.meta.env?.VITE_API_VEHICLES_PATH || ''));
-  const toast = useToast();
-
-  const save = () => {
-    const setOrRemove = (k, v) => (v && v.trim()) ? localStorage.setItem(k, v.trim()) : localStorage.removeItem(k);
-    setOrRemove('rbe_api_origin', origin);
-    setOrRemove('rbe_api_prefix', prefix);
-    setOrRemove('rbe_api_site_users_path', usersPath);
-    setOrRemove('rbe_api_members_path', membersPath);
-    setOrRemove('rbe_api_changelog_path', changelogPath);
-    setOrRemove('rbe_api_site_config_path', siteConfigPath);
-    setOrRemove('rbe_api_vehicles_path', vehiclesPath);
-    toast({ title: 'Configuration enregistrée', status: 'success', duration: 2000 });
-    onChanged?.();
-  };
-
-  const resetAll = () => {
-    ['rbe_api_origin','rbe_api_prefix','rbe_api_site_users_path','rbe_api_members_path','rbe_api_changelog_path','rbe_api_site_config_path','rbe_api_vehicles_path'].forEach(k => localStorage.removeItem(k));
-    setOrigin(''); setPrefix(''); setUsersPath(''); setMembersPath(''); setChangelogPath(''); setSiteConfigPath(''); setVehiclesPath('');
-    toast({ title: 'Configuration réinitialisée', status: 'info', duration: 2000 });
-    onChanged?.();
-  };
-
-  const applyRecommended = () => {
-    const recommendedOrigin = (import.meta.env?.VITE_API_ORIGIN || 'https://attractive-kindness-rbe-serveurs.up.railway.app').replace(/\/+$/,'');
-    setOrigin(recommendedOrigin);
-    setPrefix('api');
-    setUsersPath('api/site-users');
-    setMembersPath('api/members');
-    setChangelogPath('api/changelog');
-    setSiteConfigPath('api/site-config');
-    setVehiclesPath('api/vehicles');
-    toast({ title: 'Recommandé appliqué', description: 'Origine Railway + préfixe /api et chemins configurés.', status: 'success', duration: 2500 });
-  };
-
-  const runTest = async (label, candidates) => {
-    try {
-      const res = await apiGet(candidates);
-      toast({
-        title: `${label}: OK`,
-        description: `Type: ${res.headers?.['content-type'] || 'inconnu'}`,
-        status: 'success',
-        duration: 3000
-      });
-    } catch (e) {
-      toast({
-        title: `${label}: KO`,
-        description: `${e.message}${e.urlsTried ? ` • Testé: ${e.urlsTried.join(', ')}` : ''}`,
-        status: 'error',
-        duration: 6000
-      });
-    }
-  };
-
-  return (
-    <VStack align="stretch" spacing={4}>
-      <Alert status="info">
-        <AlertIcon />
-        Ajustez l’origin/prefix/paths pour pointer vers vos routes réelles (Railway, prod, etc.). Utilisez “Tester” pour valider.
-      </Alert>
-
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-        <FormControl>
-          <FormLabel>API Origin (global)</FormLabel>
-          <Input placeholder="https://votre-api.exemple.com" value={origin} onChange={(e) => setOrigin(e.target.value)} />
-          <Text fontSize="xs" color="gray.500">Ex: https://attractive-kindness-rbe-serveurs.up.railway.app</Text>
-        </FormControl>
-        <FormControl>
-          <FormLabel>API Prefix</FormLabel>
-          <Input placeholder="ex: api" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
-          <Text fontSize="xs" color="gray.500">Laissez vide si vos routes ne sont pas sous /api</Text>
-        </FormControl>
-      </SimpleGrid>
-
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-        <FormControl>
-          <FormLabel>Chemin Site Users</FormLabel>
-          <Input placeholder="ex: api/site-users" value={usersPath} onChange={(e) => setUsersPath(e.target.value)} />
-        </FormControl>
-        <FormControl>
-          <FormLabel>Chemin Members</FormLabel>
-          <Input placeholder="ex: api/members" value={membersPath} onChange={(e) => setMembersPath(e.target.value)} />
-        </FormControl>
-        <FormControl>
-          <FormLabel>Chemin Changelog</FormLabel>
-          <Input placeholder="ex: api/changelog" value={changelogPath} onChange={(e) => setChangelogPath(e.target.value)} />
-        </FormControl>
-        <FormControl>
-          <FormLabel>Chemin Site Config</FormLabel>
-          <Input placeholder="ex: api/site-config" value={siteConfigPath} onChange={(e) => setSiteConfigPath(e.target.value)} />
-        </FormControl>
-        <FormControl>
-          <FormLabel>Chemin Vehicles</FormLabel>
-          <Input placeholder="ex: api/vehicles" value={vehiclesPath} onChange={(e) => setVehiclesPath(e.target.value)} />
-        </FormControl>
-      </SimpleGrid>
-
-      <HStack>
-        <Button colorScheme="blue" onClick={save}>Enregistrer</Button>
-        <Button variant="outline" onClick={resetAll}>Réinitialiser</Button>
-        <Button variant="ghost" onClick={applyRecommended}>Utiliser config recommandée</Button>
-      </HStack>
-
-      <Divider />
-
-      <VStack align="stretch" spacing={3}>
-        <Text fontWeight="medium">Tests rapides</Text>
-        <HStack wrap="wrap" spacing={2}>
-          <Button size="sm" onClick={() => runTest('Changelog', buildCandidates(ENDPOINTS.changelog, getChangelogPath(), '', getChangelogOrigin()))}>
-            Tester Changelog
-          </Button>
-          <Button size="sm" onClick={() => runTest('Site Users', buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), '', getUsersOrigin()))}>
-            Tester Site Users
-          </Button>
-          <Button size="sm" onClick={() => runTest('Site Users Stats', buildCandidates(ENDPOINTS.siteUsers, getUsersPath(), 'stats', getUsersOrigin()))}>
-            Tester Stats
-          </Button>
-          <Button size="sm" onClick={() => runTest('Members', buildCandidates(ENDPOINTS.members, getMembersPath(), '', getMembersOrigin()))}>
-            Tester Members
-          </Button>
-          <Button size="sm" onClick={() => runTest('Site Config', buildCandidates(ENDPOINTS.siteConfig, getSiteConfigPath(), '', getSiteConfigOrigin()))}>
-            Tester Site Config
-          </Button>
-          <Button size="sm" onClick={() => runTest('Vehicles', buildCandidates(['api/vehicles','vehicles','api/v1/vehicles','v1/vehicles','vehicules'], (localStorage.getItem('rbe_api_vehicles_path')||'api/vehicles'), '', getGlobalOrigin()))}>
-            Tester Vehicles
-          </Button>
-        </HStack>
-        <Text fontSize="xs" color="gray.500">
-          Astuce: si votre back expose /flashes/all, il est probable que vos autres routes soient sous /api/... également.
-        </Text>
-      </VStack>
-    </VStack>
   );
 }
 
