@@ -431,7 +431,7 @@ export default function VehiculeShow() {
         gallery: basicInfo.gallery,
         backgroundImage: basicInfo.backgroundImage,
         backgroundPosition: basicInfo.backgroundPosition,
-        isPublic: vehicle?.isPublic || false,
+        isPublic: basicInfo.isPublic !== undefined ? basicInfo.isPublic : (vehicle?.isPublic || false),
         // Ajouter tous les nouveaux champs
         numerosFlotte: basicInfo.numerosFlotte,
         constructeur: basicInfo.constructeur,
@@ -530,7 +530,21 @@ export default function VehiculeShow() {
 
         {/* Section Informations principales - TOUS LES CHAMPS SPÉCIFIQUES */}
         <Box bg="gray.50" p={6} borderRadius="lg" border="1px solid" borderColor="gray.200">
-          <Heading size="md" mb={4}>📝 Informations principales</Heading>
+          <Flex justify="space-between" align="center" mb={4}>
+            <Heading size="md">📝 Informations principales</Heading>
+            <FormControl display="flex" alignItems="center" w="auto">
+              <FormLabel htmlFor="isPublic" mb="0" mr={3} fontWeight="bold">
+                {basicInfo.isPublic ? '👁️ Visible' : '👁️‍🗨️ Caché'} sur le site public:
+              </FormLabel>
+              <Switch
+                id="isPublic"
+                isChecked={basicInfo.isPublic || false}
+                onChange={e => setBasicInfo(b => ({ ...b, isPublic: e.target.checked }))}
+                colorScheme={basicInfo.isPublic ? "green" : "red"}
+                size="lg"
+              />
+            </FormControl>
+          </Flex>
           
           {/* Première ligne - Infos de base */}
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={4}>
