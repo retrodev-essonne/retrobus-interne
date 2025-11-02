@@ -7,33 +7,23 @@
 export const ENDPOINTS = {
   siteUsers: [
     'api/site-users',
-    'site-users',
-    'api/v1/site-users',
-    'v1/site-users'
+    'site-users'
   ],
   members: [
     'api/members',
-    'members',
-    'api/v1/members',
-    'v1/members'
+    'members'
   ],
   siteConfig: [
     'api/site-config',
-    'site-config',
-    'api/v1/site-config',
-    'v1/site-config'
+    'site-config'
   ],
   changelog: [
     'api/changelog',
-    'changelog',
-    'api/v1/changelog',
-    'v1/changelog'
+    'changelog'
   ],
   retroNews: [
     'api/retro-news',
-    'retro-news',
-    'retro-news/all',
-    'api/retro-news/all'
+    'retro-news'
   ],
   notifications: [
     'api/notifications',
