@@ -164,7 +164,7 @@ function RetroReportCard({ report, onUpdate, onComment, onStatusChange, onDelete
 
           <Menu>
             <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
-            <MenuList>
+            <MenuList zIndex={10} position="relative">
               <MenuItem icon={<FiEdit3 />} onClick={() => onUpdate(report)}>Modifier</MenuItem>
               <MenuItem icon={<FiMessageSquare />} onClick={() => onComment(report)}>Commenter</MenuItem>
 
@@ -493,7 +493,7 @@ function ChangelogManagement() {
 
                   <Menu>
                     <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
-                    <MenuList>
+                    <MenuList zIndex={10} position="relative">
                       <MenuItem icon={<FiEdit3 />}>Modifier</MenuItem>
                       <MenuItem 
                         icon={<FiTrash2 />} 
