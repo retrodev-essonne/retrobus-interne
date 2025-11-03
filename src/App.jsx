@@ -18,6 +18,7 @@ import Vehicules from "./pages/Vehicules";
 import VehiculeShow from "./pages/VehiculeShow";
 import VehiculeCreate from "./pages/VehiculeCreate";
 import Evenements from "./pages/Evenements";
+import EventsHub from "./pages/EventsHub";
 import EventsManagement from "./pages/EventsManagement";
 import EventsCreation from "./pages/EventsCreation";
 import TestEventsPage from "./pages/TestEventsPage";
@@ -69,7 +70,7 @@ export default function App() {
         
         {/* 📅 Routes des événements */}
         <Route path="/dashboard/evenements" element={<ProtectedRoute><Evenements /></ProtectedRoute>} />
-        <Route path="/dashboard/events-management" element={<ProtectedRoute><EventsManagement /></ProtectedRoute>} />
+        <Route path="/dashboard/events-management" element={<ProtectedRoute><EventsHub /></ProtectedRoute>} />
         <Route path="/dashboard/events-creation" element={<ProtectedRoute><EventsCreation /></ProtectedRoute>} />
         {/* Route de test pour diagnostiquer */}
         <Route path="/dashboard/test-events" element={<ProtectedRoute><TestEventsPage /></ProtectedRoute>} />
