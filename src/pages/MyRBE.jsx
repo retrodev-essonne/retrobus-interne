@@ -60,6 +60,13 @@ const cards = [
     color: "purple"
   },
   {
+    title: "RétroPlanning",
+    description: "Calendrier centralisé: campagnes, tournées, affectations",
+    to: "/dashboard/retroplanning",
+    icon: FiCalendar,
+    color: "orange"
+  },
+  {
     title: "Gestion du Site",
     description: "Changelog, contenu et mise à jour",
     to: "/dashboard/site-management",
