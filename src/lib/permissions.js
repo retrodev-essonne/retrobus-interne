@@ -353,12 +353,19 @@ export const ROLE_PERMISSIONS = {
  * @returns {boolean}
  */
 export function hasPermission(role, resource, permissionType = 'access', customPermissions = null) {
-  // D'abord vérifier les permissions individuelles si elles existent
-  if (customPermissions && customPermissions[resource] !== undefined) {
-    return !!customPermissions[resource];
+  // Vérifier les permissions individuelles SEULEMENT si elles ont du contenu
+  // et si cette ressource spécifique:type est définie
+  if (customPermissions && Object.keys(customPermissions).length > 0) {
+    // Format: customPermissions peut avoir clés comme "vehicles:view" ou "vehicles:edit"
+    const permissionKey = resource; // Les clés sont déjà au format "ressource:type" dans le backend
+    
+    if (customPermissions[permissionKey] !== undefined) {
+      // Si permission individuelle explicite est définie, utiliser celle-là (true/false)
+      return !!customPermissions[permissionKey];
+    }
   }
   
-  // Fallback aux permissions du rôle
+  // Fallback aux permissions du rôle (cas normal)
   const roleConfig = ROLE_PERMISSIONS[role];
   if (!roleConfig) return false;
   
