@@ -74,7 +74,7 @@ export default function App() {
         <Route path="/dashboard/test-events" element={<ProtectedRoute><TestEventsPage /></ProtectedRoute>} />
         
         {/* 🌐 Gestion du site et contenu */}
-        <Route path="/dashboard/site-management" element={<ProtectedRoute><SiteManagement /></ProtectedRoute>} />
+        <Route path="/dashboard/site-management" element={<PermissionProtectedRoute resource={RESOURCES.SITE_MANAGEMENT}><SiteManagement /></PermissionProtectedRoute>} />
         <Route path="/dashboard/flash-management" element={<ProtectedRoute><FlashManagement /></ProtectedRoute>} />
         {/* 🛒 RétroMerch (administration) */}
         <Route path="/dashboard/retromerch" element={<ProtectedRoute><RetroMerch /></ProtectedRoute>} />
