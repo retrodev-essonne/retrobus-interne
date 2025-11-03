@@ -167,8 +167,12 @@ export function UserProvider({ children }) {
           });
           if (res.ok) {
             const data = await res.json();
-            setCustomPermissions(data.customPermissions || {});
-            return data.customPermissions || {};
+            // Only set customPermissions if there's actual data (not empty object)
+            const perms = data.customPermissions && Object.keys(data.customPermissions).length > 0 
+              ? data.customPermissions 
+              : null;
+            setCustomPermissions(perms);
+            return perms;
           }
         } catch (e) {
           continue;
