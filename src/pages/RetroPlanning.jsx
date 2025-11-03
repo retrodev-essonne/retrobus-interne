@@ -28,7 +28,7 @@ import {
   CheckboxGroup,
 } from '@chakra-ui/react';
 import PageLayout from '../components/Layout/PageLayout';
-import { apiCall } from '../apiClient';
+import { fetchJson } from '../apiClient';
 
 const PLANNING_TYPES = [
   { value: 'tournee', label: 'Tournée', color: 'orange' },
@@ -66,7 +66,7 @@ export default function RetroPlanning() {
 
   const loadEvents = async () => {
     try {
-      const response = await apiCall('/planning/events', { method: 'GET' });
+      const response = await fetchJson('/api/planning/events');
       setEvents(response || []);
     } catch (error) {
       console.error('Erreur chargement:', error);
@@ -90,13 +90,14 @@ export default function RetroPlanning() {
     }
 
     try {
-      const newEvent = await apiCall('/planning/events', {
+      const newEvent = await fetchJson('/api/planning/events', {
         method: 'POST',
-        body: {
+        body: JSON.stringify({
           ...formData,
           startDate: new Date(`${formData.startDate}T${formData.startTime || '08:00'}`),
           endDate: formData.endDate ? new Date(`${formData.endDate}T${formData.endTime || '17:00'}`) : null,
-        },
+        }),
+        headers: { 'Content-Type': 'application/json' },
       });
 
       setEvents(prev => [...prev, newEvent]);
@@ -130,7 +131,7 @@ export default function RetroPlanning() {
 
   const handleDeleteEvent = async (eventId) => {
     try {
-      await apiCall(`/planning/events/${eventId}`, { method: 'DELETE' });
+      await fetchJson(`/api/planning/events/${eventId}`, { method: 'DELETE' });
       setEvents(prev => prev.filter(e => e.id !== eventId));
       toast({ title: 'Succès', description: 'Événement supprimé', status: 'success', duration: 3 });
     } catch (error) {
