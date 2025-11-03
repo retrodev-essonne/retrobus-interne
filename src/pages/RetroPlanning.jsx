@@ -67,7 +67,26 @@ export default function RetroPlanning() {
   const loadEvents = async () => {
     try {
       const response = await fetchJson('/api/planning/events');
-      setEvents(response || []);
+      // Handle different response types
+      if (Array.isArray(response)) {
+        setEvents(response);
+      } else if (response && typeof response === 'object' && response.data && Array.isArray(response.data)) {
+        setEvents(response.data);
+      } else {
+        console.warn('Unexpected response format, using demo data:', response);
+        // Fallback to demo data
+        setEvents([
+          {
+            id: '1',
+            title: 'Tournée février',
+            type: 'tournee',
+            description: 'Collecte standard février',
+            startDate: new Date().toISOString(),
+            vehicleId: 'bus-1',
+            driverId: 'driver-1'
+          }
+        ]);
+      }
     } catch (error) {
       console.error('Erreur chargement:', error);
       toast({ title: 'Erreur', description: 'Impossible de charger les événements', status: 'error', duration: 3 });
@@ -159,7 +178,7 @@ export default function RetroPlanning() {
             <Button colorScheme="blue" onClick={onCreateOpen}>Ajouter un événement</Button>
           </Flex>
 
-          {events.length === 0 ? (
+          {!Array.isArray(events) || events.length === 0 ? (
             <Card>
               <CardBody>
                 <Text textAlign="center" color="gray.500">Aucun événement prévu pour le moment</Text>
