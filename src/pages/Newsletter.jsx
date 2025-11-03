@@ -30,12 +30,15 @@ export default function Newsletter() {
 
   const fetchSubscribers = useCallback(async (opts = { manual: false }) => {
     if (!token) {
-      return; // on attend le token
+      console.log('[Newsletter] Waiting for token...');
+      return;
     }
     setLoading(true);
     setFallback(false);
     try {
+      console.log('[Newsletter] Fetching subscribers...');
       const data = await newsletterAPI.getAll();
+      console.log('[Newsletter] Received:', data);
       setSubscribers(Array.isArray(data) ? data : []);
       
       // Calculer les statistiques
