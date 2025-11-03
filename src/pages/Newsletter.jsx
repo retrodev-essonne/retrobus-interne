@@ -25,6 +25,7 @@ export default function Newsletter() {
   
   const toast = useToast();
   const { token, isAuthenticated } = useUser();
+  const navigate = useNavigate();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
 
   const fetchSubscribers = useCallback(async (opts = { manual: false }) => {
@@ -262,10 +263,10 @@ export default function Newsletter() {
               leftIcon={<FiMail />}
               size="sm"
               colorScheme="blue"
-              isDisabled
-              title="Fonction à venir - Intégration avec service de mailing"
+              onClick={() => navigate('/dashboard/newsletter-campaigns')}
+              title="Gérer les campagnes de mailing"
             >
-              Campagne (bientôt)
+              Campagnes
             </Button>
           </HStack>
         </HStack>
