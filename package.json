@@ -19,6 +19,7 @@
     "@tiptap/extension-highlight": "^3.10.1",
     "@tiptap/extension-image": "^3.10.1",
     "@tiptap/extension-link": "^3.10.1",
+    "@tiptap/extension-text-align": "^3.10.1",
     "@tiptap/react": "^3.10.1",
     "@tiptap/starter-kit": "^3.10.1",
     "@yudiel/react-qr-scanner": "^2.3.1",
