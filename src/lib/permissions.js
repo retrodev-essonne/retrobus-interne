@@ -381,6 +381,59 @@ export function canEdit(role, resource, customPermissions = null) {
   return hasPermission(role, resource, 'edit', customPermissions);
 }
 
+/**
+ * Obtient toutes les permissions d'un rôle
+ */
+export function getRolePermissions(role) {
+  return ROLE_PERMISSIONS[role]?.permissions || {};
+}
+
+/**
+ * Obtient le label d'un rôle
+ */
+export function getRoleLabel(role) {
+  return ROLE_PERMISSIONS[role]?.label || role;
+}
+
+/**
+ * Obtient la couleur d'un rôle
+ */
+export function getRoleColor(role) {
+  return ROLE_PERMISSIONS[role]?.color || 'gray';
+}
+
+/**
+ * Obtient tous les rôles disponibles
+ */
+export function getAllRoles() {
+  return Object.keys(ROLE_PERMISSIONS).map(code => ({
+    code,
+    label: ROLE_PERMISSIONS[code].label,
+    color: ROLE_PERMISSIONS[code].color
+  }));
+}
+
+/**
+ * Filtre les ressources en fonction des permissions d'un rôle
+ */
+export function getAccessibleResources(role) {
+  const permissions = getRolePermissions(role);
+  return Object.keys(permissions).filter(resource => permissions[resource].includes('access'));
+}
+
+/**
+ * Compare deux rôles pour voir lequel a plus de permissions
+ */
+export function compareRoles(role1, role2) {
+  const hierarchy = ['MEMBER', 'PRESTATAIRE', 'DRIVER', 'VOLUNTEER', 'SECRETAIRE_GENERAL', 'TRESORIER', 'VICE_PRESIDENT', 'PRESIDENT', 'ADMIN'];
+  const idx1 = hierarchy.indexOf(role1);
+  const idx2 = hierarchy.indexOf(role2);
+  
+  if (idx1 < idx2) return -1;
+  if (idx1 > idx2) return 1;
+  return 0;
+}
+
 export default {
   RESOURCES,
   PERMISSION_TYPES,
