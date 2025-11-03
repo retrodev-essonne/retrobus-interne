@@ -90,6 +90,7 @@ export default function App() {
         
         {/* 📧 Communication */}
         <Route path="/dashboard/newsletter" element={<ProtectedRoute><Newsletter /></ProtectedRoute>} />
+        <Route path="/dashboard/newsletter-campaigns" element={<ProtectedRoute><NewsletterCampaigns /></ProtectedRoute>} />
         <Route path="/dashboard/retroplanning" element={<PermissionProtectedRoute resource={RESOURCES.RETROPLANNING}><RetroPlanning /></PermissionProtectedRoute>} />
         <Route path="/planning/attendance/:eventId/:memberId" element={<AttendancePage />} />
         <Route path="/planning/my-invitations" element={<PermissionProtectedRoute resource={RESOURCES.RETROPLANNING_RESPOND}><AttendanceManager /></PermissionProtectedRoute>} />
