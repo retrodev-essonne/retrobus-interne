@@ -345,33 +345,40 @@ export const ROLE_PERMISSIONS = {
 
 /**
  * Vérifie si un utilisateur a une permission spécifique
- * Prend en compte les permissions individuelles D'ABORD, puis les permissions du rôle
+ * PRIORITY: Permissions individuelles TOUJOURS > Permissions du rôle
+ * 
+ * Logique:
+ * 1. Si customPermissions[resource] = true → Autoriser (individuel override activé)
+ * 2. Si customPermissions[resource] = false → Interdire (individuel override activé)
+ * 3. Si customPermissions[resource] = undefined → Utiliser permission du rôle
+ * 4. Si pas de permission individuelle → Utiliser permission du rôle
+ * 
  * @param {string} role - Code du rôle
- * @param {string} resource - Ressource à vérifier
+ * @param {string} resource - Ressource à vérifier (doit correspondre à RESOURCES constant)
  * @param {string} permissionType - Type de permission ('access', 'view', 'edit')
- * @param {object} customPermissions - Permissions individuelles (optionnel)
+ * @param {object} customPermissions - Permissions individuelles (optionnel, clés doivent = RESOURCES keys)
  * @returns {boolean}
  */
 export function hasPermission(role, resource, permissionType = 'access', customPermissions = null) {
-  // Vérifier les permissions individuelles SEULEMENT si elles ont du contenu
-  // et si cette ressource spécifique:type est définie
+  // ÉTAPE 1: Vérifier les permissions individuelles d'ABORD (priorité maximale)
+  // Les clés DOIVENT correspondre aux valeurs de RESOURCES pour que ça marche!
   if (customPermissions && Object.keys(customPermissions).length > 0) {
-    // Format: customPermissions peut avoir clés comme "vehicles:view" ou "vehicles:edit"
-    const permissionKey = resource; // Les clés sont déjà au format "ressource:type" dans le backend
+    const permissionKey = resource; // Clé doit être une valeur RESOURCES (ex: "myrbe:access", "vehicles:list")
     
     if (customPermissions[permissionKey] !== undefined) {
-      // Si permission individuelle explicite est définie, utiliser celle-là (true/false)
+      // Permission individuelle trouvée → utiliser (true = allow, false = deny)
       return !!customPermissions[permissionKey];
     }
   }
   
-  // Fallback aux permissions du rôle (cas normal)
+  // ÉTAPE 2: Fallback aux permissions du rôle si pas de permission individuelle
   const roleConfig = ROLE_PERMISSIONS[role];
   if (!roleConfig) return false;
   
   const resourcePermissions = roleConfig.permissions[resource];
   if (!resourcePermissions) return false;
   
+  // Retourner vrai si le rôle a la permission type spécifiée
   return resourcePermissions.includes(permissionType);
 }
 
