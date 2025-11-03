@@ -1,166 +1,146 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter,
   ModalCloseButton, Button, VStack, HStack, Box, Heading, Text, Badge,
-  Select, Spinner, Center, useDisclosure, Icon, Divider, SimpleGrid, Stat,
-  StatLabel, StatNumber, Checkbox, FormControl, FormLabel, RangeSlider,
-  RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb
+  useDisclosure, Icon, Divider, SimpleGrid,
+  Input, Textarea, FormControl, FormLabel, NumberInput, NumberInputField,
+  Table, Thead, Tbody, Tr, Th, Td, IconButton, Tooltip, useToast, Spinner, Center
 } from '@chakra-ui/react';
-import { FiMapPin, FiTruck, FiClock, FiGauge, FiNavigation } from 'react-icons/fi';
+import { FiMapPin, FiActivity, FiPlus, FiTrash2 } from 'react-icons/fi';
 
 /**
- * RetroGPS - Composant de suivi GPS avec modale interactive
- * Affiche les positions des véhicules et les trajets en considérant les gabarits
- * 
- * Features:
- * - Carte interactive (placeholder Leaflet-ready)
- * - Position des véhicules avec gabarit visuel
- * - Historique de trajet par véhicule
- * - Filtres par type de gabarit
+ * RetroGPS - Priorité: TRAÇAGE D'ITINÉRAIRES
+ * Créez et tracez les tournées avec prise en compte des gabarits des bus
  */
 export default function RetroGPS() {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const mapContainerRef = useRef(null);
+  const toast = useToast();
   
-  // État
-  const [vehicles, setVehicles] = useState([]);
+  const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedVehicles, setSelectedVehicles] = useState([]);
-  const [speedRange, setSpeedRange] = useState([0, 100]);
-  const [showTrajectory, setShowTrajectory] = useState(true);
-  const [showGabarits, setShowGabarits] = useState(true);
+  const [tab, setTab] = useState('routes');
+  const [selectedRoute, setSelectedRoute] = useState(null);
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    waypoints: [],
+    difficulty: 'NORMAL',
+    season: 'SUMMER',
+    maxLength: null,
+    maxHeight: null,
+    maxWeight: null
+  });
+  
+  const [newWaypoint, setNewWaypoint] = useState({ name: '', lat: '', lng: '', stopTime: 0 });
 
-  // Mock data - À remplacer par une vraie API
-  const mockVehicles = [
-    {
-      id: 1,
-      parc: 'RT-001',
-      type: 'Autobus',
-      modele: 'Irisbus',
-      position: { lat: 48.8566, lng: 2.3522 }, // Paris
-      speed: 45,
-      heading: 90,
-      gabarit: { length: 12.5, width: 2.5, height: 3.8, capacity: 50 },
-      lastUpdate: new Date(),
-      status: 'EN_ROUTE',
-      trajectory: [
-        { lat: 48.8566, lng: 2.3522 },
-        { lat: 48.8570, lng: 2.3530 },
-        { lat: 48.8575, lng: 2.3545 },
-      ]
-    },
-    {
-      id: 2,
-      parc: 'RT-002',
-      type: 'Minibus',
-      modele: 'Minibus',
-      position: { lat: 48.8700, lng: 2.3600 },
-      speed: 30,
-      heading: 180,
-      gabarit: { length: 8.5, width: 2.2, height: 3.2, capacity: 30 },
-      lastUpdate: new Date(),
-      status: 'PAUSED',
-      trajectory: []
-    },
-    {
-      id: 3,
-      parc: 'RT-003',
-      type: 'Autobus',
-      modele: 'Sprinter',
-      position: { lat: 48.8450, lng: 2.3400 },
-      speed: 55,
-      heading: 45,
-      gabarit: { length: 10.5, width: 2.3, height: 3.5, capacity: 35 },
-      lastUpdate: new Date(),
-      status: 'EN_ROUTE',
-      trajectory: []
-    }
-  ];
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-  // Charger les véhicules au montage
   useEffect(() => {
-    // TODO: Remplacer par un vrai fetch API
-    // const fetchVehicles = async () => {
-    //   try {
-    //     const res = await fetch(`${API_BASE}/vehicles/gps`, {
-    //       headers: { 'Authorization': `Bearer ${token}` }
-    //     });
-    //     const data = await res.json();
-    //     setVehicles(data);
-    //   } catch (err) {
-    //     console.error('Erreur chargement GPS:', err);
-    //   }
-    // };
-    // fetchVehicles();
-
-    // Mock data pour démo
-    setVehicles(mockVehicles);
-  }, []);
-
-  // Initialiser Leaflet quand la modale s'ouvre
-  useEffect(() => {
-    if (isOpen && mapContainerRef.current) {
-      // TODO: Initialiser la carte Leaflet ici
-      // import L from 'leaflet';
-      // const map = L.map(mapContainerRef.current).setView([48.8566, 2.3522], 12);
-      // L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    }
+    if (isOpen) fetchRoutes();
   }, [isOpen]);
 
-  // Filtrer les véhicules selon sélection
-  const filteredVehicles = selectedVehicles.length > 0 
-    ? vehicles.filter(v => selectedVehicles.includes(v.id))
-    : vehicles;
-
-  const getStatusColor = (status) => {
-    const map = {
-      'EN_ROUTE': 'green',
-      'PAUSED': 'orange',
-      'STOPPED': 'red',
-      'MAINTENANCE': 'gray'
-    };
-    return map[status] || 'blue';
+  const fetchRoutes = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/routes`);
+      if (!res.ok) throw new Error('Erreur chargement');
+      const data = await res.json();
+      setRoutes(data);
+    } catch (err) {
+      toast({ title: 'Erreur', description: err.message, status: 'error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getStatusLabel = (status) => {
-    const map = {
-      'EN_ROUTE': '🚗 En route',
-      'PAUSED': '⏸️ Pause',
-      'STOPPED': '🛑 Arrêté',
-      'MAINTENANCE': '🔧 Maintenance'
-    };
-    return map[status] || status;
+  const handleAddWaypoint = () => {
+    if (!newWaypoint.name || !newWaypoint.lat || !newWaypoint.lng) {
+      toast({ title: 'Erreur', description: 'Remplissez tous les champs', status: 'error' });
+      return;
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      waypoints: [...prev.waypoints, {
+        ...newWaypoint,
+        lat: parseFloat(newWaypoint.lat),
+        lng: parseFloat(newWaypoint.lng),
+        stopTime: parseInt(newWaypoint.stopTime || 0),
+        order: prev.waypoints.length
+      }]
+    }));
+    
+    setNewWaypoint({ name: '', lat: '', lng: '', stopTime: 0 });
   };
 
-  // Calculer les dimensions du gabarit pour l'affichage
-  const getGabaritScale = (length) => {
-    // Petite échelle pour affichage: 1px par 0.1m
-    return Math.max(20, Math.min(60, length * 5));
+  const handleRemoveWaypoint = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      waypoints: prev.waypoints.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleCreateRoute = async () => {
+    if (!formData.name || formData.waypoints.length < 2) {
+      toast({ title: 'Erreur', description: 'Nom + 2+ waypoints requis', status: 'error' });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/routes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      if (!res.ok) throw new Error('Erreur création');
+      
+      toast({ title: 'Succès', description: 'Itinéraire créé!', status: 'success' });
+      setFormData({ name: '', description: '', waypoints: [], difficulty: 'NORMAL', season: 'SUMMER', maxLength: null, maxHeight: null, maxWeight: null });
+      setTab('routes');
+      fetchRoutes();
+    } catch (err) {
+      toast({ title: 'Erreur', description: err.message, status: 'error' });
+    }
+  };
+
+  const handleDeleteRoute = async (routeId) => {
+    if (!window.confirm('Confirmer suppression?')) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/routes/${routeId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Erreur');
+      toast({ title: 'Supprimée', status: 'success' });
+      fetchRoutes();
+    } catch (err) {
+      toast({ title: 'Erreur', description: err.message, status: 'error' });
+    }
+  };
+
+  const getStats = (route) => {
+    const distance = route.totalDistance || 0;
+    const time = route.estimatedTime || 0;
+    const hours = Math.floor(time / 60);
+    const mins = time % 60;
+    return { distance, time: `${hours}h${mins}m` };
   };
 
   return (
     <>
-      <Button
-        onClick={onOpen}
-        leftIcon={<FiMapPin />}
-        colorScheme="purple"
-        size="md"
-        w="100%"
-      >
-        🗺️ Ouvrir RétroGPS
+      <Button onClick={onOpen} leftIcon={<FiMapPin />} colorScheme="purple" size="md" w="100%">
+        🗺️ RétroGPS - Traçage d'itinéraires
       </Button>
 
-      <Modal isOpen={isOpen} onClose={onClose} size="6xl">
+      <Modal isOpen={isOpen} onClose={onClose} size="5xl">
         <ModalOverlay />
         <ModalContent maxH="90vh" display="flex" flexDirection="column">
           <ModalHeader>
             <HStack spacing={3}>
               <Icon as={FiMapPin} color="purple.500" boxSize={6} />
               <Box>
-                <Heading size="lg">RétroGPS - Suivi en temps réel</Heading>
-                <Text fontSize="sm" color="gray.500">
-                  Localisation et traçage des véhicules RétroBus
-                </Text>
+                <Heading size="lg">RétroGPS - Gestion des itinéraires</Heading>
+                <Text fontSize="sm" color="gray.500">Créez et tracez les tournées</Text>
               </Box>
             </HStack>
           </ModalHeader>
@@ -169,196 +149,190 @@ export default function RetroGPS() {
 
           <ModalBody overflow="auto" flex={1} pb={4}>
             <VStack spacing={6} align="stretch">
-              {/* Carte interactive - Placeholder */}
-              <Box
-                ref={mapContainerRef}
-                borderRadius="lg"
-                borderWidth={2}
-                borderColor="gray.300"
-                bg="gray.100"
-                height="400px"
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-                position="relative"
-              >
-                <VStack spacing={3} textAlign="center" color="gray.500">
-                  <Icon as={FiMapPin} boxSize={12} />
-                  <Heading size="md">Carte interactive Leaflet</Heading>
-                  <Text fontSize="sm">
-                    Affichage des {filteredVehicles.length} véhicule(s) sélectionné(s)
-                  </Text>
-                  <Text fontSize="xs" color="gray.400">
-                    • Zoom/Pan avec la souris<br/>
-                    • Clic sur marqueur pour détails<br/>
-                    • Lignes = trajets historiques
-                  </Text>
+              {/* Onglets */}
+              <HStack spacing={0} borderBottom="2px solid" borderColor="gray.200">
+                <Button
+                  variant={tab === 'routes' ? 'solid' : 'ghost'}
+                  colorScheme={tab === 'routes' ? 'purple' : 'gray'}
+                  onClick={() => setTab('routes')}
+                  leftIcon={<FiMapPin />}
+                >
+                  Itinéraires ({routes.length})
+                </Button>
+                <Button
+                  variant={tab === 'create' ? 'solid' : 'ghost'}
+                  colorScheme={tab === 'create' ? 'green' : 'gray'}
+                  onClick={() => setTab('create')}
+                  leftIcon={<FiPlus />}
+                >
+                  Créer
+                </Button>
+              </HStack>
+
+              {/* Liste routes */}
+              {tab === 'routes' && (
+                <VStack spacing={4} align="stretch">
+                  {loading ? (
+                    <Center p={8}><Spinner /></Center>
+                  ) : routes.length === 0 ? (
+                    <Center p={8} bg="gray.50" borderRadius="md">
+                      <Text color="gray.500">Aucun itinéraire créé</Text>
+                    </Center>
+                  ) : (
+                    <Table size="sm">
+                      <Thead>
+                        <Tr bg="gray.100">
+                          <Th>Nom</Th>
+                          <Th>Distance</Th>
+                          <Th>Temps</Th>
+                          <Th>Points</Th>
+                          <Th>Actions</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {routes.map(route => {
+                          const stats = getStats(route);
+                          return (
+                            <Tr key={route.id} _hover={{ bg: 'gray.50' }}>
+                              <Td fontWeight="bold">{route.name}</Td>
+                              <Td>{stats.distance} km</Td>
+                              <Td>{stats.time}</Td>
+                              <Td textAlign="center">{route.waypoints?.length || 0}</Td>
+                              <Td>
+                                <HStack spacing={1}>
+                                  <Tooltip label="Détails">
+                                    <IconButton
+                                      icon={<FiActivity />}
+                                      size="sm"
+                                      colorScheme="blue"
+                                      variant="ghost"
+                                      onClick={() => setSelectedRoute(route)}
+                                    />
+                                  </Tooltip>
+                                  <Tooltip label="Supprimer">
+                                    <IconButton
+                                      icon={<FiTrash2 />}
+                                      size="sm"
+                                      colorScheme="red"
+                                      variant="ghost"
+                                      onClick={() => handleDeleteRoute(route.id)}
+                                    />
+                                  </Tooltip>
+                                </HStack>
+                              </Td>
+                            </Tr>
+                          );
+                        })}
+                      </Tbody>
+                    </Table>
+                  )}
                 </VStack>
-              </Box>
+              )}
 
-              <Divider />
+              {/* Création */}
+              {tab === 'create' && (
+                <VStack spacing={4} align="stretch">
+                  <FormControl>
+                    <FormLabel>Nom de l'itinéraire</FormLabel>
+                    <Input
+                      placeholder="ex: Tournée Essonne Sud"
+                      value={formData.name}
+                      onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    />
+                  </FormControl>
 
-              {/* Filtres et contrôles */}
-              <VStack spacing={4} align="stretch">
-                <Heading size="md">⚙️ Filtres et options</Heading>
+                  <FormControl>
+                    <FormLabel>Description</FormLabel>
+                    <Textarea
+                      placeholder="Détails du parcours..."
+                      value={formData.description}
+                      onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      rows={2}
+                    />
+                  </FormControl>
 
-                {/* Sélection des véhicules */}
-                <FormControl>
-                  <FormLabel>Véhicules à afficher</FormLabel>
-                  <HStack spacing={2} flexWrap="wrap">
-                    {vehicles.map(v => (
-                      <Checkbox
-                        key={v.id}
-                        isChecked={selectedVehicles.includes(v.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedVehicles([...selectedVehicles, v.id]);
-                          } else {
-                            setSelectedVehicles(selectedVehicles.filter(id => id !== v.id));
-                          }
-                        }}
-                      >
-                        {v.parc} ({v.type})
-                      </Checkbox>
-                    ))}
-                  </HStack>
-                </FormControl>
-
-                {/* Options d'affichage */}
-                <HStack spacing={4}>
-                  <Checkbox
-                    isChecked={showTrajectory}
-                    onChange={(e) => setShowTrajectory(e.target.checked)}
-                  >
-                    Afficher trajets historiques
-                  </Checkbox>
-                  <Checkbox
-                    isChecked={showGabarits}
-                    onChange={(e) => setShowGabarits(e.target.checked)}
-                  >
-                    Considérer gabarits des bus
-                  </Checkbox>
-                </HStack>
-
-                {/* Filtre de vitesse */}
-                <FormControl>
-                  <FormLabel>Filtrer par vitesse (km/h): {speedRange[0]} - {speedRange[1]}</FormLabel>
-                  <RangeSlider
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={speedRange}
-                    onChange={setSpeedRange}
-                  >
-                    <RangeSliderTrack>
-                      <RangeSliderFilledTrack />
-                    </RangeSliderTrack>
-                    <RangeSliderThumb index={0} />
-                    <RangeSliderThumb index={1} />
-                  </RangeSlider>
-                </FormControl>
-              </VStack>
-
-              <Divider />
-
-              {/* Liste des véhicules avec gabarits */}
-              <VStack spacing={3} align="stretch">
-                <Heading size="md">📍 Véhicules sur la carte</Heading>
-                
-                {filteredVehicles.length === 0 ? (
-                  <Center p={6} bg="gray.50" borderRadius="md">
-                    <Text color="gray.500">Aucun véhicule sélectionné</Text>
-                  </Center>
-                ) : (
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
-                    {filteredVehicles.map(vehicle => (
-                      <Box
-                        key={vehicle.id}
-                        p={4}
-                        borderRadius="lg"
-                        borderWidth={2}
-                        borderColor={getStatusColor(vehicle.status) + '.300'}
-                        bg={getStatusColor(vehicle.status) + '.50'}
-                      >
-                        <VStack align="start" spacing={2}>
-                          {/* En-tête avec gabarit visuel */}
-                          <HStack justify="space-between" w="100%">
-                            <HStack>
-                              <Box
-                                w={getGabaritScale(vehicle.gabarit.length) + 'px'}
-                                h="30px"
-                                bg={getStatusColor(vehicle.status)}
-                                borderRadius="md"
-                                display="flex"
-                                alignItems="center"
-                                justifyContent="center"
-                                color="white"
-                                fontSize="xs"
-                                fontWeight="bold"
-                              >
-                                {vehicle.parc}
-                              </Box>
-                              <Box>
-                                <Text fontWeight="bold">{vehicle.parc}</Text>
-                                <Text fontSize="sm" color="gray.600">
-                                  {vehicle.type} {vehicle.modele}
-                                </Text>
-                              </Box>
-                            </HStack>
-                            <Badge colorScheme={getStatusColor(vehicle.status)}>
-                              {getStatusLabel(vehicle.status)}
-                            </Badge>
-                          </HStack>
-
-                          {/* Informations de position et vitesse */}
-                          <SimpleGrid columns={2} w="100%" fontSize="sm" gap={2}>
-                            <Stat>
-                              <StatLabel>Position</StatLabel>
-                              <StatNumber fontSize="xs">
-                                {vehicle.position.lat.toFixed(4)}, {vehicle.position.lng.toFixed(4)}
-                              </StatNumber>
-                            </Stat>
-                            <Stat>
-                              <StatLabel>Vitesse</StatLabel>
-                              <StatNumber fontSize="xs" color={getStatusColor(vehicle.status)}>
-                                {vehicle.speed} km/h
-                              </StatNumber>
-                            </Stat>
-                          </SimpleGrid>
-
-                          {/* Caractéristiques du gabarit */}
-                          <Box w="100%" fontSize="xs" p={2} bg="white" borderRadius="md">
-                            <Text fontWeight="bold" mb={1}>📐 Gabarit:</Text>
-                            <Text>
-                              L: {vehicle.gabarit.length}m | 
-                              l: {vehicle.gabarit.width}m | 
-                              H: {vehicle.gabarit.height}m
-                            </Text>
-                            <Text>👥 Capacité: {vehicle.gabarit.capacity} places</Text>
-                          </Box>
-
-                          {/* Historique trajet */}
-                          {vehicle.trajectory.length > 0 && (
-                            <Box w="100%" fontSize="xs" p={2} bg="white" borderRadius="md">
-                              <Text fontWeight="bold">🛤️ Trajet ({vehicle.trajectory.length} points)</Text>
-                            </Box>
-                          )}
-                        </VStack>
-                      </Box>
-                    ))}
+                  {/* Restrictions */}
+                  <SimpleGrid columns={3} gap={3}>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Longueur max (m)</FormLabel>
+                      <NumberInput value={formData.maxLength || ''} onChange={v => setFormData(prev => ({ ...prev, maxLength: v ? parseFloat(v) : null }))}>
+                        <NumberInputField placeholder="12.5" />
+                      </NumberInput>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Hauteur max (m)</FormLabel>
+                      <NumberInput value={formData.maxHeight || ''} onChange={v => setFormData(prev => ({ ...prev, maxHeight: v ? parseFloat(v) : null }))}>
+                        <NumberInputField placeholder="3.8" />
+                      </NumberInput>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Poids max (t)</FormLabel>
+                      <NumberInput value={formData.maxWeight || ''} onChange={v => setFormData(prev => ({ ...prev, maxWeight: v ? parseFloat(v) : null }))}>
+                        <NumberInputField placeholder="13" />
+                      </NumberInput>
+                    </FormControl>
                   </SimpleGrid>
-                )}
-              </VStack>
 
-              {/* Légende gabarits */}
-              {showGabarits && (
+                  <Divider />
+
+                  {/* Waypoints */}
+                  <Heading size="sm">📍 Points de passage</Heading>
+                  
+                  <HStack spacing={2} align="flex-end">
+                    <FormControl>
+                      <FormLabel fontSize="sm">Nom</FormLabel>
+                      <Input placeholder="ex: Départ" value={newWaypoint.name} onChange={e => setNewWaypoint(p => ({ ...p, name: e.target.value }))} size="sm" />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Lat</FormLabel>
+                      <Input placeholder="48.8566" value={newWaypoint.lat} onChange={e => setNewWaypoint(p => ({ ...p, lat: e.target.value }))} size="sm" />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Lng</FormLabel>
+                      <Input placeholder="2.3522" value={newWaypoint.lng} onChange={e => setNewWaypoint(p => ({ ...p, lng: e.target.value }))} size="sm" />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Arrêt (min)</FormLabel>
+                      <NumberInput value={newWaypoint.stopTime} onChange={v => setNewWaypoint(p => ({ ...p, stopTime: v }))} size="sm">
+                        <NumberInputField />
+                      </NumberInput>
+                    </FormControl>
+                    <Button onClick={handleAddWaypoint} colorScheme="green" size="sm" leftIcon={<FiPlus />}>Ajouter</Button>
+                  </HStack>
+
+                  {/* Liste waypoints */}
+                  {formData.waypoints.length > 0 && (
+                    <Box p={3} bg="gray.50" borderRadius="md" maxH="200px" overflow="auto">
+                      <Text fontWeight="bold" mb={2}>Waypoints ({formData.waypoints.length}):</Text>
+                      {formData.waypoints.map((wp, i) => (
+                        <HStack key={i} p={2} bg="white" borderRadius="md" mb={1} justify="space-between">
+                          <Text fontSize="sm">{i+1}. <strong>{wp.name}</strong> - {wp.lat.toFixed(4)}, {wp.lng.toFixed(4)} (+{wp.stopTime}min)</Text>
+                          <Button size="xs" colorScheme="red" variant="ghost" onClick={() => handleRemoveWaypoint(i)}>✕</Button>
+                        </HStack>
+                      ))}
+                    </Box>
+                  )}
+
+                  <Button colorScheme="purple" size="lg" w="100%" onClick={handleCreateRoute} isDisabled={!formData.name || formData.waypoints.length < 2}>
+                    ✅ Créer l'itinéraire
+                  </Button>
+                </VStack>
+              )}
+
+              {/* Détails */}
+              {selectedRoute && (
                 <Box p={4} bg="blue.50" borderRadius="lg" borderLeft="4px solid" borderColor="blue.500">
-                  <Heading size="sm" mb={2}>💡 Légende des gabarits</Heading>
-                  <VStack align="start" fontSize="sm" spacing={1}>
-                    <Text>• Les barres représentent la longueur relative du véhicule</Text>
-                    <Text>• Couleur = statut (vert=route, orange=pause, rouge=arrêt)</Text>
-                    <Text>• Les trajets tiennent compte des dimensions pour les trajets routiers</Text>
-                    <Text>• Passages serrés = alerte si gabarit trop grand</Text>
+                  <HStack justify="space-between" mb={3}>
+                    <Heading size="md">{selectedRoute.name}</Heading>
+                    <Button size="sm" variant="ghost" onClick={() => setSelectedRoute(null)}>✕</Button>
+                  </HStack>
+                  <VStack align="start" spacing={2} fontSize="sm">
+                    <Text><strong>Description:</strong> {selectedRoute.description || 'N/A'}</Text>
+                    <Text><strong>Points:</strong> {selectedRoute.waypoints?.length || 0}</Text>
+                    <Text><strong>Distance:</strong> {getStats(selectedRoute).distance} km</Text>
+                    <Text><strong>Temps:</strong> {getStats(selectedRoute).time}</Text>
+                    {selectedRoute.maxLength && <Badge>L max: {selectedRoute.maxLength}m</Badge>}
+                    {selectedRoute.maxHeight && <Badge>H max: {selectedRoute.maxHeight}m</Badge>}
                   </VStack>
                 </Box>
               )}
@@ -366,20 +340,7 @@ export default function RetroGPS() {
           </ModalBody>
 
           <ModalFooter>
-            <HStack spacing={3}>
-              <Text fontSize="xs" color="gray.500">
-                ⏱️ Mise à jour: {new Date().toLocaleTimeString('fr-FR')}
-              </Text>
-              <Button colorScheme="gray" variant="outline" onClick={onClose}>
-                Fermer
-              </Button>
-              <Button colorScheme="purple" onClick={() => {
-                // Rafraîchir les données
-                setVehicles(mockVehicles);
-              }}>
-                🔄 Rafraîchir
-              </Button>
-            </HStack>
+            <Button colorScheme="gray" variant="outline" onClick={onClose}>Fermer</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
