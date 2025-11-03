@@ -4,9 +4,11 @@ import {
   ModalCloseButton, Button, VStack, HStack, Box, Heading, Text, Badge,
   useDisclosure, Icon, Divider, SimpleGrid,
   Input, Textarea, FormControl, FormLabel, NumberInput, NumberInputField,
-  Table, Thead, Tbody, Tr, Th, Td, IconButton, Tooltip, useToast, Spinner, Center
+  Table, Thead, Tbody, Tr, Th, Td, IconButton, Tooltip, useToast, Spinner, Center, Tabs, TabList, TabPanels, Tab, TabPanel
 } from '@chakra-ui/react';
-import { FiMapPin, FiActivity, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiMapPin, FiActivity, FiPlus, FiTrash2, FiMap } from 'react-icons/fi';
+import RouteMap from './RouteMap';
+import '../leaflet-custom.css';
 
 /**
  * RetroGPS - Priorité: TRAÇAGE D'ITINÉRAIRES
@@ -319,22 +321,36 @@ export default function RetroGPS() {
                 </VStack>
               )}
 
-              {/* Détails */}
+              {/* Détails avec carte */}
               {selectedRoute && (
-                <Box p={4} bg="blue.50" borderRadius="lg" borderLeft="4px solid" borderColor="blue.500">
-                  <HStack justify="space-between" mb={3}>
-                    <Heading size="md">{selectedRoute.name}</Heading>
-                    <Button size="sm" variant="ghost" onClick={() => setSelectedRoute(null)}>✕</Button>
-                  </HStack>
-                  <VStack align="start" spacing={2} fontSize="sm">
-                    <Text><strong>Description:</strong> {selectedRoute.description || 'N/A'}</Text>
-                    <Text><strong>Points:</strong> {selectedRoute.waypoints?.length || 0}</Text>
-                    <Text><strong>Distance:</strong> {getStats(selectedRoute).distance} km</Text>
-                    <Text><strong>Temps:</strong> {getStats(selectedRoute).time}</Text>
-                    {selectedRoute.maxLength && <Badge>L max: {selectedRoute.maxLength}m</Badge>}
-                    {selectedRoute.maxHeight && <Badge>H max: {selectedRoute.maxHeight}m</Badge>}
-                  </VStack>
-                </Box>
+                <VStack spacing={4} align="stretch">
+                  <Box p={4} bg="blue.50" borderRadius="lg" borderLeft="4px solid" borderColor="blue.500">
+                    <HStack justify="space-between" mb={3}>
+                      <Heading size="md">{selectedRoute.name}</Heading>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedRoute(null)}>✕</Button>
+                    </HStack>
+                    <VStack align="start" spacing={2} fontSize="sm">
+                      <Text><strong>Description:</strong> {selectedRoute.description || 'N/A'}</Text>
+                      <Text><strong>Points:</strong> {selectedRoute.waypoints?.length || 0}</Text>
+                      <Text><strong>Distance:</strong> {getStats(selectedRoute).distance} km</Text>
+                      <Text><strong>Temps:</strong> {getStats(selectedRoute).time}</Text>
+                      {selectedRoute.maxLength && <Badge>L max: {selectedRoute.maxLength}m</Badge>}
+                      {selectedRoute.maxHeight && <Badge>H max: {selectedRoute.maxHeight}m</Badge>}
+                      {selectedRoute.maxWeight && <Badge>P max: {selectedRoute.maxWeight}t</Badge>}
+                    </VStack>
+                  </Box>
+
+                  {/* Carte interactive */}
+                  <Box>
+                    <HStack spacing={2} mb={3}>
+                      <Icon as={FiMap} color="purple.500" />
+                      <Heading size="sm">Visualisation de l'itinéraire</Heading>
+                    </HStack>
+                    <RouteMap route={selectedRoute} />
+                  </Box>
+
+                  <Button colorScheme="gray" size="sm" w="100%" onClick={() => setSelectedRoute(null)}>Fermer la vue détails</Button>
+                </VStack>
               )}
             </VStack>
           </ModalBody>
