@@ -6,6 +6,7 @@ import {
 import { FiCalendar, FiMapPin, FiClock } from 'react-icons/fi';
 import PageLayout from '../components/Layout/PageLayout';
 import EventsManagement from './EventsManagement';
+import RetroGPS from '../components/RetroGPS';
 
 /**
  * EventsHub - Page centralisée pour la gestion des événements
@@ -54,10 +55,10 @@ export default function EventsHub() {
               </HStack>
             </Tab>
             
-            <Tab _selected={{ color: 'white', bg: 'purple.500' }} isDisabled opacity={0.6}>
+            <Tab _selected={{ color: 'white', bg: 'purple.500' }}>
               <HStack spacing={2}>
                 <FiMapPin />
-                <span>RétroGPS (À venir)</span>
+                <span>RétroGPS</span>
               </HStack>
             </Tab>
           </TabList>
@@ -81,16 +82,7 @@ export default function EventsHub() {
             {/* Onglet 3: RétroGPS (placeholder) */}
             <TabPanel>
               <VStack spacing={6} align="stretch">
-                <Box p={6} bg="purple.50" borderRadius="lg" borderLeft="4px solid" borderColor="purple.500">
-                  <Heading size="md" mb={2}>🗺️ RétroGPS - Suivi en direct</Heading>
-                  <p>Fonctionnalité en développement : suivi GPS des véhicules en temps réel, traçage des tournées et statistiques de localisation.</p>
-                  <Box mt={4} fontSize="sm" color="gray.600">
-                    <p>✓ Carte interactive</p>
-                    <p>✓ Position des véhicules en live</p>
-                    <p>✓ Historique des trajets</p>
-                    <p>✓ Statistiques géographiques</p>
-                  </Box>
-                </Box>
+                <RetroGPS />
               </VStack>
             </TabPanel>
           </TabPanels>
