@@ -426,6 +426,7 @@ function AccessManagement() {
               <option value="TRESORIER">Trésorier</option>
               <option value="SECRETAIRE_GENERAL">Secrétaire Général</option>
               <option value="MEMBER">Membre</option>
+              <option value="PRESTATAIRE">Prestataire</option>
             </Select>
             
             <Select
@@ -895,6 +896,7 @@ function CreateAccessModal({ isOpen, onClose, members, onUserSaved, user }) {
                 <option value="TRESORIER">Trésorier</option>
                 <option value="SECRETAIRE_GENERAL">Secrétaire Général</option>
                 <option value="MEMBER">Membre</option>
+                <option value="PRESTATAIRE">Prestataire</option>
               </Select>
             </FormControl>
 

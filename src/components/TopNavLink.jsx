@@ -1,6 +1,7 @@
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { Link, Flex } from '@chakra-ui/react';
 import React from 'react';
+import { useUser } from '../context/UserContext';
 
 /**
  * Lien de navigation top bar
@@ -44,6 +45,20 @@ export default function TopNavLink({ to, exact = false, children }) {
 }
 
 export function Navigation() {
+  const { user } = useUser();
+  const userRole = user?.role || 'MEMBER';
+
+  // Les prestataires ont accès UNIQUEMENT à RétroPlanning et RétroSupport
+  if (userRole === 'PRESTATAIRE') {
+    return (
+      <Flex bg="white" gap={{ base: 4, md: 8 }} justify="center" align="center" py={3}>
+        <TopNavLink to="/dashboard/retroplanning">📅 RétroPlanning</TopNavLink>
+        <TopNavLink to="/dashboard/support">🆘 RétroSupport</TopNavLink>
+      </Flex>
+    );
+  }
+
+  // Tous les autres rôles ont accès au menu complet
   return (
     <Flex bg="white" gap={{ base: 4, md: 8 }} justify="center" align="center" py={3}>
       <TopNavLink to="/dashboard">Accueil</TopNavLink>

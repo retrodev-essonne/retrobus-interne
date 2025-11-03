@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PrestataireLimitedRoute from "./components/PrestataireLimitedRoute";
 import RequireCreator from "./components/RequireCreator";
 
 // Pages principales
@@ -58,10 +59,6 @@ export default function App() {
         {/* 💰 Route gestion financière */}
         <Route path="/admin/finance" element={<ProtectedRoute><AdminFinance /></ProtectedRoute>} />
         
-        
-        {/* Nouvelle page Support du site */}
-        <Route path="/dashboard/support" element={<ProtectedRoute><SupportSite /></ProtectedRoute>} />
-        
         {/* 🚗 Routes des véhicules */}
         <Route path="/dashboard/vehicules" element={<ProtectedRoute><Vehicules /></ProtectedRoute>} />
         <Route path="/dashboard/vehicules/ajouter" element={<ProtectedRoute><RequireCreator><VehiculeCreate /></RequireCreator></ProtectedRoute>} />
@@ -90,9 +87,10 @@ export default function App() {
         
         {/* 📧 Communication */}
         <Route path="/dashboard/newsletter" element={<ProtectedRoute><Newsletter /></ProtectedRoute>} />
-        <Route path="/dashboard/retroplanning" element={<ProtectedRoute><RetroPlanning /></ProtectedRoute>} />
+        <Route path="/dashboard/retroplanning" element={<PrestataireLimitedRoute><RetroPlanning /></PrestataireLimitedRoute>} />
         <Route path="/planning/attendance/:eventId/:memberId" element={<AttendancePage />} />
-        <Route path="/planning/my-invitations" element={<ProtectedRoute><AttendanceManager /></ProtectedRoute>} />
+        <Route path="/planning/my-invitations" element={<PrestataireLimitedRoute><AttendanceManager /></PrestataireLimitedRoute>} />
+        <Route path="/dashboard/support" element={<PrestataireLimitedRoute><SupportSite /></PrestataireLimitedRoute>} />
         <Route path="/retromail" element={<ProtectedRoute><Retromail /></ProtectedRoute>} />
         
         {/* 📱 Version mobile */}
