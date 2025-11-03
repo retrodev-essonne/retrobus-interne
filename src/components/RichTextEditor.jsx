@@ -5,7 +5,7 @@ import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Color from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
-import TextStyle from '@tiptap/extension-text-style';
+import { TextStyle } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
 import {
   Box,
@@ -38,13 +38,10 @@ import {
   FiBold,
   FiItalic,
   FiCode,
-  FiHeading1,
-  FiHeading2,
-  FiHeading3,
+  FiType,
   FiList,
   FiLink2,
   FiImage as FiImageIcon,
-  FiType,
   FiUnderline,
   FiRefreshCw,
   FiTrash2,
@@ -186,7 +183,7 @@ export default function RichTextEditor({ value, onChange, minHeight = '300px' })
         {/* Titres */}
         <Tooltip label="Titre 1" placement="top">
           <IconButton
-            icon={<FiHeading1 />}
+            icon={<FiType />}
             size="sm"
             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
             isActive={editor.isActive('heading', { level: 1 })}
@@ -197,7 +194,7 @@ export default function RichTextEditor({ value, onChange, minHeight = '300px' })
 
         <Tooltip label="Titre 2" placement="top">
           <IconButton
-            icon={<FiHeading2 />}
+            icon={<FiType />}
             size="sm"
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             isActive={editor.isActive('heading', { level: 2 })}
@@ -208,7 +205,7 @@ export default function RichTextEditor({ value, onChange, minHeight = '300px' })
 
         <Tooltip label="Titre 3" placement="top">
           <IconButton
-            icon={<FiHeading3 />}
+            icon={<FiType />}
             size="sm"
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
             isActive={editor.isActive('heading', { level: 3 })}
