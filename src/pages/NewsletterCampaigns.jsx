@@ -9,7 +9,7 @@ import {
   Code, Divider
 } from '@chakra-ui/react';
 import { 
-  FiPlus, FiEye, FiSend, FiEdit, FiTrash2, FiMail, FiBarChart3, 
+  FiPlus, FiEye, FiSend, FiEdit, FiTrash2, FiMail, FiBarChart2, 
   FiClock, FiCheck, FiX, FiRefreshCw 
 } from 'react-icons/fi';
 import { useUser } from '../context/UserContext';
