@@ -102,12 +102,21 @@ export default function MemberPermissionsManager() {
       onClose();
     } catch (error) {
       console.error('Erreur sauvegarde permissions:', error);
+      const errorMsg = error?.response?.data?.message || error?.response?.data?.error || 'Erreur lors de la sauvegarde';
+      const invalidPerms = error?.response?.data?.invalid;
+      
       toast({
         title: 'Erreur',
-        description: error?.response?.data?.error || 'Erreur lors de la sauvegarde',
+        description: errorMsg + (invalidPerms ? `\n\nPermissions invalides: ${invalidPerms.join(', ')}` : ''),
         status: 'error',
-        duration: 3000
+        duration: 5000,
+        isClosable: true
       });
+      
+      // Log invalid permissions for debugging
+      if (invalidPerms) {
+        console.error('❌ Backend rejected invalid permission keys:', invalidPerms);
+      }
     } finally {
       setSaving(false);
     }
