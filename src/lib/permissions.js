@@ -118,6 +118,18 @@ export const ROLE_PERMISSIONS = {
       [RESOURCES.NEWSLETTER]: ['access', 'view', 'edit'],
       [RESOURCES.RETROMAIL]: ['access', 'view', 'edit'],
       
+      [RESOURCES.RETROPLANNING]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_VIEW]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_CREATE]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_RESPOND]: ['access', 'view', 'edit'],
+      
+      [RESOURCES.RETROSUPPORT]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROSUPPORT_VIEW]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROSUPPORT_CREATE]: ['access', 'view', 'edit'],
+      
+      [RESOURCES.MYRBE]: ['access', 'view', 'edit'],
+      [RESOURCES.MYRBE_VIEW]: ['access', 'view', 'edit'],
+      
       [RESOURCES.ADMIN_PANEL]: ['access', 'view', 'edit'],
       [RESOURCES.ADMIN_LOGS]: ['access', 'view', 'edit'],
       [RESOURCES.ADMIN_SETTINGS]: ['access', 'view', 'edit']
@@ -159,6 +171,18 @@ export const ROLE_PERMISSIONS = {
       
       [RESOURCES.NEWSLETTER]: ['access', 'view', 'edit'],
       [RESOURCES.RETROMAIL]: ['access', 'view'],
+      
+      [RESOURCES.RETROPLANNING]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_VIEW]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_CREATE]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_RESPOND]: ['access', 'view', 'edit'],
+      
+      [RESOURCES.RETROSUPPORT]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROSUPPORT_VIEW]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROSUPPORT_CREATE]: ['access', 'view', 'edit'],
+      
+      [RESOURCES.MYRBE]: ['access', 'view', 'edit'],
+      [RESOURCES.MYRBE_VIEW]: ['access', 'view', 'edit'],
       
       [RESOURCES.ADMIN_LOGS]: ['access', 'view']
     }
