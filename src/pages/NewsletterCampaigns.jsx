@@ -384,7 +384,7 @@ export default function NewsletterCampaigns() {
                         {campaign.status === 'SENT' && (
                           <IconButton
                             aria-label="Statistiques"
-                            icon={<FiBarChart3 />}
+                            icon={<FiBarChart2 />}
                             size="sm"
                             colorScheme="purple"
                             variant="ghost"
