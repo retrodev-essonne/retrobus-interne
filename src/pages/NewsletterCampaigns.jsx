@@ -13,6 +13,7 @@ import {
   FiClock, FiCheck, FiX, FiRefreshCw 
 } from 'react-icons/fi';
 import { useUser } from '../context/UserContext';
+import RichTextEditor from '../components/RichTextEditor';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -462,17 +463,14 @@ export default function NewsletterCampaigns() {
               </Accordion>
 
               <FormControl>
-                <FormLabel>Contenu HTML</FormLabel>
-                <Textarea
-                  placeholder="Contenu de votre newsletter en HTML..."
+                <FormLabel>Contenu de la newsletter</FormLabel>
+                <RichTextEditor
                   value={formData.content}
-                  onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                  rows={15}
-                  fontFamily="monospace"
-                  fontSize="sm"
+                  onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                  minHeight="400px"
                 />
                 <Text fontSize="xs" color="gray.500" mt={1}>
-                  Vous pouvez utiliser du HTML pour formater votre contenu
+                  ✨ Utilisez l'éditeur visuel pour formater votre newsletter facilement
                 </Text>
               </FormControl>
 
