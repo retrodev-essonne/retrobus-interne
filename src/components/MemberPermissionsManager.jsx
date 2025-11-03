@@ -9,9 +9,11 @@ import {
 } from '@chakra-ui/react';
 import { FiEdit, FiRotateCcw, FiSave, FiX } from 'react-icons/fi';
 import { apiClient } from '../api/config';
+import { useUser } from '../context/UserContext';
 
 export default function MemberPermissionsManager() {
   const toast = useToast();
+  const { user: currentUser, refreshPermissions: refreshCurrentUserPermissions } = useUser();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -91,6 +93,11 @@ export default function MemberPermissionsManager() {
         duration: 3000
       });
 
+      // If we're updating the current user's permissions, refresh them
+      if (currentUser?.id === selectedUser.id) {
+        await refreshCurrentUserPermissions();
+      }
+
       loadData();
       onClose();
     } catch (error) {
@@ -119,6 +126,11 @@ export default function MemberPermissionsManager() {
         status: 'success',
         duration: 3000
       });
+
+      // If we're resetting the current user's permissions, refresh them
+      if (currentUser?.id === selectedUser.id) {
+        await refreshCurrentUserPermissions();
+      }
 
       loadData();
       onClose();
