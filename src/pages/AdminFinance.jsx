@@ -1086,7 +1086,8 @@ const AdminFinance = () => {
   };
 
   const handleAddScheduledOperation = async () => {
-    if (!newScheduled.type || !newScheduled.amount || !newScheduled.description || !newScheduled.frequency || !newScheduled.nextDate) {
+    const isEcheancierMode = activeTab === 2;
+    if (!newScheduled.amount || !newScheduled.description || !newScheduled.nextDate || (!isEcheancierMode && !newScheduled.type) || (!isEcheancierMode && !newScheduled.frequency)) {
       toast({
         status: "warning",
         title: "Champs requis",
@@ -1108,16 +1109,17 @@ const AdminFinance = () => {
         },
         body: JSON.stringify({
           ...newScheduled,
+          type: isEcheancierMode ? 'SCHEDULED_PAYMENT' : newScheduled.type,
+          frequency: isEcheancierMode ? 'MONTHLY' : newScheduled.frequency,
           amount: parseFloat(newScheduled.amount),
           totalAmount: newScheduled.totalAmount !== '' && newScheduled.totalAmount !== null ? parseFloat(newScheduled.totalAmount) : undefined
         })
       });
-
       if (response.ok) {
         toast({
           status: "success",
-          title: "Opération programmée",
-          description: "L'opération a été programmée avec succès",
+          title: isEcheancierMode ? "Échéancier créé" : "Opération programmée",
+          description: isEcheancierMode ? "L'échéancier a été créé avec succès" : "L'opération a été programmée avec succès",
           duration: 3000,
           isClosable: true
         });
@@ -2065,14 +2067,14 @@ const AdminFinance = () => {
             <TabPanel>
               <VStack spacing={4} align="stretch">
                 <HStack justify="space-between">
-                  <Heading size="md">Opérations Programmées</Heading>
+                  <Heading size="md">Échéanciers</Heading>
                   <Button
                     leftIcon={<FiPlus />}
                     colorScheme="purple"
                     onClick={onScheduledOpen}
                     size="sm"
                   >
-                    Nouvelle opération
+                    Nouvel échéancier
                   </Button>
                 </HStack>
 
@@ -2081,81 +2083,76 @@ const AdminFinance = () => {
                     <Spinner size="lg" />
                     <Text mt={2}>Chargement...</Text>
                   </Box>
-                ) : scheduledOperations.length === 0 ? (
-                  <Alert status="info">
-                    <AlertIcon />
-                    Aucune opération programmée
-                  </Alert>
                 ) : (
-                  <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-                    {scheduledOperations.map((op, idx) => {
-                      const isCredit = op.type === 'SCHEDULED_CREDIT';
-                      const hasTotal = Number.isFinite(op.totalAmount) && op.totalAmount > 0;
-                      const paid = hasTotal ? Math.max(op.totalAmount - (op.remainingTotalAmount || 0), 0) : null;
-                      // Fallback: progress within current year if no total
-                      const hasYearPlan = Number.isFinite(op.plannedCountYear) && op.plannedCountYear > 0;
-                      const yearPaidCount = hasYearPlan ? Math.max((op.plannedCountYear || 0) - (op.remainingCountYear || 0), 0) : null;
-                      const percentYear = hasYearPlan ? Math.max(0, Math.min(1, yearPaidCount / op.plannedCountYear)) : null;
-                      const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : percentYear;
-                      const gaugeColor = percent == null ? 'gray.400' : percent >= 0.75 ? (isCredit ? 'green' : 'red') : percent >= 0.4 ? 'orange' : 'red';
-
-                      return (
-                        <Card key={op.id || idx}>
-                          <CardHeader>
-                            <HStack justify="space-between" align="start">
-                              <VStack align="start" spacing={1}>
-                                <Heading size="sm" noOfLines={2}>{op.description}</Heading>
-                                <HStack>
-                                  <Badge variant="outline">{getFrequencyLabel(op.frequency)}</Badge>
-                                  <Badge colorScheme={isCredit ? 'green' : 'red'}>{isCredit ? 'RECETTE' : 'DÉPENSE'}</Badge>
+                  (() => {
+                    const list = scheduledOperations.filter(op => op.type === 'SCHEDULED_PAYMENT' && String(op.frequency||'').toUpperCase() === 'MONTHLY');
+                    return list.length === 0 ? (
+                      <Alert status="info">
+                        <AlertIcon />
+                        Aucun échéancier (mensualités) enregistré
+                      </Alert>
+                    ) : (
+                      <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                        {list.map((op, idx) => {
+                          const hasTotal = Number.isFinite(op.totalAmount) && op.totalAmount > 0;
+                          const paid = hasTotal ? Math.max(op.totalAmount - (op.remainingTotalAmount || 0), 0) : null;
+                          const hasYearPlan = Number.isFinite(op.plannedCountYear) && op.plannedCountYear > 0;
+                          const yearPaidCount = hasYearPlan ? Math.max((op.plannedCountYear || 0) - (op.remainingCountYear || 0), 0) : null;
+                          const percentYear = hasYearPlan ? Math.max(0, Math.min(1, yearPaidCount / op.plannedCountYear)) : null;
+                          const percent = hasTotal ? Math.max(0, Math.min(1, paid / op.totalAmount)) : percentYear;
+                          const gaugeColor = percent == null ? 'gray.400' : percent >= 0.75 ? 'red' : percent >= 0.4 ? 'orange' : 'red';
+                          return (
+                            <Card key={op.id || idx}>
+                              <CardHeader>
+                                <VStack align="start" spacing={1}>
+                                  <Heading size="sm" noOfLines={2}>{op.description}</Heading>
+                                  <HStack>
+                                    <Badge variant="outline">Mensuel</Badge>
+                                    <Badge colorScheme="red">DÉPENSE</Badge>
+                                  </HStack>
+                                </VStack>
+                              </CardHeader>
+                              <CardBody>
+                                <HStack align="center" spacing={4}>
+                                  <Box minW="120px" w="120px">
+                                    <SemicircleGauge percent={percent} color={gaugeColor} />
+                                  </Box>
+                                  <VStack align="start" spacing={1} flex={1}>
+                                    <Text fontSize="sm" color="gray.600">Prochaine date</Text>
+                                    <Text fontWeight="medium">{op.nextDate ? formatDate(op.nextDate) : '—'}</Text>
+                                    <Text fontSize="sm" color="gray.600">Mensualité</Text>
+                                    <Text fontWeight="bold" color="red.600">- {formatCurrency(Math.abs(op.amount))}</Text>
+                                    <HStack spacing={3}>
+                                      <Badge variant="subtle" colorScheme="blue">Payées: {op.paymentsCount ?? 0}</Badge>
+                                      {hasTotal && (
+                                        <Badge variant="subtle">Restant total: {formatCurrency(op.remainingTotalAmount || 0)}</Badge>
+                                      )}
+                                      {!hasTotal && hasYearPlan && (
+                                        <Badge variant="subtle" colorScheme="purple">Payées cette année: {yearPaidCount}</Badge>
+                                      )}
+                                    </HStack>
+                                    {op.monthsRemainingTotal && (
+                                      <Text fontSize="sm" color="gray.600">Mensualités restantes: {op.monthsRemainingTotal}</Text>
+                                    )}
+                                    {op.estimatedEndDate && (
+                                      <Text fontSize="sm" color="gray.600">Fin estimée: {formatDate(op.estimatedEndDate)}</Text>
+                                    )}
+                                  </VStack>
                                 </HStack>
-                              </VStack>
-                              <Switch isChecked={op.isActive} onChange={() => toggleScheduledOperation(op.id, op.isActive)} size="sm" />
-                            </HStack>
-                          </CardHeader>
-                          <CardBody>
-                            <HStack align="center" spacing={4}>
-                              <Box minW="120px" w="120px">
-                                <SemicircleGauge percent={percent} color={gaugeColor} />
-                              </Box>
-                              <VStack align="start" spacing={1} flex={1}>
-                                <Text fontSize="sm" color="gray.600">Prochaine date</Text>
-                                <Text fontWeight="medium">{op.nextDate ? formatDate(op.nextDate) : '—'}</Text>
-                                <Text fontSize="sm" color="gray.600">Montant</Text>
-                                <Text fontWeight="bold" color={isCredit ? 'green.600' : 'red.600'}>
-                                  {isCredit ? '+' : '-'}{formatCurrency(Math.abs(op.amount))}
-                                </Text>
-                                {hasTotal && (
-                                  <HStack spacing={3}>
-                                    <Badge variant="subtle">Total: {formatCurrency(op.totalAmount)}</Badge>
-                                    <Badge variant="subtle" colorScheme={isCredit ? 'green' : 'red'}>
-                                      Restant: {formatCurrency(op.remainingTotalAmount || 0)}
-                                    </Badge>
-                                  </HStack>
-                                )}
-                                {!hasTotal && hasYearPlan && (
-                                  <HStack spacing={3}>
-                                    <Badge variant="subtle" colorScheme="blue">Échéances prévues: {op.plannedCountYear}</Badge>
-                                    <Badge variant="subtle" colorScheme="purple">Payées: {yearPaidCount}</Badge>
-                                  </HStack>
-                                )}
-                                {op.estimatedEndDate && (
-                                  <Text fontSize="sm" color="gray.600">Fin estimée: {formatDate(op.estimatedEndDate)}</Text>
-                                )}
-                              </VStack>
-                            </HStack>
-                          </CardBody>
-                          <CardBody pt={0}>
-                            <HStack>
-                              <Button size="sm" onClick={() => openDeclarePayment(op)}>Déclarer payé</Button>
-                              <Button size="sm" variant="outline" onClick={() => openPaymentsList(op)}>Voir paiements</Button>
-                              <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="sm" variant="ghost" colorScheme="red" onClick={() => deleteScheduledOperation(op.id)} />
-                            </HStack>
-                          </CardBody>
-                        </Card>
-                      );
-                    })}
-                  </SimpleGrid>
+                              </CardBody>
+                              <CardBody pt={0}>
+                                <HStack>
+                                  <Button size="sm" onClick={() => openDeclarePayment(op)}>Déclarer payé</Button>
+                                  <Button size="sm" variant="outline" onClick={() => openPaymentsList(op)}>Voir paiements</Button>
+                                  <IconButton aria-label="Supprimer" icon={<FiTrash2 />} size="sm" variant="ghost" colorScheme="red" onClick={() => deleteScheduledOperation(op.id)} />
+                                </HStack>
+                              </CardBody>
+                            </Card>
+                          );
+                        })}
+                      </SimpleGrid>
+                    );
+                  })()
                 )}
               </VStack>
             </TabPanel>
@@ -3318,27 +3315,29 @@ const AdminFinance = () => {
           </ModalContent>
         </Modal>
 
-        {/* Modal Nouvelle Opération Programmée */}
+        {/* Modal Nouvelle Opération Programmée / Échéancier */}
         <Modal isOpen={isScheduledOpen} onClose={onScheduledClose}>
           <ModalOverlay />
           <ModalContent>
-            <ModalHeader>Nouvelle Opération Programmée</ModalHeader>
+            <ModalHeader>{activeTab === 2 ? 'Nouvel Échéancier' : 'Nouvelle Opération Programmée'}</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Type</FormLabel>
-                  <Select
-                    value={newScheduled.type}
-                    onChange={(e) => setNewScheduled(prev => ({ ...prev, type: e.target.value }))}
-                  >
-                    <option value="SCHEDULED_PAYMENT">Paiement programmé</option>
-                    <option value="SCHEDULED_CREDIT">Crédit programmé</option>
-                  </Select>
-                </FormControl>
+                {activeTab !== 2 && (
+                  <FormControl isRequired>
+                    <FormLabel>Type</FormLabel>
+                    <Select
+                      value={newScheduled.type}
+                      onChange={(e) => setNewScheduled(prev => ({ ...prev, type: e.target.value }))}
+                    >
+                      <option value="SCHEDULED_PAYMENT">Paiement programmé</option>
+                      <option value="SCHEDULED_CREDIT">Crédit programmé</option>
+                    </Select>
+                  </FormControl>
+                )}
 
                 <FormControl isRequired>
-                  <FormLabel>Montant (€)</FormLabel>
+                  <FormLabel>{activeTab === 2 ? 'Mensualité (€ / mois)' : 'Montant (€)'}</FormLabel>
                   <NumberInput
                     value={newScheduled.amount}
                     onChange={(value) => setNewScheduled(prev => ({ ...prev, amount: value }))}
@@ -3362,18 +3361,20 @@ const AdminFinance = () => {
                   />
                 </FormControl>
 
-                <FormControl>
-                  <FormLabel>Fréquence</FormLabel>
-                  <Select
-                    value={newScheduled.frequency}
-                    onChange={(e) => setNewScheduled(prev => ({ ...prev, frequency: e.target.value }))}
-                  >
-                    <option value="MONTHLY">Mensuel</option>
-                    <option value="WEEKLY">Hebdomadaire</option>
-                    <option value="QUARTERLY">Trimestriel</option>
-                    <option value="YEARLY">Annuel</option>
-                  </Select>
-                </FormControl>
+                {activeTab !== 2 && (
+                  <FormControl>
+                    <FormLabel>Fréquence</FormLabel>
+                    <Select
+                      value={newScheduled.frequency}
+                      onChange={(e) => setNewScheduled(prev => ({ ...prev, frequency: e.target.value }))}
+                    >
+                      <option value="MONTHLY">Mensuel</option>
+                      <option value="WEEKLY">Hebdomadaire</option>
+                      <option value="QUARTERLY">Trimestriel</option>
+                      <option value="YEARLY">Annuel</option>
+                    </Select>
+                  </FormControl>
+                )}
 
                 <FormControl>
                   <FormLabel>Prochaine exécution</FormLabel>
@@ -3385,7 +3386,7 @@ const AdminFinance = () => {
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel>Total à amortir (optionnel)</FormLabel>
+                  <FormLabel>{activeTab === 2 ? 'Montant total (optionnel)' : 'Total à amortir (optionnel)'}</FormLabel>
                   <NumberInput
                     value={newScheduled.totalAmount}
                     onChange={(value) => setNewScheduled(prev => ({ ...prev, totalAmount: value }))}
@@ -3411,7 +3412,7 @@ const AdminFinance = () => {
                 onClick={handleAddScheduledOperation}
                 isLoading={loading}
               >
-                Programmer
+                {activeTab === 2 ? 'Créer l’échéancier' : 'Programmer'}
               </Button>
             </ModalFooter>
           </ModalContent>
