@@ -58,11 +58,10 @@ export function Navigation() {
   const canAccessRétroPlanning = canAccess(userRole, RESOURCES.RETROPLANNING);
   const canAccessRétroSupport = canAccess(userRole, RESOURCES.RETROSUPPORT);
 
-  // Si c'est un prestataire, montrer UNIQUEMENT RétroPlanning, RétroSupport et MyRBE
+  // Si c'est un prestataire, montrer UNIQUEMENT RétroPlanning et RétroSupport
   if (userRole === 'PRESTATAIRE') {
     return (
       <Flex bg="white" gap={{ base: 4, md: 8 }} justify="center" align="center" py={3}>
-        {canAccessMyRBE && <TopNavLink to="/dashboard/myrbe">📊 MyRBE</TopNavLink>}
         {canAccessRétroPlanning && <TopNavLink to="/dashboard/retroplanning">📅 RétroPlanning</TopNavLink>}
         {canAccessRétroSupport && <TopNavLink to="/dashboard/support">🆘 RétroSupport</TopNavLink>}
       </Flex>

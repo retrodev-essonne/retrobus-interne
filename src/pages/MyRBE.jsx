@@ -13,6 +13,8 @@ import {
   FiDollarSign, FiSettings, FiCalendar, FiUsers, FiPackage,
   FiMail, FiGlobe, FiInbox, FiLifeBuoy, FiTool
 } from "react-icons/fi";
+import { useUser } from "../context/UserContext";
+import { canAccess, RESOURCES } from "../lib/permissions";
 import PageLayout from '../components/Layout/PageLayout';
 import ModernCard from '../components/Layout/ModernCard';
 
@@ -92,6 +94,38 @@ const cards = [
 export default function MyRBE() {
   const alertBg = useColorModeValue("blue.50", "blue.900");
   const alertBorder = useColorModeValue("blue.500", "blue.300");
+  const { user } = useUser();
+  const userRole = user?.role || 'MEMBER';
+
+  // Filtrer les cartes en fonction du rôle
+  let visibleCards = cards;
+  
+  // Les prestataires ont accès UNIQUEMENT à RétroPlanning et RétroSupport
+  if (userRole === 'PRESTATAIRE') {
+    visibleCards = cards.filter(card => 
+      card.title === 'RétroPlanning' || card.title === 'RétroSupport'
+    );
+  } else {
+    // Pour les autres rôles, appliquer les permissions granulaires
+    visibleCards = cards.filter(card => {
+      // Vérifier les permissions pour chaque carte
+      const cardPermissionMap = {
+        'RétroBus': RESOURCES.VEHICLES,
+        'Gestion Financière': RESOURCES.FINANCE,
+        'Gestion des Événements': RESOURCES.EVENTS,
+        'Gérer les adhésions': RESOURCES.MEMBERS,
+        'Gestion des Stocks': RESOURCES.STOCK,
+        'Gestion Newsletter': RESOURCES.NEWSLETTER,
+        'RétroPlanning': RESOURCES.RETROPLANNING,
+        'Gestion du Site': RESOURCES.SITE_MANAGEMENT,
+        'Retromail': RESOURCES.RETROMAIL,
+        'RétroSupport': RESOURCES.RETROSUPPORT
+      };
+      
+      const requiredResource = cardPermissionMap[card.title];
+      return !requiredResource || canAccess(userRole, requiredResource);
+    });
+  }
 
   return (
     <PageLayout
@@ -111,7 +145,7 @@ export default function MyRBE() {
       <VStack spacing={8} align="stretch">
         {/* Grille des fonctionnalités */}
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
-          {cards.map((card) => (
+          {visibleCards.map((card) => (
             <ModernCard
               key={card.title}
               title={card.title}

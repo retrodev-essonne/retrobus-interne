@@ -283,14 +283,11 @@ export const ROLE_PERMISSIONS = {
     }
   },
 
-  // Prestataire: accès limité - UNIQUEMENT RétroPlanning, RétroSupport, MyRBE
+  // Prestataire: accès limité - UNIQUEMENT RétroPlanning, RétroSupport (pas d'accès à MyRBE entier, mais à ses sous-sections)
   PRESTATAIRE: {
     label: 'Prestataire',
     color: 'yellow',
     permissions: {
-      [RESOURCES.MYRBE]: ['access', 'view'],
-      [RESOURCES.MYRBE_VIEW]: ['access', 'view'],
-      
       [RESOURCES.RETROPLANNING]: ['access', 'view', 'edit'],
       [RESOURCES.RETROPLANNING_VIEW]: ['access', 'view'],
       [RESOURCES.RETROPLANNING_CREATE]: ['access', 'view', 'edit'],
