@@ -29,6 +29,7 @@ import Login from "./pages/Login";
 import MobileVehicle from "./pages/MobileVehicle";
 import Retromail from "./pages/Retromail";
 import Newsletter from "./pages/Newsletter";
+import NewsletterCampaigns from "./pages/NewsletterCampaigns";
 import Members from "./pages/Members";
 import MembersManagement from "./pages/MembersManagement";
 import SupportSite from "./pages/SupportSite";
