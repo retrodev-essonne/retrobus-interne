@@ -32,6 +32,7 @@ import SupportSite from "./pages/SupportSite";
 import RetroMerch from "./pages/RetroMerch";
 import RetroPlanning from "./pages/RetroPlanning";
 import AttendancePage from "./pages/AttendancePage";
+import AttendanceManager from "./pages/AttendanceManager";
 
 export default function App() {
   const { isAuthenticated } = useUser();
@@ -91,6 +92,7 @@ export default function App() {
         <Route path="/dashboard/newsletter" element={<ProtectedRoute><Newsletter /></ProtectedRoute>} />
         <Route path="/dashboard/retroplanning" element={<ProtectedRoute><RetroPlanning /></ProtectedRoute>} />
         <Route path="/planning/attendance/:eventId/:memberId" element={<AttendancePage />} />
+        <Route path="/planning/my-invitations" element={<ProtectedRoute><AttendanceManager /></ProtectedRoute>} />
         <Route path="/retromail" element={<ProtectedRoute><Retromail /></ProtectedRoute>} />
         
         {/* 📱 Version mobile */}
