@@ -292,55 +292,63 @@ export default function RetroPlanning() {
     }
 
     try {
-      const newEvent = {
-        id: Date.now().toString(),
-        ...formData,
+      // Préparer les données pour l'API
+      const eventData = {
+        title: formData.title,
+        type: formData.type,
+        description: formData.description,
         startDate: new Date(`${formData.startDate}T${formData.startTime || '08:00'}`).toISOString(),
         endDate: formData.endDate ? new Date(`${formData.endDate}T${formData.endTime || '17:00'}`).toISOString() : null,
+        startTime: formData.startTime || '08:00',
+        endTime: formData.endTime || '17:00',
+        location: formData.location,
+        vehicleId: formData.vehicleId || null,
+        driverId: formData.driverId || null,
+        selectedMembers: formData.selectedMembers,
+        externalEmails: formData.externalEmails,
       };
 
-      setEvents(prev => [...prev, newEvent]);
-      
-      // Si des emails externes sont fournis, les inviter
-      if (formData.externalEmails.trim()) {
-        const emails = formData.externalEmails.split(',').map(e => e.trim());
-        console.log('Invitation envoyée à:', emails);
-        toast({
-          title: 'Succès',
-          description: `Événement créé et ${emails.length} invitation(s) envoyée(s)`,
-          status: 'success',
-          duration: 3,
-        });
-      } else {
-        toast({
-          title: 'Succès',
-          description: 'Événement créé avec succès',
-          status: 'success',
-          duration: 3,
-        });
-      }
-
-      // Réinitialiser le formulaire
-      setFormData({
-        title: '',
-        description: '',
-        type: 'tournee',
-        startDate: '',
-        startTime: '08:00',
-        endDate: '',
-        endTime: '17:00',
-        location: '',
-        vehicleId: '',
-        driverId: '',
-        selectedMembers: [],
-        externalEmails: '',
+      // Envoyer au serveur
+      const response = await fetchJson('/api/planning/events', {
+        method: 'POST',
+        body: JSON.stringify(eventData),
       });
-      onCreateClose();
+
+      if (response.success || response.event) {
+        // Recharger les événements
+        await loadEvents();
+        
+        toast({
+          title: 'Succès',
+          description: `Événement créé et ${response.emailsSent?.members || 0} invitation(s) envoyée(s)`,
+          status: 'success',
+          duration: 3,
+        });
+
+        // Réinitialiser le formulaire
+        setFormData({
+          title: '',
+          description: '',
+          type: 'tournee',
+          startDate: '',
+          startTime: '08:00',
+          endDate: '',
+          endTime: '17:00',
+          location: '',
+          vehicleId: '',
+          driverId: '',
+          selectedMembers: [],
+          externalEmails: '',
+        });
+        onCreateClose();
+      } else {
+        throw new Error(response.error || 'Erreur inconnue');
+      }
     } catch (error) {
       console.error('Erreur création événement:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de créer l\'événement',
+        description: error.message || 'Impossible de créer l\'événement',
         status: 'error',
         duration: 3,
       });
@@ -354,19 +362,29 @@ export default function RetroPlanning() {
 
   const handleDeleteEvent = async (eventId) => {
     try {
-      setEvents(prev => prev.filter(e => e.id !== eventId));
-      toast({
-        title: 'Succès',
-        description: 'Événement supprimé',
-        status: 'success',
-        duration: 3,
+      // Supprimer via l'API
+      const response = await fetchJson(`/api/planning/events/${eventId}`, {
+        method: 'DELETE',
       });
-      onDetailClose();
+
+      if (response.success) {
+        // Recharger les événements
+        await loadEvents();
+        toast({
+          title: 'Succès',
+          description: 'Événement supprimé',
+          status: 'success',
+          duration: 3,
+        });
+        onDetailClose();
+      } else {
+        throw new Error(response.error || 'Erreur inconnue');
+      }
     } catch (error) {
       console.error('Erreur suppression:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de supprimer l\'événement',
+        description: error.message || 'Impossible de supprimer l\'événement',
         status: 'error',
         duration: 3,
       });
