@@ -45,13 +45,6 @@ const PLANNING_TYPES = [
   { value: 'cotisation', label: 'Cotisation', color: 'yellow' },
 ];
 
-const MOCK_MEMBERS = [
-  { id: '1', name: 'Alice Dupont', email: 'alice@retrobus.fr' },
-  { id: '2', name: 'Bob Martin', email: 'bob@retrobus.fr' },
-  { id: '3', name: 'Claire Leclerc', email: 'claire@retrobus.fr' },
-  { id: '4', name: 'David Blanc', email: 'david@retrobus.fr' },
-];
-
 // Calendrier composant
 function MonthlyCalendar({ events, currentDate, onDateClick, onPrevMonth, onNextMonth }) {
   const year = currentDate.getFullYear();
@@ -188,7 +181,8 @@ export default function RetroPlanning() {
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [members, setMembers] = useState(MOCK_MEMBERS);
+  const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -207,7 +201,38 @@ export default function RetroPlanning() {
 
   useEffect(() => {
     loadEvents();
+    loadMembers();
   }, []);
+
+  const loadMembers = async () => {
+    try {
+      setLoadingMembers(true);
+      const response = await fetchJson('/api/members');
+      if (Array.isArray(response)) {
+        const membersFormatted = response.map(m => ({
+          id: m.id,
+          name: `${m.firstName} ${m.lastName}`,
+          email: m.email,
+          membershipStatus: m.membershipStatus,
+        }));
+        setMembers(membersFormatted);
+      } else {
+        console.warn('Unexpected members response format:', response);
+        setMembers([]);
+      }
+    } catch (error) {
+      console.error('Erreur chargement membres:', error);
+      setMembers([]);
+      toast({
+        title: 'Attention',
+        description: 'Impossible de charger la liste des membres',
+        status: 'warning',
+        duration: 3,
+      });
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
 
   const loadEvents = async () => {
     try {
@@ -555,15 +580,21 @@ export default function RetroPlanning() {
                   <VStack spacing={3} align="start">
                     <FormControl>
                       <FormLabel>Membres de l'association</FormLabel>
-                      <CheckboxGroup value={formData.selectedMembers} onChange={handleMembersChange}>
-                        <Stack spacing={2}>
-                          {members.map(member => (
-                            <Checkbox key={member.id} value={member.id}>
-                              {member.name} ({member.email})
-                            </Checkbox>
-                          ))}
-                        </Stack>
-                      </CheckboxGroup>
+                      {loadingMembers ? (
+                        <Text fontSize="sm" color="gray.500">Chargement des membres...</Text>
+                      ) : members.length === 0 ? (
+                        <Text fontSize="sm" color="orange.500">Aucun membre disponible</Text>
+                      ) : (
+                        <CheckboxGroup value={formData.selectedMembers} onChange={handleMembersChange}>
+                          <Stack spacing={2}>
+                            {members.map(member => (
+                              <Checkbox key={member.id} value={member.id}>
+                                {member.name} ({member.email})
+                              </Checkbox>
+                            ))}
+                          </Stack>
+                        </CheckboxGroup>
+                      )}
                     </FormControl>
 
                     <FormControl>
