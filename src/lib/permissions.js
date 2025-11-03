@@ -353,7 +353,8 @@ export const ROLE_PERMISSIONS = {
 export function hasPermission(role, resource, permissionType = 'access', customPermissions = null) {
   // PRESTATAIRE: restrictions
   if (role === 'PRESTATAIRE') {
-    return resource === 'retroplanning' || resource === 'retrosupport';
+    // Vérifier si la ressource commence par 'retroplanning' ou 'retrosupport'
+    return resource?.startsWith('retroplanning') || resource?.startsWith('retrosupport');
   }
   
   // Tout le monde d'autre: accès complet
