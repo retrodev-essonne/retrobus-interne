@@ -344,13 +344,21 @@ export const ROLE_PERMISSIONS = {
 // ============================================================================
 
 /**
- * Vérifie si un rôle a une permission spécifique
- * @param {string} role - Code du rôle (ex: 'ADMIN', 'PRESIDENT')
- * @param {string} resource - Ressource (ex: 'vehicles:edit')
+ * Vérifie si un utilisateur a une permission spécifique
+ * Prend en compte les permissions individuelles D'ABORD, puis les permissions du rôle
+ * @param {string} role - Code du rôle
+ * @param {string} resource - Ressource à vérifier
  * @param {string} permissionType - Type de permission ('access', 'view', 'edit')
+ * @param {object} customPermissions - Permissions individuelles (optionnel)
  * @returns {boolean}
  */
-export function hasPermission(role, resource, permissionType = 'access') {
+export function hasPermission(role, resource, permissionType = 'access', customPermissions = null) {
+  // D'abord vérifier les permissions individuelles si elles existent
+  if (customPermissions && customPermissions[resource] !== undefined) {
+    return !!customPermissions[resource];
+  }
+  
+  // Fallback aux permissions du rôle
   const roleConfig = ROLE_PERMISSIONS[role];
   if (!roleConfig) return false;
   
@@ -362,23 +370,26 @@ export function hasPermission(role, resource, permissionType = 'access') {
 
 /**
  * Vérifie si un rôle peut accéder à une ressource
+ * Optionnellement prend en compte les permissions individuelles
  */
-export function canAccess(role, resource) {
-  return hasPermission(role, resource, 'access');
+export function canAccess(role, resource, customPermissions = null) {
+  return hasPermission(role, resource, 'access', customPermissions);
 }
 
 /**
  * Vérifie si un rôle peut voir une ressource
+ * Optionnellement prend en compte les permissions individuelles
  */
-export function canView(role, resource) {
-  return hasPermission(role, resource, 'view') || hasPermission(role, resource, 'edit');
+export function canView(role, resource, customPermissions = null) {
+  return hasPermission(role, resource, 'view', customPermissions) || hasPermission(role, resource, 'edit', customPermissions);
 }
 
 /**
  * Vérifie si un rôle peut modifier une ressource
+ * Optionnellement prend en compte les permissions individuelles
  */
-export function canEdit(role, resource) {
-  return hasPermission(role, resource, 'edit');
+export function canEdit(role, resource, customPermissions = null) {
+  return hasPermission(role, resource, 'edit', customPermissions);
 }
 
 /**

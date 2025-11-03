@@ -94,7 +94,7 @@ const cards = [
 export default function MyRBE() {
   const alertBg = useColorModeValue("blue.50", "blue.900");
   const alertBorder = useColorModeValue("blue.500", "blue.300");
-  const { user } = useUser();
+  const { user, customPermissions } = useUser();
   const userRole = user?.role || 'MEMBER';
 
   // Filtrer les cartes en fonction du rôle
@@ -123,7 +123,7 @@ export default function MyRBE() {
       };
       
       const requiredResource = cardPermissionMap[card.title];
-      return !requiredResource || canAccess(userRole, requiredResource);
+      return !requiredResource || canAccess(userRole, requiredResource, customPermissions);
     });
   }
 

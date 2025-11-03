@@ -10,21 +10,24 @@ import {
 /**
  * Hook pour utiliser les permissions dans les composants
  * Utilise le rôle de l'utilisateur actuellement connecté
+ * ET prend en compte les permissions individuelles
  */
 export function usePermissions() {
-  const { role } = useUser();
+  const { roles, customPermissions } = useUser();
+  const role = (roles && roles[0]) || 'MEMBER';
 
   return {
     role,
     hasPermission: (resource, permissionType = 'access') => 
-      hasPermission(role, resource, permissionType),
+      hasPermission(role, resource, permissionType, customPermissions),
     canAccess: (resource) => 
-      canAccess(role, resource),
+      canAccess(role, resource, customPermissions),
     canView: (resource) => 
-      canView(role, resource),
+      canView(role, resource, customPermissions),
     canEdit: (resource) => 
-      canEdit(role, resource),
-    permissions: getRolePermissions(role)
+      canEdit(role, resource, customPermissions),
+    permissions: getRolePermissions(role),
+    customPermissions: customPermissions || {}
   };
 }
 

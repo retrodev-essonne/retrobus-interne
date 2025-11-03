@@ -23,6 +23,10 @@ export function UserProvider({ children }) {
   const [memberApiBase, setMemberApiBase] = useState(null); // null => relative same-origin, string => absolute base
   const lastMemberFetchRef = useRef(0);
 
+  // Individual permissions (custom per-user permissions)
+  const [customPermissions, setCustomPermissions] = useState(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+
   useEffect(() => {
     if (token) localStorage.setItem('token', token);
     else localStorage.removeItem('token');
@@ -146,6 +150,37 @@ export function UserProvider({ children }) {
     }
   };
 
+  // Load individual user permissions from backend
+  const refreshPermissions = async () => {
+    if (!user?.id || !token) {
+      setCustomPermissions(null);
+      return null;
+    }
+
+    setPermissionsLoading(true);
+    try {
+      const candidates = apiCandidates();
+      for (const base of candidates) {
+        try {
+          const res = await fetch(`${base}/api/member-permissions/${user.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setCustomPermissions(data.customPermissions || {});
+            return data.customPermissions || {};
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      setCustomPermissions(null);
+      return null;
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
   // Revalidation au chargement
   useEffect(() => {
     // On ne bloque pas le démarrage si pas de token
@@ -157,7 +192,10 @@ export function UserProvider({ children }) {
   useEffect(() => {
     if (token) {
       ensureSession().then((ok) => {
-        if (ok) refreshMember();
+        if (ok) {
+          refreshMember();
+          refreshPermissions();
+        }
       });
     } else {
       setSessionChecked(true);
@@ -213,8 +251,12 @@ export function UserProvider({ children }) {
       memberError,
       memberApiBase,
       refreshMember,
+      // Individual permissions
+      customPermissions,
+      permissionsLoading,
+      refreshPermissions,
     }),
-    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, isVolunteer, isDriver, isMember, matricule, sessionChecked, member, memberLoading, memberError, memberApiBase]
+    [token, user, isAuthenticated, username, prenom, nom, roles, isAdmin, isVolunteer, isDriver, isMember, matricule, sessionChecked, member, memberLoading, memberError, memberApiBase, customPermissions, permissionsLoading]
   );
 
   return (

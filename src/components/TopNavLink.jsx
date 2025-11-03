@@ -46,17 +46,17 @@ export default function TopNavLink({ to, exact = false, children }) {
 }
 
 export function Navigation() {
-  const { user } = useUser();
+  const { user, customPermissions } = useUser();
   const userRole = user?.role || 'MEMBER';
 
-  // Déterminer les liens disponibles en fonction des permissions
-  const canAccessHome = canAccess(userRole, RESOURCES.SITE_MANAGEMENT);
-  const canAccessVehicles = canAccess(userRole, RESOURCES.VEHICLES);
-  const canAccessEvents = canAccess(userRole, RESOURCES.EVENTS);
-  const canAccessMyRBE = canAccess(userRole, RESOURCES.MYRBE);
-  const canAccessRetroMerch = canAccess(userRole, RESOURCES.NEWSLETTER); // Using NEWSLETTER as proxy for general access
-  const canAccessRétroPlanning = canAccess(userRole, RESOURCES.RETROPLANNING);
-  const canAccessRétroSupport = canAccess(userRole, RESOURCES.RETROSUPPORT);
+  // Déterminer les liens disponibles en fonction des permissions (y compris individuelles)
+  const canAccessHome = canAccess(userRole, RESOURCES.SITE_MANAGEMENT, customPermissions);
+  const canAccessVehicles = canAccess(userRole, RESOURCES.VEHICLES, customPermissions);
+  const canAccessEvents = canAccess(userRole, RESOURCES.EVENTS, customPermissions);
+  const canAccessMyRBE = canAccess(userRole, RESOURCES.MYRBE, customPermissions);
+  const canAccessRetroMerch = canAccess(userRole, RESOURCES.NEWSLETTER, customPermissions); // Using NEWSLETTER as proxy for general access
+  const canAccessRétroPlanning = canAccess(userRole, RESOURCES.RETROPLANNING, customPermissions);
+  const canAccessRétroSupport = canAccess(userRole, RESOURCES.RETROSUPPORT, customPermissions);
 
   // Si c'est un prestataire, montrer UNIQUEMENT RétroPlanning et RétroSupport
   if (userRole === 'PRESTATAIRE') {
