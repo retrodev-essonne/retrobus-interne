@@ -345,46 +345,23 @@ export const ROLE_PERMISSIONS = {
 
 /**
  * Vérifie si un utilisateur a une permission spécifique
- * PRIORITY: Permissions individuelles TOUJOURS > Permissions du rôle
  * 
- * Logique:
- * 1. Si customPermissions[resource] = true → Autoriser (individuel override activé)
- * 2. Si customPermissions[resource] = false → Interdire (individuel override activé)
- * 3. Si customPermissions[resource] = undefined → Utiliser permission du rôle
- * 4. Si pas de permission individuelle → Utiliser permission du rôle
- * 
- * @param {string} role - Code du rôle
- * @param {string} resource - Ressource à vérifier (doit correspondre à RESOURCES constant)
- * @param {string} permissionType - Type de permission ('access', 'view', 'edit')
- * @param {object} customPermissions - Permissions individuelles (optionnel, clés doivent = RESOURCES keys)
- * @returns {boolean}
+ * LOGIQUE SIMPLIFIÉE:
+ * - PRESTATAIRE: uniquement retroplanning + retrosupport
+ * - AUTRES: accès complet
  */
 export function hasPermission(role, resource, permissionType = 'access', customPermissions = null) {
-  // ÉTAPE 1: Vérifier les permissions individuelles d'ABORD (priorité maximale)
-  // Les clés DOIVENT correspondre aux valeurs de RESOURCES pour que ça marche!
-  if (customPermissions && Object.keys(customPermissions).length > 0) {
-    const permissionKey = resource; // Clé doit être une valeur RESOURCES (ex: "myrbe:access", "vehicles:list")
-    
-    if (customPermissions[permissionKey] !== undefined) {
-      // Permission individuelle trouvée → utiliser (true = allow, false = deny)
-      return !!customPermissions[permissionKey];
-    }
+  // PRESTATAIRE: restrictions
+  if (role === 'PRESTATAIRE') {
+    return resource === 'retroplanning' || resource === 'retrosupport';
   }
   
-  // ÉTAPE 2: Fallback aux permissions du rôle si pas de permission individuelle
-  const roleConfig = ROLE_PERMISSIONS[role];
-  if (!roleConfig) return false;
-  
-  const resourcePermissions = roleConfig.permissions[resource];
-  if (!resourcePermissions) return false;
-  
-  // Retourner vrai si le rôle a la permission type spécifiée
-  return resourcePermissions.includes(permissionType);
+  // Tout le monde d'autre: accès complet
+  return true;
 }
 
 /**
  * Vérifie si un rôle peut accéder à une ressource
- * Optionnellement prend en compte les permissions individuelles
  */
 export function canAccess(role, resource, customPermissions = null) {
   return hasPermission(role, resource, 'access', customPermissions);
@@ -392,72 +369,16 @@ export function canAccess(role, resource, customPermissions = null) {
 
 /**
  * Vérifie si un rôle peut voir une ressource
- * Optionnellement prend en compte les permissions individuelles
  */
 export function canView(role, resource, customPermissions = null) {
-  return hasPermission(role, resource, 'view', customPermissions) || hasPermission(role, resource, 'edit', customPermissions);
+  return hasPermission(role, resource, 'view', customPermissions);
 }
 
 /**
  * Vérifie si un rôle peut modifier une ressource
- * Optionnellement prend en compte les permissions individuelles
  */
 export function canEdit(role, resource, customPermissions = null) {
   return hasPermission(role, resource, 'edit', customPermissions);
-}
-
-/**
- * Obtient toutes les permissions d'un rôle
- */
-export function getRolePermissions(role) {
-  return ROLE_PERMISSIONS[role]?.permissions || {};
-}
-
-/**
- * Obtient le label d'un rôle
- */
-export function getRoleLabel(role) {
-  return ROLE_PERMISSIONS[role]?.label || role;
-}
-
-/**
- * Obtient la couleur d'un rôle
- */
-export function getRoleColor(role) {
-  return ROLE_PERMISSIONS[role]?.color || 'gray';
-}
-
-/**
- * Obtient tous les rôles disponibles
- */
-export function getAllRoles() {
-  return Object.keys(ROLE_PERMISSIONS).map(code => ({
-    code,
-    label: ROLE_PERMISSIONS[code].label,
-    color: ROLE_PERMISSIONS[code].color
-  }));
-}
-
-/**
- * Filtre les ressources en fonction des permissions d'un rôle
- */
-export function getAccessibleResources(role) {
-  const permissions = getRolePermissions(role);
-  return Object.keys(permissions).filter(resource => permissions[resource].includes('access'));
-}
-
-/**
- * Compare deux rôles pour voir lequel a plus de permissions
- * @returns {number} -1 si role1 < role2, 0 si égal, 1 si role1 > role2
- */
-export function compareRoles(role1, role2) {
-  const hierarchy = ['MEMBER', 'PRESTATAIRE', 'DRIVER', 'VOLUNTEER', 'SECRETAIRE_GENERAL', 'TRESORIER', 'VICE_PRESIDENT', 'PRESIDENT', 'ADMIN'];
-  const idx1 = hierarchy.indexOf(role1);
-  const idx2 = hierarchy.indexOf(role2);
-  
-  if (idx1 < idx2) return -1;
-  if (idx1 > idx2) return 1;
-  return 0;
 }
 
 export default {
