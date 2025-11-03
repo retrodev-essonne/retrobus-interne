@@ -3,8 +3,10 @@ import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PermissionProtectedRoute from "./components/PermissionProtectedRoute";
 import PrestataireLimitedRoute from "./components/PrestataireLimitedRoute";
 import RequireCreator from "./components/RequireCreator";
+import { RESOURCES } from "./lib/permissions";
 
 // Pages principales
 import Dashboard from "./pages/Dashboard";
@@ -87,10 +89,10 @@ export default function App() {
         
         {/* 📧 Communication */}
         <Route path="/dashboard/newsletter" element={<ProtectedRoute><Newsletter /></ProtectedRoute>} />
-        <Route path="/dashboard/retroplanning" element={<PrestataireLimitedRoute><RetroPlanning /></PrestataireLimitedRoute>} />
+        <Route path="/dashboard/retroplanning" element={<PermissionProtectedRoute resource={RESOURCES.RETROPLANNING}><RetroPlanning /></PermissionProtectedRoute>} />
         <Route path="/planning/attendance/:eventId/:memberId" element={<AttendancePage />} />
-        <Route path="/planning/my-invitations" element={<PrestataireLimitedRoute><AttendanceManager /></PrestataireLimitedRoute>} />
-        <Route path="/dashboard/support" element={<PrestataireLimitedRoute><SupportSite /></PrestataireLimitedRoute>} />
+        <Route path="/planning/my-invitations" element={<PermissionProtectedRoute resource={RESOURCES.RETROPLANNING_RESPOND}><AttendanceManager /></PermissionProtectedRoute>} />
+        <Route path="/dashboard/support" element={<PermissionProtectedRoute resource={RESOURCES.RETROSUPPORT}><SupportSite /></PermissionProtectedRoute>} />
         <Route path="/retromail" element={<ProtectedRoute><Retromail /></ProtectedRoute>} />
         
         {/* 📱 Version mobile */}

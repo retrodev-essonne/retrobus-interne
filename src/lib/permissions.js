@@ -48,6 +48,21 @@ export const RESOURCES = {
   NEWSLETTER: 'newsletter:access',
   RETROMAIL: 'retromail:access',
   
+  // RétroPlanning (Calendrier et Événements)
+  RETROPLANNING: 'retroplanning:access',
+  RETROPLANNING_VIEW: 'retroplanning:view',
+  RETROPLANNING_CREATE: 'retroplanning:create',
+  RETROPLANNING_RESPOND: 'retroplanning:respond',
+  
+  // RétroSupport (Support technique)
+  RETROSUPPORT: 'retrosupport:access',
+  RETROSUPPORT_VIEW: 'retrosupport:view',
+  RETROSUPPORT_CREATE: 'retrosupport:create',
+  
+  // MyRBE (Dashboard personnel)
+  MYRBE: 'myrbe:access',
+  MYRBE_VIEW: 'myrbe:view',
+  
   // Administration
   ADMIN_PANEL: 'admin:panel',
   ADMIN_LOGS: 'admin:logs',
@@ -268,6 +283,25 @@ export const ROLE_PERMISSIONS = {
     }
   },
 
+  // Prestataire: accès limité - UNIQUEMENT RétroPlanning, RétroSupport, MyRBE
+  PRESTATAIRE: {
+    label: 'Prestataire',
+    color: 'yellow',
+    permissions: {
+      [RESOURCES.MYRBE]: ['access', 'view'],
+      [RESOURCES.MYRBE_VIEW]: ['access', 'view'],
+      
+      [RESOURCES.RETROPLANNING]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_VIEW]: ['access', 'view'],
+      [RESOURCES.RETROPLANNING_CREATE]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROPLANNING_RESPOND]: ['access', 'view', 'edit'],
+      
+      [RESOURCES.RETROSUPPORT]: ['access', 'view', 'edit'],
+      [RESOURCES.RETROSUPPORT_VIEW]: ['access', 'view'],
+      [RESOURCES.RETROSUPPORT_CREATE]: ['access', 'view', 'edit']
+    }
+  },
+
   // Membre: accès très limité
   MEMBER: {
     label: 'Membre',
@@ -371,7 +405,7 @@ export function getAccessibleResources(role) {
  * @returns {number} -1 si role1 < role2, 0 si égal, 1 si role1 > role2
  */
 export function compareRoles(role1, role2) {
-  const hierarchy = ['MEMBER', 'DRIVER', 'VOLUNTEER', 'SECRETAIRE_GENERAL', 'TRESORIER', 'VICE_PRESIDENT', 'PRESIDENT', 'ADMIN'];
+  const hierarchy = ['MEMBER', 'PRESTATAIRE', 'DRIVER', 'VOLUNTEER', 'SECRETAIRE_GENERAL', 'TRESORIER', 'VICE_PRESIDENT', 'PRESIDENT', 'ADMIN'];
   const idx1 = hierarchy.indexOf(role1);
   const idx2 = hierarchy.indexOf(role2);
   

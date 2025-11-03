@@ -2,6 +2,7 @@ import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { Link, Flex } from '@chakra-ui/react';
 import React from 'react';
 import { useUser } from '../context/UserContext';
+import { canAccess, RESOURCES } from '../lib/permissions';
 
 /**
  * Lien de navigation top bar
@@ -48,24 +49,34 @@ export function Navigation() {
   const { user } = useUser();
   const userRole = user?.role || 'MEMBER';
 
-  // Les prestataires ont accès UNIQUEMENT à RétroPlanning et RétroSupport
+  // Déterminer les liens disponibles en fonction des permissions
+  const canAccessHome = canAccess(userRole, RESOURCES.SITE_MANAGEMENT);
+  const canAccessVehicles = canAccess(userRole, RESOURCES.VEHICLES);
+  const canAccessEvents = canAccess(userRole, RESOURCES.EVENTS);
+  const canAccessMyRBE = canAccess(userRole, RESOURCES.MYRBE);
+  const canAccessRetroMerch = canAccess(userRole, RESOURCES.NEWSLETTER); // Using NEWSLETTER as proxy for general access
+  const canAccessRétroPlanning = canAccess(userRole, RESOURCES.RETROPLANNING);
+  const canAccessRétroSupport = canAccess(userRole, RESOURCES.RETROSUPPORT);
+
+  // Si c'est un prestataire, montrer UNIQUEMENT RétroPlanning, RétroSupport et MyRBE
   if (userRole === 'PRESTATAIRE') {
     return (
       <Flex bg="white" gap={{ base: 4, md: 8 }} justify="center" align="center" py={3}>
-        <TopNavLink to="/dashboard/retroplanning">📅 RétroPlanning</TopNavLink>
-        <TopNavLink to="/dashboard/support">🆘 RétroSupport</TopNavLink>
+        {canAccessMyRBE && <TopNavLink to="/dashboard/myrbe">📊 MyRBE</TopNavLink>}
+        {canAccessRétroPlanning && <TopNavLink to="/dashboard/retroplanning">📅 RétroPlanning</TopNavLink>}
+        {canAccessRétroSupport && <TopNavLink to="/dashboard/support">🆘 RétroSupport</TopNavLink>}
       </Flex>
     );
   }
 
-  // Tous les autres rôles ont accès au menu complet
+  // Tous les autres rôles ont accès au menu complet (mais basé sur les permissions)
   return (
     <Flex bg="white" gap={{ base: 4, md: 8 }} justify="center" align="center" py={3}>
-      <TopNavLink to="/dashboard">Accueil</TopNavLink>
-      <TopNavLink to="/dashboard/vehicules">Véhicules</TopNavLink>
-      <TopNavLink to="/dashboard/evenements">Événements</TopNavLink>
-      <TopNavLink to="/dashboard/myrbe">MyRBE</TopNavLink>
-      <TopNavLink to="/dashboard/retromerch">RétroMerch</TopNavLink>
+      {canAccessHome && <TopNavLink to="/dashboard">🏠 Accueil</TopNavLink>}
+      {canAccessVehicles && <TopNavLink to="/dashboard/vehicules">🚗 Véhicules</TopNavLink>}
+      {canAccessEvents && <TopNavLink to="/dashboard/evenements">📋 Événements</TopNavLink>}
+      {canAccessMyRBE && <TopNavLink to="/dashboard/myrbe">📊 MyRBE</TopNavLink>}
+      {canAccessRetroMerch && <TopNavLink to="/dashboard/retromerch">🛍️ RétroMerch</TopNavLink>}
     </Flex>
   );
 }

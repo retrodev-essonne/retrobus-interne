@@ -162,6 +162,15 @@ export default function MemberPermissionsManager() {
     'Communications': Object.entries(availablePermissions).filter(
       ([key]) => key.startsWith('newsletter:') || key.startsWith('retromail:')
     ),
+    'RétroPlanning': Object.entries(availablePermissions).filter(
+      ([key]) => key.startsWith('retroplanning:')
+    ),
+    'RétroSupport': Object.entries(availablePermissions).filter(
+      ([key]) => key.startsWith('retrosupport:')
+    ),
+    'MyRBE': Object.entries(availablePermissions).filter(
+      ([key]) => key.startsWith('myrbe:')
+    ),
     'Administration': Object.entries(availablePermissions).filter(
       ([key]) => key.startsWith('admin:')
     )
