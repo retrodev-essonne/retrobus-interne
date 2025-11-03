@@ -28,7 +28,7 @@ import {
   CheckboxGroup,
 } from '@chakra-ui/react';
 import { PageLayout } from '../components/Layout/PageLayout';
-import { apiCall } from '../lib/apiClient';
+import { apiCall } from '../apiClient';
 
 const PLANNING_TYPES = [
   { value: 'tournee', label: 'Tournée', color: 'orange' },
