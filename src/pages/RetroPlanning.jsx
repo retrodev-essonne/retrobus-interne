@@ -27,7 +27,7 @@ import {
   Checkbox,
   CheckboxGroup,
 } from '@chakra-ui/react';
-import { PageLayout } from '../components/Layout/PageLayout';
+import PageLayout from '../components/Layout/PageLayout';
 import { apiCall } from '../apiClient';
 
 const PLANNING_TYPES = [
