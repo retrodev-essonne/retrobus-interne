@@ -20,6 +20,7 @@ export default function NewsletterCampaigns() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [previewCampaignId, setPreviewCampaignId] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     subject: '',
@@ -94,6 +95,7 @@ export default function NewsletterCampaigns() {
       });
       if (!res.ok) throw new Error('Erreur prévisualisation');
       const data = await res.json();
+      setPreviewCampaignId(campaignId);
       setPreviewContent(data);
       onPreviewOpen();
     } catch (e) {
@@ -543,8 +545,8 @@ export default function NewsletterCampaigns() {
                     <Button
                       leftIcon={<FiMail />}
                       colorScheme="orange"
-                      onClick={() => handleSendTest(selectedCampaign?.id)}
-                      isDisabled={!testEmail}
+                      onClick={() => handleSendTest(previewCampaignId)}
+                      isDisabled={!testEmail || !previewCampaignId}
                     >
                       Envoyer le test
                     </Button>
