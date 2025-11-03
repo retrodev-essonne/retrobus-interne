@@ -183,6 +183,8 @@ export default function RetroPlanning() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [vehicles, setVehicles] = useState([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -202,6 +204,7 @@ export default function RetroPlanning() {
   useEffect(() => {
     loadEvents();
     loadMembers();
+    loadVehicles();
   }, []);
 
   const loadMembers = async () => {
@@ -231,6 +234,24 @@ export default function RetroPlanning() {
       });
     } finally {
       setLoadingMembers(false);
+    }
+  };
+
+  const loadVehicles = async () => {
+    try {
+      setLoadingVehicles(true);
+      const response = await fetchJson('/api/vehicles');
+      if (Array.isArray(response)) {
+        setVehicles(response);
+      } else {
+        console.warn('Unexpected vehicles response format:', response);
+        setVehicles([]);
+      }
+    } catch (error) {
+      console.error('Erreur chargement véhicules:', error);
+      setVehicles([]);
+    } finally {
+      setLoadingVehicles(false);
     }
   };
 
@@ -571,21 +592,38 @@ export default function RetroPlanning() {
                   <VStack spacing={3}>
                     <FormControl>
                       <FormLabel>Véhicule</FormLabel>
-                      <Select name="vehicleId" value={formData.vehicleId} onChange={handleInputChange}>
-                        <option value="">-- Sélectionner un véhicule --</option>
-                        <option value="bus-1">Bus 1</option>
-                        <option value="bus-2">Bus 2</option>
-                        <option value="bus-3">Bus 3</option>
-                      </Select>
+                      {loadingVehicles ? (
+                        <Text fontSize="sm" color="gray.500">Chargement des véhicules...</Text>
+                      ) : vehicles.length === 0 ? (
+                        <Text fontSize="sm" color="red.500">Aucun véhicule disponible</Text>
+                      ) : (
+                        <Select name="vehicleId" value={formData.vehicleId} onChange={handleInputChange}>
+                          <option value="">-- Sélectionner un véhicule --</option>
+                          {vehicles.map(vehicle => (
+                            <option key={vehicle.id} value={vehicle.id}>
+                              {vehicle.parc} - {vehicle.modele} ({vehicle.marque})
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                     </FormControl>
 
                     <FormControl>
-                      <FormLabel>Chauffeur</FormLabel>
-                      <Select name="driverId" value={formData.driverId} onChange={handleInputChange}>
-                        <option value="">-- Sélectionner un chauffeur --</option>
-                        <option value="driver-1">Alice - Chauffeur</option>
-                        <option value="driver-2">Bob - Chauffeur</option>
-                      </Select>
+                      <FormLabel>Chauffeur (Membre)</FormLabel>
+                      {loadingMembers ? (
+                        <Text fontSize="sm" color="gray.500">Chargement des chauffeurs...</Text>
+                      ) : members.length === 0 ? (
+                        <Text fontSize="sm" color="red.500">Aucun membre disponible</Text>
+                      ) : (
+                        <Select name="driverId" value={formData.driverId} onChange={handleInputChange}>
+                          <option value="">-- Sélectionner un chauffeur --</option>
+                          {members.map(member => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                     </FormControl>
                   </VStack>
                 </Box>
