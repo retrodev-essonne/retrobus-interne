@@ -57,7 +57,21 @@ export default function MemberPermissionsManager() {
     try {
       setSelectedUser(user);
       const permsRes = await apiClient.get(`/api/member-permissions/${user.id}`);
-      setUserPermissions(permsRes.customPermissions || {});
+      
+      // 🔥 CLEANUP: Filter out any old/invalid permission keys
+      const loadedPerms = permsRes.customPermissions || {};
+      const validPerms = {};
+      
+      for (const [key, value] of Object.entries(loadedPerms)) {
+        // Only keep permissions that exist in availablePermissions
+        if (availablePermissions[key]) {
+          validPerms[key] = value;
+        } else {
+          console.warn(`⚠️  Filtered out invalid permission key: ${key}`);
+        }
+      }
+      
+      setUserPermissions(validPerms);
       onOpen();
     } catch (error) {
       console.error('Erreur chargement permissions utilisateur:', error);
@@ -82,8 +96,19 @@ export default function MemberPermissionsManager() {
 
     try {
       setSaving(true);
+      
+      // 🔥 CLEANUP: Filter out any invalid permission keys before saving
+      const validPerms = {};
+      for (const [key, value] of Object.entries(userPermissions)) {
+        if (availablePermissions[key]) {
+          validPerms[key] = value;
+        } else {
+          console.warn(`⚠️  Skipping invalid permission key: ${key}`);
+        }
+      }
+      
       await apiClient.put(`/api/member-permissions/${selectedUser.id}`, {
-        permissions: userPermissions
+        permissions: validPerms
       });
 
       toast({
