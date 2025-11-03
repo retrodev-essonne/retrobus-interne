@@ -21,14 +21,47 @@ function buildAuthHeaders() {
 
 export const fetchJson = async (path, options = {}) => {
   const url = `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+
+  // Normalize headers and body so JSON requests always have the right Content-Type
+  const headers = {
+    Accept: 'application/json',
+    ...buildAuthHeaders(),
+    ...(options.headers || {}),
+  };
+
+  // Case-insensitive header lookup helper
+  const hasHeader = (name) => {
+    const lower = name.toLowerCase();
+    for (const key of Object.keys(headers)) {
+      if (key.toLowerCase() === lower) return true;
+    }
+    return false;
+  };
+
+  let body = options.body;
+
+  // If body is a plain object (not FormData/Blob/etc.), stringify and set JSON header
+  const isPlainObject = (v) => (
+    v && typeof v === 'object' &&
+    !(v instanceof FormData) &&
+    !(v instanceof Blob) &&
+    !(v instanceof ArrayBuffer) &&
+    !(v instanceof URLSearchParams)
+  );
+
+  if (isPlainObject(body)) {
+    body = JSON.stringify(body);
+    if (!hasHeader('Content-Type')) headers['Content-Type'] = 'application/json';
+  } else if (typeof body === 'string') {
+    // If caller already stringified but forgot header, add it
+    if (!hasHeader('Content-Type')) headers['Content-Type'] = 'application/json';
+  }
+
   const res = await fetch(url, {
     credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      ...buildAuthHeaders(),
-      ...(options.headers || {}),
-    },
+    headers,
     ...options,
+    ...(body !== undefined ? { body } : {}),
   });
 
   if (res.status === 404) return { notFound: true };
