@@ -1086,39 +1086,96 @@ const AdminFinance = () => {
       type: doc.type || 'QUOTE',
       number: doc.number || '',
       title: doc.title || '',
+      description: doc.description || '',
       date: (doc.date || new Date().toISOString()).slice(0,10),
+      dueDate: doc.dueDate ? doc.dueDate.slice(0,10) : '',
+      amountExcludingTax: String(doc.amountExcludingTax ?? ''),
+      taxRate: doc.taxRate || 20,
+      taxAmount: doc.taxAmount || 0,
       amount: String(doc.amount ?? ''),
-      status: doc.status || 'DRAFT',
-      eventId: doc.eventId || ''
+      status: doc.quoteStatus || doc.invoiceStatus || doc.status || 'DRAFT',
+      eventId: doc.eventId || '',
+      memberId: doc.memberId || '',
+      notes: doc.notes || '',
+      paymentMethod: doc.paymentMethod || '',
+      paymentDate: doc.paymentDate ? doc.paymentDate.slice(0,10) : '',
+      amountPaid: String(doc.amountPaid ?? '')
     });
     onDocOpen();
   };
 
   const saveDocument = async () => {
     try {
+      // Validation
+      if (!docForm.number || !docForm.title) {
+        toast({ status: 'warning', title: 'Erreur', description: 'Numéro et titre obligatoires' });
+        return;
+      }
+
       const isEdit = !!editingDocument?.id;
       const paths = isEdit
         ? buildPathCandidates(`/api/finance/documents/${encodeURIComponent(editingDocument.id)}`)
         : buildPathCandidates('/api/finance/documents');
+      
+      // Préparation du payload avec calculs
+      const amountExcludingTax = parseFloat(docForm.amountExcludingTax) || 0;
+      const taxRate = parseFloat(docForm.taxRate) || 20;
+      const taxAmount = amountExcludingTax * (taxRate / 100);
+      const amountTTC = amountExcludingTax + taxAmount;
+
       const payload = {
-        ...docForm,
-        amount: docForm.amount === '' ? 0 : parseFloat(docForm.amount)
+        type: docForm.type,
+        number: docForm.number,
+        title: docForm.title,
+        description: docForm.description || null,
+        date: docForm.date,
+        dueDate: docForm.dueDate || null,
+        amountExcludingTax: amountExcludingTax,
+        taxRate: taxRate,
+        taxAmount: parseFloat(taxAmount.toFixed(2)),
+        amount: parseFloat(amountTTC.toFixed(2)),
+        quoteStatus: docForm.type === 'QUOTE' ? docForm.status : null,
+        invoiceStatus: docForm.type === 'INVOICE' ? docForm.status : null,
+        eventId: docForm.eventId || null,
+        memberId: docForm.memberId || null,
+        notes: docForm.notes || null,
+        paymentMethod: docForm.paymentMethod || null,
+        paymentDate: docForm.paymentDate || null,
+        amountPaid: parseFloat(docForm.amountPaid || 0)
       };
+
       const saved = await fetchJsonFirst(paths, {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      // RAF: recharger
+
+      // RFC: recharger
       await loadDocuments();
       onDocClose();
       toast({ status: 'success', title: isEdit ? 'Document modifié' : 'Document créé' });
     } catch (e) {
       // Fallback local
       const genId = editingDocument?.id || `local-${Date.now()}`;
+      const amountExcludingTax = parseFloat(docForm.amountExcludingTax) || 0;
+      const taxRate = parseFloat(docForm.taxRate) || 20;
+      const taxAmount = amountExcludingTax * (taxRate / 100);
+      const amountTTC = amountExcludingTax + taxAmount;
+
+      const newDoc = {
+        ...docForm,
+        id: genId,
+        amountExcludingTax,
+        taxRate,
+        taxAmount: parseFloat(taxAmount.toFixed(2)),
+        amount: parseFloat(amountTTC.toFixed(2)),
+        quoteStatus: docForm.type === 'QUOTE' ? docForm.status : null,
+        invoiceStatus: docForm.type === 'INVOICE' ? docForm.status : null,
+      };
+
       const updated = editingDocument
-        ? documents.map(d => d.id === editingDocument.id ? { ...editingDocument, ...docForm, id: genId } : d)
-        : [{ id: genId, ...docForm }, ...documents];
+        ? documents.map(d => d.id === editingDocument.id ? newDoc : d)
+        : [newDoc, ...documents];
       writeDocsLocal(updated);
       setDocuments(updated);
       onDocClose();
