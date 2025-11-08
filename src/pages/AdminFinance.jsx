@@ -4,7 +4,7 @@ import {
   ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   useDisclosure, FormControl, FormLabel, Textarea, 
   Alert, AlertIcon, InputGroup, InputLeftElement, 
-  ButtonGroup, IconButton, Menu, MenuButton, MenuList, MenuItem,
+  ButtonGroup, IconButton, Menu, MenuButton, MenuList, MenuItem, MenuDivider, MenuOptionGroup, MenuItemOption,
   Spinner, Tabs, TabList, TabPanels, Tab, TabPanel,
   Switch, Table, Thead, Tbody, Tr, Th, Td, Text, Button, Input, Select,
   Card, CardHeader, CardBody, Icon, Heading,
@@ -199,6 +199,26 @@ const AdminFinance = () => {
     }
     if (lastErr) throw lastErr;
     return false;
+  };
+
+  const patchFirst = async (paths, body = {}, headers = {}) => {
+    const list = Array.isArray(paths) ? paths : [paths];
+    let lastErr = null;
+    for (const p of list) {
+      try {
+        const res = await fetch(apiUrl(p), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) return await res.json();
+        return body;
+      } catch (e) { lastErr = e; }
+    }
+    if (lastErr) throw lastErr;
+    return body;
   };
 
   // Local cache for documents
@@ -1083,6 +1103,45 @@ const AdminFinance = () => {
       setDocuments(updated);
       toast({ status: 'info', title: 'Document supprimé (local)' });
     }
+  };
+
+  const updateDocumentStatus = async (id, newStatus) => {
+    try {
+      const paths = buildPathCandidates(`/api/finance/documents/${encodeURIComponent(id)}/status`);
+      const updated = await patchFirst(paths, 
+        { status: newStatus },
+        { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      );
+      
+      // Mettre à jour localement
+      setDocuments(prev => 
+        prev.map(d => d.id === id ? updated : d)
+      );
+      
+      const statusLabel = id.type === 'QUOTE' ? 
+        {DRAFT:'Brouillon',SENT:'Envoyé',ACCEPTED:'Accepté',REFUSED:'Refusé',REEDITED:'Réédité'}[newStatus] :
+        {DRAFT:'Brouillon',SENT:'Envoyé',ACCEPTED:'Accepté',PENDING_PAYMENT:'En attente',PAID:'Payé',DEPOSIT_PAID:'Accompte'}[newStatus];
+      
+      toast({ status: 'success', title: 'Statut mis à jour', description: `→ ${statusLabel}` });
+      await loadDocuments();
+    } catch (e) {
+      console.error('Erreur changement statut:', e);
+      toast({ status: 'error', title: 'Erreur', description: 'Impossible de mettre à jour le statut' });
+    }
+  };
+
+  const openReissueQuoteDialog = (doc) => {
+    setEditingDocument(doc);
+    setDocForm({
+      type: 'QUOTE',
+      number: `${doc.number}-REV`,
+      title: `${doc.title} (Révision)`,
+      date: new Date().toISOString().split('T')[0],
+      amount: doc.amount,
+      status: 'DRAFT',
+      eventId: doc.eventId || ''
+    });
+    onDocOpen();
   };
 
   const handleAddScheduledOperation = async () => {
@@ -2043,12 +2102,50 @@ const AdminFinance = () => {
                               <Td>{formatDate(doc.date)}</Td>
                               <Td isNumeric>{formatCurrency(Number(doc.amount || 0))}</Td>
                               <Td>{doc.eventId ? <Badge>{doc.eventId}</Badge> : <Text fontSize="sm" color="gray.500">—</Text>}</Td>
-                              <Td><Badge variant="outline">{doc.status || 'DRAFT'}</Badge></Td>
+                              <Td>
+                                <Badge
+                                  colorScheme={
+                                    doc.type === 'INVOICE' ? 
+                                      {DRAFT:'gray',SENT:'blue',ACCEPTED:'cyan',PENDING_PAYMENT:'orange',PAID:'green',DEPOSIT_PAID:'yellow'}[doc.invoiceStatus||'gray'] :
+                                      {DRAFT:'gray',SENT:'blue',ACCEPTED:'green',REFUSED:'red',REEDITED:'orange'}[doc.quoteStatus||'gray']
+                                  }
+                                  variant="subtle"
+                                >
+                                  {doc.type === 'INVOICE' ? 
+                                    {DRAFT:'Brouillon',SENT:'Envoyé',ACCEPTED:'Accepté',PENDING_PAYMENT:'En attente de paiement',PAID:'Payé',DEPOSIT_PAID:'Accompte payé'}[doc.invoiceStatus||'DRAFT'] :
+                                    {DRAFT:'Brouillon',SENT:'Envoyé',ACCEPTED:'Accepté',REFUSED:'Refusé',REEDITED:'Réédité'}[doc.quoteStatus||'DRAFT']
+                                  }
+                                </Badge>
+                              </Td>
                               <Td>
                                 <Menu>
                                   <MenuButton as={IconButton} icon={<FiMoreHorizontal />} variant="ghost" size="sm" />
                                   <MenuList>
                                     <MenuItem icon={<FiEdit3 />} onClick={() => openEditDocument(doc)}>Modifier</MenuItem>
+                                    
+                                    <MenuDivider />
+                                    <MenuOptionGroup title="Changer le statut">
+                                      {doc.type === 'QUOTE' ? (
+                                        <>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'DRAFT')}>Brouillon</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'SENT')}>Envoyé</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'ACCEPTED')}>Accepté</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'REFUSED')}>Refusé</MenuItemOption>
+                                          <MenuItemOption onClick={() => openReissueQuoteDialog(doc)}>Réédité vers un nouveau</MenuItemOption>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'DRAFT')}>Brouillon</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'SENT')}>Envoyé</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'ACCEPTED')}>Accepté</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'PENDING_PAYMENT')}>En attente de paiement</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'PAID')}>Payé</MenuItemOption>
+                                          <MenuItemOption onClick={() => updateDocumentStatus(doc.id, 'DEPOSIT_PAID')}>Accompte payé</MenuItemOption>
+                                        </>
+                                      )}
+                                    </MenuOptionGroup>
+                                    
+                                    <MenuDivider />
                                     <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => deleteDocument(doc.id)}>Supprimer</MenuItem>
                                   </MenuList>
                                 </Menu>
