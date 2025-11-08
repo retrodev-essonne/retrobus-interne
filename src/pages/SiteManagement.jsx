@@ -1563,8 +1563,8 @@ export default function SiteManagement() {
             <Tab>📝 Changelog & Versions</Tab>
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
-            <Tab>� Modèles de Documents</Tab>
-            <Tab>�🛡️ Permissions des Rôles</Tab>
+            <Tab>📄 Modèles de Documents</Tab>
+            <Tab>🛡️ Permissions des Rôles</Tab>
           </TabList>
 
           <TabPanels>
