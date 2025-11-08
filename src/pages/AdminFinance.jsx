@@ -133,7 +133,25 @@ const AdminFinance = () => {
   // Devis & Factures
   const [documents, setDocuments] = useState([]); // {id,type:'QUOTE'|'INVOICE', number, title, date, amount, status, eventId?}
   const [editingDocument, setEditingDocument] = useState(null);
-  const [docForm, setDocForm] = useState({ type: 'QUOTE', number: '', title: '', date: new Date().toISOString().split('T')[0], amount: '', status: 'DRAFT', eventId: '' });
+  const [docForm, setDocForm] = useState({ 
+    type: 'QUOTE', 
+    number: '', 
+    title: '', 
+    description: '',
+    date: new Date().toISOString().split('T')[0], 
+    dueDate: '',
+    amountExcludingTax: '',
+    taxRate: 20,
+    taxAmount: 0,
+    amount: '', 
+    status: 'DRAFT', 
+    eventId: '',
+    memberId: '',
+    notes: '',
+    paymentMethod: '',
+    paymentDate: '',
+    amountPaid: ''
+  });
 
   // Edition/Liaison transaction
   const { isOpen: isEditTxOpen, onOpen: onEditTxOpen, onClose: onEditTxClose } = useDisclosure();
@@ -1040,7 +1058,25 @@ const AdminFinance = () => {
   // CRUD Documents
   const openCreateDocument = () => {
     setEditingDocument(null);
-    setDocForm({ type: 'QUOTE', number: '', title: '', date: new Date().toISOString().split('T')[0], amount: '', status: 'DRAFT', eventId: '' });
+    setDocForm({ 
+      type: 'QUOTE', 
+      number: '', 
+      title: '', 
+      description: '',
+      date: new Date().toISOString().split('T')[0], 
+      dueDate: '',
+      amountExcludingTax: '',
+      taxRate: 20,
+      taxAmount: 0,
+      amount: '', 
+      status: 'DRAFT', 
+      eventId: '',
+      memberId: '',
+      notes: '',
+      paymentMethod: '',
+      paymentDate: '',
+      amountPaid: ''
+    });
     onDocOpen();
   };
 
@@ -2974,64 +3010,268 @@ const AdminFinance = () => {
         </Modal>
 
         {/* Modal: Création/Édition document */}
-        <Modal isOpen={isDocOpen} onClose={onDocClose} isCentered>
+        <Modal isOpen={isDocOpen} onClose={onDocClose} isCentered size="lg">
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>{editingDocument ? 'Modifier le document' : 'Nouveau document'}</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
-              <VStack spacing={3} align="stretch">
-                <HStack>
+              <VStack spacing={4} align="stretch">
+                {/* Type et Dates */}
+                <HStack spacing={3}>
                   <FormControl>
-                    <FormLabel>Type</FormLabel>
-                    <Select value={docForm.type} onChange={(e)=>setDocForm(prev=>({...prev, type: e.target.value}))}>
-                      <option value="QUOTE">Devis</option>
-                      <option value="INVOICE">Facture</option>
+                    <FormLabel fontWeight="bold">Type</FormLabel>
+                    <Select 
+                      value={docForm.type} 
+                      onChange={(e)=>setDocForm(prev=>({...prev, type: e.target.value}))}>
+                      <option value="QUOTE">📄 Devis</option>
+                      <option value="INVOICE">💰 Facture</option>
                     </Select>
                   </FormControl>
                   <FormControl>
-                    <FormLabel>Date</FormLabel>
-                    <Input type="date" value={docForm.date} onChange={(e)=>setDocForm(prev=>({...prev, date: e.target.value}))} />
+                    <FormLabel fontWeight="bold">Date</FormLabel>
+                    <Input 
+                      type="date" 
+                      value={docForm.date} 
+                      onChange={(e)=>setDocForm(prev=>({...prev, date: e.target.value}))} 
+                    />
+                  </FormControl>
+                  {docForm.type === 'INVOICE' && (
+                    <FormControl>
+                      <FormLabel fontWeight="bold">Échéance</FormLabel>
+                      <Input 
+                        type="date" 
+                        value={docForm.dueDate || ''} 
+                        onChange={(e)=>setDocForm(prev=>({...prev, dueDate: e.target.value}))} 
+                      />
+                    </FormControl>
+                  )}
+                </HStack>
+
+                {/* Numéro et Titre */}
+                <HStack spacing={3}>
+                  <FormControl>
+                    <FormLabel fontWeight="bold">Numéro</FormLabel>
+                    <Input 
+                      value={docForm.number} 
+                      onChange={(e)=>setDocForm(prev=>({...prev, number: e.target.value}))} 
+                      placeholder={docForm.type === 'QUOTE' ? "ex: DV-2025-001" : "ex: FA-2025-001"}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontWeight="bold">Titre</FormLabel>
+                    <Input 
+                      value={docForm.title} 
+                      onChange={(e)=>setDocForm(prev=>({...prev, title: e.target.value}))} 
+                      placeholder="Objet du document" 
+                    />
                   </FormControl>
                 </HStack>
-                <HStack>
-                  <FormControl>
-                    <FormLabel>Numéro</FormLabel>
-                    <Input value={docForm.number} onChange={(e)=>setDocForm(prev=>({...prev, number: e.target.value}))} placeholder="ex: 2025-INV-001" />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Montant</FormLabel>
-                    <NumberInput value={docForm.amount} onChange={(v)=>setDocForm(prev=>({...prev, amount: v}))} precision={2} step={0.5}>
-                      <NumberInputField />
-                      <NumberInputStepper>
-                        <NumberIncrementStepper />
-                        <NumberDecrementStepper />
-                      </NumberInputStepper>
-                    </NumberInput>
-                  </FormControl>
-                </HStack>
+
+                {/* Description */}
                 <FormControl>
-                  <FormLabel>Titre</FormLabel>
-                  <Input value={docForm.title} onChange={(e)=>setDocForm(prev=>({...prev, title: e.target.value}))} placeholder="Objet du document" />
+                  <FormLabel fontWeight="bold">Description</FormLabel>
+                  <Textarea 
+                    value={docForm.description || ''} 
+                    onChange={(e)=>setDocForm(prev=>({...prev, description: e.target.value}))} 
+                    placeholder="Détails du document"
+                    rows={2}
+                  />
                 </FormControl>
+
+                {/* Calcul des montants avec algorithme TVA */}
+                <Box bg="blue.50" p={4} borderRadius="md" borderLeft="4px solid" borderColor="blue.500">
+                  <VStack spacing={3} align="stretch">
+                    <Heading size="sm">💰 Montants et TVA</Heading>
+                    
+                    <HStack spacing={3}>
+                      <FormControl>
+                        <FormLabel fontSize="sm" fontWeight="bold">Montant HT</FormLabel>
+                        <NumberInput 
+                          value={docForm.amountExcludingTax || ''} 
+                          onChange={(v)=>{
+                            const ht = parseFloat(v) || 0;
+                            const taxRate = parseFloat(docForm.taxRate) || 20;
+                            const taxAmount = ht * (taxRate / 100);
+                            const ttc = ht + taxAmount;
+                            setDocForm(prev=>({
+                              ...prev, 
+                              amountExcludingTax: v,
+                              taxAmount: taxAmount.toFixed(2),
+                              amount: ttc.toFixed(2)
+                            }));
+                          }} 
+                          precision={2} 
+                          step={10}
+                        >
+                          <NumberInputField placeholder="0.00" />
+                          <NumberInputStepper>
+                            <NumberIncrementStepper />
+                            <NumberDecrementStepper />
+                          </NumberInputStepper>
+                        </NumberInput>
+                      </FormControl>
+
+                      <FormControl>
+                        <FormLabel fontSize="sm" fontWeight="bold">TVA %</FormLabel>
+                        <NumberInput 
+                          value={docForm.taxRate || 20} 
+                          onChange={(v)=>{
+                            const taxRate = parseFloat(v) || 20;
+                            const ht = parseFloat(docForm.amountExcludingTax) || 0;
+                            const taxAmount = ht * (taxRate / 100);
+                            const ttc = ht + taxAmount;
+                            setDocForm(prev=>({
+                              ...prev, 
+                              taxRate: v,
+                              taxAmount: taxAmount.toFixed(2),
+                              amount: ttc.toFixed(2)
+                            }));
+                          }} 
+                          min={0} 
+                          max={100} 
+                          step={0.5}
+                        >
+                          <NumberInputField />
+                          <NumberInputStepper>
+                            <NumberIncrementStepper />
+                            <NumberDecrementStepper />
+                          </NumberInputStepper>
+                        </NumberInput>
+                      </FormControl>
+
+                      <FormControl>
+                        <FormLabel fontSize="sm" fontWeight="bold">Montant TVA</FormLabel>
+                        <Box pt={2} px={3} py={2} bg="white" borderRadius="md" border="1px solid" borderColor="gray.300">
+                          <Text fontWeight="bold" fontSize="md">
+                            {parseFloat(docForm.taxAmount || 0).toFixed(2)} €
+                          </Text>
+                        </Box>
+                      </FormControl>
+                    </HStack>
+
+                    <HStack spacing={3}>
+                      <Box flex={1}>
+                        <FormLabel fontSize="sm" fontWeight="bold" color="green.600">Montant TTC</FormLabel>
+                        <Box pt={2} px={3} py={3} bg="green.100" borderRadius="md" border="2px solid" borderColor="green.400">
+                          <Text fontWeight="bold" fontSize="lg" color="green.700">
+                            {parseFloat(docForm.amount || 0).toFixed(2)} €
+                          </Text>
+                        </Box>
+                      </Box>
+                    </HStack>
+                  </VStack>
+                </Box>
+
+                {/* Statut contextualisé */}
                 <FormControl>
-                  <FormLabel>Statut</FormLabel>
-                  <Select value={docForm.status} onChange={(e)=>setDocForm(prev=>({...prev, status: e.target.value}))}>
-                    <option value="DRAFT">Brouillon</option>
-                    <option value="SENT">Envoyé</option>
-                    <option value="PAID">Payé</option>
-                    <option value="CANCELLED">Annulé</option>
+                  <FormLabel fontWeight="bold">Statut</FormLabel>
+                  <Select 
+                    value={docForm.status} 
+                    onChange={(e)=>setDocForm(prev=>({...prev, status: e.target.value}))}>
+                    {docForm.type === 'QUOTE' ? (
+                      <>
+                        <option value="DRAFT">📋 Brouillon</option>
+                        <option value="SENT">📤 Envoyé</option>
+                        <option value="ACCEPTED">✅ Accepté</option>
+                        <option value="REFUSED">❌ Refusé</option>
+                        <option value="REEDITED">🔄 Réédité</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="DRAFT">📋 Brouillon</option>
+                        <option value="SENT">📤 Envoyé</option>
+                        <option value="ACCEPTED">✅ Accepté</option>
+                        <option value="PENDING_PAYMENT">⏳ En attente de paiement</option>
+                        <option value="PAID">💳 Payé</option>
+                        <option value="DEPOSIT_PAID">💰 Accompte payé</option>
+                      </>
+                    )}
                   </Select>
                 </FormControl>
+
+                {/* Paiement pour les factures */}
+                {docForm.type === 'INVOICE' && (
+                  <Box bg="purple.50" p={3} borderRadius="md" borderLeft="4px solid" borderColor="purple.500">
+                    <VStack spacing={2} align="stretch">
+                      <FormLabel fontSize="sm" fontWeight="bold">Infos de paiement</FormLabel>
+                      <HStack spacing={2}>
+                        <FormControl>
+                          <FormLabel fontSize="xs">Mode</FormLabel>
+                          <Input 
+                            size="sm"
+                            value={docForm.paymentMethod || ''} 
+                            onChange={(e)=>setDocForm(prev=>({...prev, paymentMethod: e.target.value}))} 
+                            placeholder="ex: Virement, Espèces"
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel fontSize="xs">Date paiement</FormLabel>
+                          <Input 
+                            size="sm"
+                            type="date" 
+                            value={docForm.paymentDate || ''} 
+                            onChange={(e)=>setDocForm(prev=>({...prev, paymentDate: e.target.value}))} 
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel fontSize="xs">Montant payé</FormLabel>
+                          <NumberInput 
+                            value={docForm.amountPaid || ''} 
+                            onChange={(v)=>setDocForm(prev=>({...prev, amountPaid: v}))} 
+                            size="sm"
+                            precision={2}
+                          >
+                            <NumberInputField />
+                          </NumberInput>
+                        </FormControl>
+                      </HStack>
+                    </VStack>
+                  </Box>
+                )}
+
+                {/* Liaison événement/membre */}
+                <HStack spacing={3}>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Événement (optionnel)</FormLabel>
+                    <Input 
+                      size="sm"
+                      value={docForm.eventId || ''} 
+                      onChange={(e)=>setDocForm(prev=>({...prev, eventId: e.target.value}))} 
+                      placeholder="ID d'événement"
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Membre (optionnel)</FormLabel>
+                    <Input 
+                      size="sm"
+                      value={docForm.memberId || ''} 
+                      onChange={(e)=>setDocForm(prev=>({...prev, memberId: e.target.value}))} 
+                      placeholder="ID de membre"
+                    />
+                  </FormControl>
+                </HStack>
+
+                {/* Notes */}
                 <FormControl>
-                  <FormLabel>Événement (optionnel)</FormLabel>
-                  <Input value={docForm.eventId} onChange={(e)=>setDocForm(prev=>({...prev, eventId: e.target.value}))} placeholder="ID d'événement" />
+                  <FormLabel fontSize="sm">Notes (visibles au client)</FormLabel>
+                  <Textarea 
+                    size="sm"
+                    value={docForm.notes || ''} 
+                    onChange={(e)=>setDocForm(prev=>({...prev, notes: e.target.value}))} 
+                    placeholder="Remarques publiques"
+                    rows={1}
+                  />
                 </FormControl>
               </VStack>
             </ModalBody>
             <ModalFooter>
-              <Button variant="ghost" onClick={onDocClose}>Annuler</Button>
-              <Button colorScheme="purple" onClick={saveDocument}>{editingDocument ? 'Enregistrer' : 'Créer'}</Button>
+              <HStack spacing={2}>
+                <Button variant="ghost" onClick={onDocClose}>Annuler</Button>
+                <Button colorScheme="purple" onClick={saveDocument}>
+                  {editingDocument ? '💾 Enregistrer' : '➕ Créer'}
+                </Button>
+              </HStack>
             </ModalFooter>
           </ModalContent>
         </Modal>
