@@ -26,6 +26,7 @@ import { API_BASE_URL } from '../api/config';
 import { displayNameFromUser, formatMemberLabel } from '../lib/names';
 import EmailTemplateManager from '../components/EmailTemplateManager';
 import MemberPermissionsManager from '../components/MemberPermissionsManager';
+import TemplateManagement from '../components/TemplateManagement';
 import {
   ENDPOINTS,
   getUsersPath, getMembersPath, getSiteConfigPath, getChangelogPath,
@@ -1562,7 +1563,8 @@ export default function SiteManagement() {
             <Tab>📝 Changelog & Versions</Tab>
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
-            <Tab>🛡️ Permissions des Rôles</Tab>
+            <Tab>� Modèles de Documents</Tab>
+            <Tab>�🛡️ Permissions des Rôles</Tab>
           </TabList>
 
           <TabPanels>
@@ -1707,6 +1709,17 @@ export default function SiteManagement() {
                   </CardBody>
                 </Card>
               </SimpleGrid>
+            </TabPanel>
+
+            {/* Onglet Modèles de Documents */}
+            <TabPanel>
+              <VStack spacing={6} align="stretch">
+                <Box>
+                  <Heading size="lg" mb={2}>📋 Gestion des Modèles de Documents</Heading>
+                  <Text color="gray.600">Créez et gérez les templates HTML pour vos devis et factures avec variables personnalisables</Text>
+                </Box>
+                <TemplateManagementInline />
+              </VStack>
             </TabPanel>
 
             <TabPanel>
@@ -1941,3 +1954,10 @@ export default function SiteManagement() {
     </Container>
   );
 }
+
+/**
+ * Wrapper pour TemplateManagement utilisé dans l'onglet de SiteManagement
+ */
+const TemplateManagementInline = () => {
+  return <TemplateManagement />;
+};
