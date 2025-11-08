@@ -1117,11 +1117,8 @@ const AdminFinance = () => {
         ? buildPathCandidates(`/api/finance/documents/${encodeURIComponent(editingDocument.id)}`)
         : buildPathCandidates('/api/finance/documents');
       
-      // Préparation du payload avec calculs
-      const amountExcludingTax = parseFloat(docForm.amountExcludingTax) || 0;
-      const taxRate = parseFloat(docForm.taxRate) || 20;
-      const taxAmount = amountExcludingTax * (taxRate / 100);
-      const amountTTC = amountExcludingTax + taxAmount;
+      // Pour associations: pas de TVA (0%)
+      const amount = parseFloat(docForm.amount) || 0;
 
       const payload = {
         type: docForm.type,
@@ -1130,10 +1127,10 @@ const AdminFinance = () => {
         description: docForm.description || null,
         date: docForm.date,
         dueDate: docForm.dueDate || null,
-        amountExcludingTax: amountExcludingTax,
-        taxRate: taxRate,
-        taxAmount: parseFloat(taxAmount.toFixed(2)),
-        amount: parseFloat(amountTTC.toFixed(2)),
+        amountExcludingTax: amount,  // Pas de TVA
+        taxRate: 0,                   // TVA 0% pour associations
+        taxAmount: 0,                 // Pas de calcul TVA
+        amount: amount,                // Montant = montant seul
         quoteStatus: docForm.type === 'QUOTE' ? docForm.status : null,
         invoiceStatus: docForm.type === 'INVOICE' ? docForm.status : null,
         eventId: docForm.eventId || null,
@@ -1157,18 +1154,15 @@ const AdminFinance = () => {
     } catch (e) {
       // Fallback local
       const genId = editingDocument?.id || `local-${Date.now()}`;
-      const amountExcludingTax = parseFloat(docForm.amountExcludingTax) || 0;
-      const taxRate = parseFloat(docForm.taxRate) || 20;
-      const taxAmount = amountExcludingTax * (taxRate / 100);
-      const amountTTC = amountExcludingTax + taxAmount;
+      const amount = parseFloat(docForm.amount) || 0;
 
       const newDoc = {
         ...docForm,
         id: genId,
-        amountExcludingTax,
-        taxRate,
-        taxAmount: parseFloat(taxAmount.toFixed(2)),
-        amount: parseFloat(amountTTC.toFixed(2)),
+        amountExcludingTax: amount,
+        taxRate: 0,
+        taxAmount: 0,
+        amount: amount,
         quoteStatus: docForm.type === 'QUOTE' ? docForm.status : null,
         invoiceStatus: docForm.type === 'INVOICE' ? docForm.status : null,
       };
@@ -3136,87 +3130,47 @@ const AdminFinance = () => {
                   />
                 </FormControl>
 
-                {/* Calcul des montants avec algorithme TVA */}
+                {/* Montant - Simplifié pour associations (pas de TVA) */}
+                {/* Les associations ne sont pas soumises à la TVA en France */}
                 <Box bg="blue.50" p={4} borderRadius="md" borderLeft="4px solid" borderColor="blue.500">
                   <VStack spacing={3} align="stretch">
-                    <Heading size="sm">💰 Montants et TVA</Heading>
+                    <HStack justify="space-between">
+                      <Heading size="sm">💰 Montant</Heading>
+                      <Text fontSize="xs" color="gray.600">🏢 Association (exempte TVA)</Text>
+                    </HStack>
                     
-                    <HStack spacing={3}>
-                      <FormControl>
-                        <FormLabel fontSize="sm" fontWeight="bold">Montant HT</FormLabel>
-                        <NumberInput 
-                          value={docForm.amountExcludingTax || ''} 
-                          onChange={(v)=>{
-                            const ht = parseFloat(v) || 0;
-                            const taxRate = parseFloat(docForm.taxRate) || 20;
-                            const taxAmount = ht * (taxRate / 100);
-                            const ttc = ht + taxAmount;
-                            setDocForm(prev=>({
-                              ...prev, 
-                              amountExcludingTax: v,
-                              taxAmount: taxAmount.toFixed(2),
-                              amount: ttc.toFixed(2)
-                            }));
-                          }} 
-                          precision={2} 
-                          step={10}
-                        >
-                          <NumberInputField placeholder="0.00" />
-                          <NumberInputStepper>
-                            <NumberIncrementStepper />
-                            <NumberDecrementStepper />
-                          </NumberInputStepper>
-                        </NumberInput>
-                      </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="sm" fontWeight="bold">Montant total</FormLabel>
+                      <NumberInput 
+                        value={docForm.amount || ''} 
+                        onChange={(v)=>{
+                          setDocForm(prev=>({
+                            ...prev, 
+                            amount: v,
+                            amountExcludingTax: v,
+                            taxRate: 0,
+                            taxAmount: 0
+                          }));
+                        }} 
+                        precision={2} 
+                        step={10}
+                      >
+                        <NumberInputField placeholder="0.00" />
+                        <NumberInputStepper>
+                          <NumberIncrementStepper />
+                          <NumberDecrementStepper />
+                        </NumberInputStepper>
+                      </NumberInput>
+                    </FormControl>
 
-                      <FormControl>
-                        <FormLabel fontSize="sm" fontWeight="bold">TVA %</FormLabel>
-                        <NumberInput 
-                          value={docForm.taxRate || 20} 
-                          onChange={(v)=>{
-                            const taxRate = parseFloat(v) || 20;
-                            const ht = parseFloat(docForm.amountExcludingTax) || 0;
-                            const taxAmount = ht * (taxRate / 100);
-                            const ttc = ht + taxAmount;
-                            setDocForm(prev=>({
-                              ...prev, 
-                              taxRate: v,
-                              taxAmount: taxAmount.toFixed(2),
-                              amount: ttc.toFixed(2)
-                            }));
-                          }} 
-                          min={0} 
-                          max={100} 
-                          step={0.5}
-                        >
-                          <NumberInputField />
-                          <NumberInputStepper>
-                            <NumberIncrementStepper />
-                            <NumberDecrementStepper />
-                          </NumberInputStepper>
-                        </NumberInput>
-                      </FormControl>
-
-                      <FormControl>
-                        <FormLabel fontSize="sm" fontWeight="bold">Montant TVA</FormLabel>
-                        <Box pt={2} px={3} py={2} bg="white" borderRadius="md" border="1px solid" borderColor="gray.300">
-                          <Text fontWeight="bold" fontSize="md">
-                            {parseFloat(docForm.taxAmount || 0).toFixed(2)} €
-                          </Text>
-                        </Box>
-                      </FormControl>
-                    </HStack>
-
-                    <HStack spacing={3}>
-                      <Box flex={1}>
-                        <FormLabel fontSize="sm" fontWeight="bold" color="green.600">Montant TTC</FormLabel>
-                        <Box pt={2} px={3} py={3} bg="green.100" borderRadius="md" border="2px solid" borderColor="green.400">
-                          <Text fontWeight="bold" fontSize="lg" color="green.700">
-                            {parseFloat(docForm.amount || 0).toFixed(2)} €
-                          </Text>
-                        </Box>
-                      </Box>
-                    </HStack>
+                    <Box p={3} bg="green.100" borderRadius="md" border="1px solid" borderColor="green.400">
+                      <HStack justify="space-between">
+                        <Text fontSize="sm" color="green.700" fontWeight="bold">Montant TTC:</Text>
+                        <Text fontSize="lg" color="green.700" fontWeight="bold">
+                          {parseFloat(docForm.amount || 0).toFixed(2)} €
+                        </Text>
+                      </HStack>
+                    </Box>
                   </VStack>
                 </Box>
 
