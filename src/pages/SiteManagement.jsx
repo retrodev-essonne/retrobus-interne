@@ -24,6 +24,7 @@ import {
 import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
 import { displayNameFromUser, formatMemberLabel } from '../lib/names';
+import { useUser } from '../context/UserContext';
 import EmailTemplateManager from '../components/EmailTemplateManager';
 import PermissionsManager from '../components/PermissionsManager';
 import TemplateManagement from '../components/TemplateManagement';
@@ -1148,6 +1149,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
 
 // === COMPOSANT PRINCIPAL ===
 export default function SiteManagement() {
+  const { user } = useUser();
   const cardBg = useColorModeValue('white', 'gray.800');
   const [changelogs, setChangelogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1568,7 +1570,9 @@ export default function SiteManagement() {
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
             <Tab>📄 Modèles de Documents</Tab>
-            <Tab>🛡️ Permissions des Utilisateurs</Tab>
+            {user?.username === 'w.belaidi' && (
+              <Tab>🛡️ Permissions des Utilisateurs</Tab>
+            )}
           </TabList>
 
           <TabPanels>
@@ -1726,15 +1730,17 @@ export default function SiteManagement() {
               </VStack>
             </TabPanel>
 
-            <TabPanel>
-              <VStack spacing={6} align="stretch">
-                <Box>
-                  <Heading size="lg" mb={2}>🛡️ Gestion des Rôles & Permissions</Heading>
-                  <Text color="gray.600">Gérez les rôles principaux et les permissions individuelles de chaque utilisateur</Text>
-                </Box>
-                <PermissionsManager />
-              </VStack>
-            </TabPanel>
+            {user?.username === 'w.belaidi' && (
+              <TabPanel>
+                <VStack spacing={6} align="stretch">
+                  <Box>
+                    <Heading size="lg" mb={2}>🛡️ Gestion des Rôles & Permissions</Heading>
+                    <Text color="gray.600">Gérez les rôles principaux et les permissions individuelles de chaque utilisateur</Text>
+                  </Box>
+                  <PermissionsManager />
+                </VStack>
+              </TabPanel>
+            )}
           </TabPanels>
         </Tabs>
 
