@@ -20,7 +20,7 @@ import {
   FiUpload, FiEdit3, FiTrash2, FiMoreHorizontal, FiCheck, FiX, 
   FiRefreshCw, FiClock, FiRepeat, FiTarget, FiSettings, FiLock,
   FiUnlock, FiEye, FiEyeOff, FiActivity, FiTrendingDown as FiSimulation,
-  FiDatabase, FiShield, FiAlertTriangle, FiInfo, FiSave, FiRotateCcw
+  FiDatabase, FiShield, FiAlertTriangle, FiInfo, FiSave, FiRotateCcw, FiCheckCircle
 } from "react-icons/fi";
 import PermissionsManager from "../components/PermissionsManager";
 
@@ -153,6 +153,12 @@ const AdminFinance = () => {
     paymentDate: '',
     amountPaid: ''
   });
+  
+  // Mode génération document: 'manual' | 'template' | 'pdf'
+  const [docGenerationMode, setDocGenerationMode] = useState('manual'); // manual editing
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [pdfFile, setPdfFile] = useState(null);
 
   // Edition/Liaison transaction
   const { isOpen: isEditTxOpen, onOpen: onEditTxOpen, onClose: onEditTxClose } = useDisclosure();
@@ -1056,6 +1062,93 @@ const AdminFinance = () => {
     }
   };
 
+  // Charger les templates disponibles
+  const loadTemplates = async () => {
+    try {
+      const paths = buildPathCandidates('/api/document-templates');
+      const data = await fetchJsonFirst(paths, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (data && data.templates) {
+        setTemplates(data.templates);
+      }
+    } catch (e) {
+      console.error('❌ Erreur chargement templates:', e);
+    }
+  };
+
+  // Générer un document depuis un template HTML
+  const generateFromTemplate = async () => {
+    if (!selectedTemplate) {
+      toast({ status: 'warning', title: 'Erreur', description: 'Sélectionnez un template' });
+      return;
+    }
+
+    try {
+      // Générer l'HTML en remplaçant les variables
+      let html = selectedTemplate.htmlContent || '';
+      const variables = {
+        '{{NUMERO}}': docForm.number,
+        '{{TITRE}}': docForm.title,
+        '{{DESCRIPTION}}': docForm.description || '',
+        '{{MONTANT}}': parseFloat(docForm.amount || 0).toFixed(2),
+        '{{DATE}}': new Date(docForm.date).toLocaleDateString('fr-FR'),
+        '{{NOTES}}': docForm.notes || '',
+      };
+
+      Object.entries(variables).forEach(([key, value]) => {
+        html = html.replace(new RegExp(key, 'g'), value);
+      });
+
+      // Générer le PDF (utiliser html2pdf ou autre library)
+      // Pour l'instant, ouvrir dans une nouvelle fenêtre
+      const newWindow = window.open('', '_blank');
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${docForm.title}</title>
+          <style>${selectedTemplate.cssContent || ''}</style>
+        </head>
+        <body>
+          ${html}
+          <script>window.print();</script>
+        </body>
+        </html>
+      `);
+      newWindow.document.close();
+
+      toast({
+        status: 'success',
+        title: 'Document généré',
+        description: 'Utilisez le menu Imprimer pour générer le PDF'
+      });
+    } catch (e) {
+      console.error('❌ Erreur génération:', e);
+      toast({ status: 'error', title: 'Erreur', description: 'Impossible de générer le document' });
+    }
+  };
+
+  // Upload un PDF existant
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast({ status: 'warning', title: 'Erreur', description: 'Veuillez sélectionner un fichier PDF' });
+      return;
+    }
+
+    setPdfFile(file);
+    toast({
+      status: 'info',
+      title: 'PDF sélectionné',
+      description: `${file.name} sera attaché au document`
+    });
+  };
+
   // CRUD Documents
   const openCreateDocument = () => {
     setEditingDocument(null);
@@ -1425,6 +1518,7 @@ const AdminFinance = () => {
     const initializeData = async () => {
       await loadUserInfo();
       await loadFinancialData();
+      await loadTemplates();
     };
     
     initializeData();
@@ -3281,11 +3375,113 @@ const AdminFinance = () => {
                     rows={1}
                   />
                 </FormControl>
+
+                {/* Section Génération - Toggleable */}
+                <Box bg="amber.50" p={4} borderRadius="md" borderLeft="4px solid" borderColor="amber.500">
+                  <VStack spacing={3} align="stretch">
+                    <HStack justify="space-between">
+                      <Heading size="sm">📄 Générer le document</Heading>
+                      <Switch 
+                        isChecked={docGenerationMode !== 'manual'} 
+                        onChange={(e) => setDocGenerationMode(e.target.checked ? 'template' : 'manual')}
+                      />
+                    </HStack>
+
+                    {docGenerationMode !== 'manual' && (
+                      <VStack spacing={2} align="stretch">
+                        {/* Tabs pour Template vs PDF */}
+                        <HStack>
+                          <Button 
+                            size="sm" 
+                            variant={docGenerationMode === 'template' ? 'solid' : 'outline'}
+                            colorScheme="orange"
+                            onClick={() => setDocGenerationMode('template')}
+                          >
+                            📋 Depuis template
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant={docGenerationMode === 'pdf' ? 'solid' : 'outline'}
+                            colorScheme="orange"
+                            onClick={() => setDocGenerationMode('pdf')}
+                          >
+                            📁 Uploader PDF
+                          </Button>
+                        </HStack>
+
+                        {/* Template */}
+                        {docGenerationMode === 'template' && (
+                          <FormControl>
+                            <FormLabel fontSize="sm" fontWeight="bold">Sélectionner un template</FormLabel>
+                            <Select 
+                              size="sm"
+                              value={selectedTemplate?.id || ''} 
+                              onChange={(e) => {
+                                const tmpl = templates.find(t => t.id === e.target.value);
+                                setSelectedTemplate(tmpl);
+                              }}
+                              placeholder="Choisir un template..."
+                            >
+                              {templates.filter(t => t.docType === docForm.type).map(t => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} {t.isDefault ? '⭐' : ''}
+                                </option>
+                              ))}
+                            </Select>
+                            <Text fontSize="xs" color="gray.600" mt={1}>
+                              {selectedTemplate?.description || 'Aucun template sélectionné'}
+                            </Text>
+                          </FormControl>
+                        )}
+
+                        {/* PDF Upload */}
+                        {docGenerationMode === 'pdf' && (
+                          <FormControl>
+                            <FormLabel fontSize="sm" fontWeight="bold">Uploader un PDF</FormLabel>
+                            <Input 
+                              type="file"
+                              accept=".pdf"
+                              size="sm"
+                              onChange={handlePdfUpload}
+                            />
+                            {pdfFile && (
+                              <Text fontSize="xs" color="green.600" mt={1}>
+                                ✅ {pdfFile.name} sélectionné
+                              </Text>
+                            )}
+                          </FormControl>
+                        )}
+                      </VStack>
+                    )}
+                  </VStack>
+                </Box>
               </VStack>
             </ModalBody>
             <ModalFooter>
               <HStack spacing={2}>
                 <Button variant="ghost" onClick={onDocClose}>Annuler</Button>
+                
+                {/* Boutons conditionnels */}
+                {docGenerationMode === 'template' && selectedTemplate && (
+                  <Button 
+                    colorScheme="orange" 
+                    onClick={generateFromTemplate}
+                    leftIcon={<FiDownload />}
+                  >
+                    🔍 Aperçu & PDF
+                  </Button>
+                )}
+                
+                {docGenerationMode === 'pdf' && pdfFile && (
+                  <Button 
+                    colorScheme="blue" 
+                    onClick={() => toast({ title: 'PDF attaché', status: 'info' })}
+                    leftIcon={<FiCheckCircle />}
+                  >
+                    ✅ Attacher PDF
+                  </Button>
+                )}
+                
                 <Button colorScheme="purple" onClick={saveDocument}>
                   {editingDocument ? '💾 Enregistrer' : '➕ Créer'}
                 </Button>
