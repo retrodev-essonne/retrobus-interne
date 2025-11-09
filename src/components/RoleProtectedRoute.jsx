@@ -20,18 +20,15 @@ export default function RoleProtectedRoute({
   fallbackRoute = '/dashboard/home',
   showError = true
 }) {
-  const { isAuthenticated, user } = useUser();
+  const { isAuthenticated, roles } = useUser();
 
   // Pas authentifié
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  const userRole = user.role || 'MEMBER';
+  // Récupérer le premier rôle ou MEMBER par défaut
+  const userRole = roles?.[0] || 'MEMBER';
 
   // Vérifier si le rôle est dans la liste des rôles refusés
   if (deniedRoles && deniedRoles.includes(userRole)) {
