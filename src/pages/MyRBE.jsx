@@ -6,7 +6,8 @@ import {
   Button,
   HStack,
   Box,
-  useColorModeValue
+  useColorModeValue,
+  Divider
 } from "@chakra-ui/react";
 import { Link as RouterLink } from "react-router-dom";
 import {
@@ -17,6 +18,7 @@ import { useUser } from "../context/UserContext";
 import { canAccess, RESOURCES } from "../lib/permissions";
 import PageLayout from '../components/Layout/PageLayout';
 import ModernCard from '../components/Layout/ModernCard';
+import RetroRequestCard from '../components/RetroRequestCard';
 
 const cards = [
   {
@@ -143,6 +145,11 @@ export default function MyRBE() {
       ]}
     >
       <VStack spacing={8} align="stretch">
+        {/* Carte RétroDemande - Espace personnel client */}
+        <RetroRequestCard />
+        
+        <Divider my={4} />
+
         {/* Grille des fonctionnalités */}
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
           {visibleCards.map((card) => (
