@@ -1564,7 +1564,7 @@ export default function SiteManagement() {
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
             <Tab>📄 Modèles de Documents</Tab>
-            <Tab>🛡️ Permissions des Rôles</Tab>
+            <Tab>🛡️ Permissions des Utilisateurs</Tab>
           </TabList>
 
           <TabPanels>
