@@ -110,8 +110,8 @@ const cards = [
 export default function MyRBE() {
   const alertBg = useColorModeValue("blue.50", "blue.900");
   const alertBorder = useColorModeValue("blue.500", "blue.300");
-  const { user, customPermissions } = useUser();
-  const userRole = user?.role || 'MEMBER';
+  const { user, roles, customPermissions } = useUser();
+  const userRole = roles?.[0] || 'MEMBER';  // Utiliser le premier rôle du tableau
 
   // Filtrer les cartes en fonction du rôle
   let visibleCards = cards;
@@ -124,7 +124,12 @@ export default function MyRBE() {
   } else {
     // Pour les autres rôles, appliquer les permissions granulaires
     visibleCards = cards.filter(card => {
-      // Vérifier les rôles requis
+      // Les ADMIN voient TOUT
+      if (userRole === 'ADMIN') {
+        return true;
+      }
+      
+      // Vérifier les rôles requis pour les autres
       if (card.requiredRole && !card.requiredRole.includes(userRole)) {
         return false;
       }
