@@ -22,6 +22,7 @@ import {
   FiUnlock, FiEye, FiEyeOff, FiActivity, FiTrendingDown as FiSimulation,
   FiDatabase, FiShield, FiAlertTriangle, FiInfo, FiSave, FiRotateCcw
 } from "react-icons/fi";
+import PermissionsManager from "../components/PermissionsManager";
 
 const AdminFinance = () => {
   // === ÉTATS PRINCIPAUX ===
@@ -2041,6 +2042,7 @@ const AdminFinance = () => {
             <Tab>🧾 Notes de frais</Tab>
             <Tab>🧮 Simulations</Tab>
             <Tab>📊 Rapports</Tab>
+            <Tab>👥 Rôles & Permissions</Tab>
             <Tab>⚙️ Configuration</Tab>
           </TabList>
 
@@ -2876,6 +2878,11 @@ const AdminFinance = () => {
                   </VStack>
                 )}
               </VStack>
+            </TabPanel>
+
+            {/* Onglet Rôles & Permissions */}
+            <TabPanel>
+              <PermissionsManager />
             </TabPanel>
 
             {/* Onglet Configuration */}
