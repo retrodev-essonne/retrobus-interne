@@ -66,15 +66,15 @@ export default function RetroRequests() {
       let response;
       if (editingId) {
         response = await apiClient.put(`/api/retro-requests/${editingId}`, formData);
-        setRequests(requests.map(r => r.id === editingId ? response.data : r));
+        setRequests(requests.map(r => r.id === editingId ? response : r));
         toast({ title: 'Succès', description: 'Demande mise à jour', status: 'success', duration: 3000, isClosable: true });
       } else {
         response = await apiClient.post('/api/retro-requests', formData);
-        setRequests([response.data, ...requests]);
+        setRequests([response, ...requests]);
         
         // Envoyer des emails après création
         try {
-          await apiClient.post(`/api/retro-requests/${response.data.id}/send-emails`, {
+          await apiClient.post(`/api/retro-requests/${response.id}/send-emails`, {
             title: formData.title,
             description: formData.description,
             category: formData.category,
