@@ -26,8 +26,8 @@ export default function RetroRequests() {
     try {
       setLoading(true);
       const response = await apiClient.get('/api/retro-requests');
-      if (response.data && response.data.requests) {
-        setRequests(response.data.requests);
+      if (response.requests) {
+        setRequests(response.requests);
       }
     } catch (error) {
       console.error('Erreur chargement:', error);
