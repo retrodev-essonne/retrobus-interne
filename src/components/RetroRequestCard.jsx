@@ -66,7 +66,7 @@ import {
 } from '@chakra-ui/icons';
 import { apiClient } from '../api/config';
 
-export default function RetroRequestCard() {
+export default function RetroRequestCard({ mode = "full" }) {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isPreviewOpen, onOpen: onPreviewOpen, onClose: onPreviewClose } = useDisclosure();
