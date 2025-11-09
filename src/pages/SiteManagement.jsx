@@ -887,17 +887,17 @@ function CreateAccessModal({ isOpen, onClose, members, onUserSaved, user }) {
             </FormControl>
 
             <FormControl>
-              <FormLabel>Rôle</FormLabel>
+              <FormLabel>Rôle Système</FormLabel>
               <Select
                 value={formData.role}
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
               >
-                <option value="PRESIDENT">Président</option>
-                <option value="VICE_PRESIDENT">Vice-Président</option>
-                <option value="TRESORIER">Trésorier</option>
-                <option value="SECRETAIRE_GENERAL">Secrétaire Général</option>
-                <option value="MEMBER">Membre</option>
-                <option value="PRESTATAIRE">Prestataire</option>
+                <option value="ADMIN">Administrateur (accès total)</option>
+                <option value="MANAGER">Manager (gestion + finance)</option>
+                <option value="OPERATOR">Opérateur RétroBus</option>
+                <option value="MEMBER">Membre (basique)</option>
+                <option value="CLIENT">Client (RétroDemande)</option>
+                <option value="GUEST">Invité (lecture seule)</option>
               </Select>
             </FormControl>
 

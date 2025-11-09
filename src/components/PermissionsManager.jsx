@@ -328,6 +328,7 @@ export default function PermissionsManager() {
               <Tr>
                 <Th>Nom</Th>
                 <Th>Email</Th>
+                <Th>Type</Th>
                 <Th>Rôle</Th>
                 <Th>Permissions</Th>
                 <Th>Statut</Th>
@@ -341,6 +342,11 @@ export default function PermissionsManager() {
                     {user.firstName} {user.lastName}
                   </Td>
                   <Td fontSize="sm">{user.email}</Td>
+                  <Td>
+                    <Badge colorScheme={user.isMember ? 'cyan' : 'gray'}>
+                      {user.isMember ? 'Adhérent' : 'SiteUser'}
+                    </Badge>
+                  </Td>
                   <Td>{getRoleBadge(user.role)}</Td>
                   <Td>
                     {user.permissions?.length > 0 ? (
@@ -377,6 +383,9 @@ export default function PermissionsManager() {
         <ModalContent>
           <ModalHeader>
             Gestion: {selectedUser?.firstName} {selectedUser?.lastName}
+            {selectedUser?.isMember && (
+              <Badge ml={3} colorScheme="cyan">Adhérent</Badge>
+            )}
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
