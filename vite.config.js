@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // Use loadEnv so .env.local is picked up in dev
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const DEV_API_TARGET = env.VITE_DEV_API_TARGET || 'https://api-retrobus-essonne.up.railway.app';
+  const DEV_API_TARGET = env.VITE_DEV_API_TARGET || 'https://attractive-kindness-rbe-serveurs.up.railway.app';
   const isHttps = DEV_API_TARGET.startsWith('https://');
   // Helpful banner on startup
   console.log(`[vite] Mode=${mode} | Proxy target=${DEV_API_TARGET}`);
