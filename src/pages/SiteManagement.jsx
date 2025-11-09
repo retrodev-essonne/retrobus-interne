@@ -1570,7 +1570,7 @@ export default function SiteManagement() {
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
             <Tab>📄 Modèles de Documents</Tab>
-            {user?.username === 'w.belaidi' && (
+            {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
               <Tab>🛡️ Permissions des Utilisateurs</Tab>
             )}
           </TabList>
