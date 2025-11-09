@@ -25,7 +25,7 @@ import { apiClient } from '../api/config';
 import { API_BASE_URL } from '../api/config';
 import { displayNameFromUser, formatMemberLabel } from '../lib/names';
 import EmailTemplateManager from '../components/EmailTemplateManager';
-import MemberPermissionsManager from '../components/MemberPermissionsManager';
+import PermissionsManager from '../components/PermissionsManager';
 import TemplateManagement from '../components/TemplateManagement';
 import {
   ENDPOINTS,
@@ -1725,10 +1725,10 @@ export default function SiteManagement() {
             <TabPanel>
               <VStack spacing={6} align="stretch">
                 <Box>
-                  <Heading size="lg" mb={2}>🛡️ Gestion des Permissions par Membre</Heading>
-                  <Text color="gray.600">Définissez les autorisations individuelles de chaque utilisateur du site</Text>
+                  <Heading size="lg" mb={2}>🛡️ Gestion des Rôles & Permissions</Heading>
+                  <Text color="gray.600">Gérez les rôles principaux et les permissions individuelles de chaque utilisateur</Text>
                 </Box>
-                <MemberPermissionsManager />
+                <PermissionsManager />
               </VStack>
             </TabPanel>
           </TabPanels>

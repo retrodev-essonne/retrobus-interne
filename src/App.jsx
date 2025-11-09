@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RoleProtectedRoute from "./components/RoleProtectedRoute";
 import PermissionProtectedRoute from "./components/PermissionProtectedRoute";
 import PrestataireLimitedRoute from "./components/PrestataireLimitedRoute";
 import RequireCreator from "./components/RequireCreator";
@@ -61,42 +62,42 @@ export default function App() {
   <Route path="/dashboard/myrbe/:parc" element={<ProtectedRoute><MyRBEActions /></ProtectedRoute>} />
         
         {/* 💰 Route gestion financière */}
-        <Route path="/admin/finance" element={<ProtectedRoute><AdminFinance /></ProtectedRoute>} />
+        <Route path="/admin/finance" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><AdminFinance /></RoleProtectedRoute>} />
         
         {/* 🚗 Routes des véhicules */}
-        <Route path="/dashboard/vehicules" element={<ProtectedRoute><Vehicules /></ProtectedRoute>} />
-        <Route path="/dashboard/vehicules/ajouter" element={<ProtectedRoute><RequireCreator><VehiculeCreate /></RequireCreator></ProtectedRoute>} />
-        <Route path="/dashboard/vehicules/:parc" element={<ProtectedRoute><VehiculeShow /></ProtectedRoute>} />
+        <Route path="/dashboard/vehicules" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><Vehicules /></RoleProtectedRoute>} />
+        <Route path="/dashboard/vehicules/ajouter" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><RequireCreator><VehiculeCreate /></RequireCreator></RoleProtectedRoute>} />
+        <Route path="/dashboard/vehicules/:parc" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><VehiculeShow /></RoleProtectedRoute>} />
         
         {/* 📅 Routes des événements */}
-        <Route path="/dashboard/evenements" element={<ProtectedRoute><Evenements /></ProtectedRoute>} />
-        <Route path="/dashboard/events-management" element={<ProtectedRoute><EventsHub /></ProtectedRoute>} />
-        <Route path="/dashboard/events-creation" element={<ProtectedRoute><EventsCreation /></ProtectedRoute>} />
+        <Route path="/dashboard/evenements" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><Evenements /></RoleProtectedRoute>} />
+        <Route path="/dashboard/events-management" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><EventsHub /></RoleProtectedRoute>} />
+        <Route path="/dashboard/events-creation" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><EventsCreation /></RoleProtectedRoute>} />
         {/* Route de test pour diagnostiquer */}
-        <Route path="/dashboard/test-events" element={<ProtectedRoute><TestEventsPage /></ProtectedRoute>} />
+        <Route path="/dashboard/test-events" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><TestEventsPage /></RoleProtectedRoute>} />
         
         {/* 🌐 Gestion du site et contenu */}
-        <Route path="/dashboard/site-management" element={<PermissionProtectedRoute resource={RESOURCES.SITE_MANAGEMENT}><SiteManagement /></PermissionProtectedRoute>} />
-        <Route path="/dashboard/flash-management" element={<ProtectedRoute><FlashManagement /></ProtectedRoute>} />
+        <Route path="/dashboard/site-management" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><PermissionProtectedRoute resource={RESOURCES.SITE_MANAGEMENT}><SiteManagement /></PermissionProtectedRoute></RoleProtectedRoute>} />
+        <Route path="/dashboard/flash-management" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><FlashManagement /></RoleProtectedRoute>} />
         {/* 🛒 RétroMerch (administration) */}
-        <Route path="/dashboard/retromerch" element={<ProtectedRoute><RetroMerch /></ProtectedRoute>} />
+        <Route path="/dashboard/retromerch" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><RetroMerch /></RoleProtectedRoute>} />
         
         {/* 📦 Gestion des stocks */}
-        <Route path="/dashboard/stock-management" element={<ProtectedRoute><StockManagement /></ProtectedRoute>} />
+        <Route path="/dashboard/stock-management" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><StockManagement /></RoleProtectedRoute>} />
         
         {/* 👥 Gestion des membres */}
-        <Route path="/dashboard/members-management" element={<ProtectedRoute><MembersManagement /></ProtectedRoute>} />
+        <Route path="/dashboard/members-management" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><MembersManagement /></RoleProtectedRoute>} />
         <Route path="/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
         <Route path="/adhesion" element={<ProtectedRoute><Adhesion /></ProtectedRoute>} />
         
         {/* 📧 Communication */}
-        <Route path="/dashboard/newsletter" element={<ProtectedRoute><Newsletter /></ProtectedRoute>} />
-        <Route path="/dashboard/newsletter-campaigns" element={<ProtectedRoute><NewsletterCampaigns /></ProtectedRoute>} />
-        <Route path="/dashboard/retroplanning" element={<PermissionProtectedRoute resource={RESOURCES.RETROPLANNING}><RetroPlanning /></PermissionProtectedRoute>} />
+        <Route path="/dashboard/newsletter" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><Newsletter /></RoleProtectedRoute>} />
+        <Route path="/dashboard/newsletter-campaigns" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><NewsletterCampaigns /></RoleProtectedRoute>} />
+        <Route path="/dashboard/retroplanning" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><PermissionProtectedRoute resource={RESOURCES.RETROPLANNING}><RetroPlanning /></PermissionProtectedRoute></RoleProtectedRoute>} />
         <Route path="/planning/attendance/:eventId/:memberId" element={<AttendancePage />} />
-        <Route path="/planning/my-invitations" element={<PermissionProtectedRoute resource={RESOURCES.RETROPLANNING_RESPOND}><AttendanceManager /></PermissionProtectedRoute>} />
-        <Route path="/dashboard/support" element={<PermissionProtectedRoute resource={RESOURCES.RETROSUPPORT}><SupportSite /></PermissionProtectedRoute>} />
-        <Route path="/retromail" element={<ProtectedRoute><Retromail /></ProtectedRoute>} />
+        <Route path="/planning/my-invitations" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><PermissionProtectedRoute resource={RESOURCES.RETROPLANNING_RESPOND}><AttendanceManager /></PermissionProtectedRoute></RoleProtectedRoute>} />
+        <Route path="/dashboard/support" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><PermissionProtectedRoute resource={RESOURCES.RETROSUPPORT}><SupportSite /></PermissionProtectedRoute></RoleProtectedRoute>} />
+        <Route path="/retromail" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><Retromail /></RoleProtectedRoute>} />
         
         {/* 📱 Version mobile */}
         <Route path="/mobile/v/:parc" element={<ProtectedRoute><MobileVehicle /></ProtectedRoute>} />
