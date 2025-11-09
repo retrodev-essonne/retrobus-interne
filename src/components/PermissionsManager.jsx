@@ -280,11 +280,16 @@ export default function PermissionsManager() {
   // Badges
   const getRoleBadge = (role) => {
     const colors = {
+      PRESIDENT: 'red',
+      VICE_PRESIDENT: 'orange',
+      TRESORIER: 'yellow',
+      SECRETAIRE_GENERAL: 'green',
+      MEMBER: 'blue',
+      PRESTATAIRE: 'purple',
+      CLIENT: 'cyan',
       ADMIN: 'red',
       MANAGER: 'orange',
       OPERATOR: 'blue',
-      MEMBER: 'green',
-      CLIENT: 'purple',
       GUEST: 'gray'
     };
     return <Badge colorScheme={colors[role] || 'gray'}>{role}</Badge>;
@@ -313,10 +318,10 @@ export default function PermissionsManager() {
         <Alert status="info" mb={6} borderRadius="md">
           <AlertIcon />
           <Box>
-            <Text fontWeight="bold">Rôles disponibles:</Text>
+            <Text fontWeight="bold">Fonctionnement:</Text>
             <Text fontSize="sm">
-              ADMIN (accès total) • MANAGER (gestion+finance) • OPERATOR (RétroBus) •
-              MEMBER (basique) • CLIENT (RétroDemande) • GUEST (lecture seule)
+              1. Choisir un rôle métier (Président, Membre, Client, etc.) - à titre informatif<br/>
+              2. Gérer les permissions personnalisées ci-dessous pour contrôler l'accès aux modules
             </Text>
           </Box>
         </Alert>
