@@ -1730,7 +1730,7 @@ export default function SiteManagement() {
               </VStack>
             </TabPanel>
 
-            {user?.username === 'w.belaidi' && (
+            {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
               <TabPanel>
                 <VStack spacing={6} align="stretch">
                   <Box>
