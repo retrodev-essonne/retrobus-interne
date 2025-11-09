@@ -71,7 +71,21 @@ export default function RetroRequests() {
       } else {
         response = await apiClient.post('/api/retro-requests', formData);
         setRequests([response.data, ...requests]);
-        toast({ title: 'Succès', description: 'Demande créée', status: 'success', duration: 3000, isClosable: true });
+        
+        // Envoyer des emails après création
+        try {
+          await apiClient.post(`/api/retro-requests/${response.data.id}/send-emails`, {
+            title: formData.title,
+            description: formData.description,
+            category: formData.category,
+            priority: formData.priority
+          });
+        } catch (emailError) {
+          console.error('Erreur envoi emails:', emailError);
+          // Ne pas bloquer si les emails échouent
+        }
+        
+        toast({ title: 'Succès', description: 'Demande créée et email envoyé', status: 'success', duration: 3000, isClosable: true });
       }
       setFormData({ title: '', description: '', category: 'GENERAL', priority: 'NORMAL' });
       setEditingId(null);
