@@ -1149,7 +1149,7 @@ function LinkMemberModal({ isOpen, onClose, user, members, onLinked }) {
 
 // === COMPOSANT PRINCIPAL ===
 export default function SiteManagement() {
-  const { user } = useUser();
+  const { user, roles } = useUser();
   const cardBg = useColorModeValue('white', 'gray.800');
   const [changelogs, setChangelogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1570,7 +1570,7 @@ export default function SiteManagement() {
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
             <Tab>📄 Modèles de Documents</Tab>
-            {(user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'OPERATOR') && (
+            {(roles.includes('ADMIN') || roles.includes('MANAGER') || roles.includes('OPERATOR')) && (
               <Tab>🛡️ Permissions des Utilisateurs</Tab>
             )}
           </TabList>
