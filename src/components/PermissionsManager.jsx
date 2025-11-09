@@ -119,6 +119,23 @@ export default function PermissionsManager() {
   const handleSelectUser = async (user) => {
     setSelectedUser(user);
     setFormRole(user.role);
+    
+    // Charger les permissions fraîchement
+    try {
+      const res = await apiClient.get(`/api/admin/users/${user.id}/permissions`);
+      if (res && res.user) {
+        // Merger les données de l'utilisateur avec les permissions chargées
+        setSelectedUser(prev => ({
+          ...prev,
+          ...res.user,
+          permissions: res.permissions
+        }));
+      }
+    } catch (error) {
+      console.error('Erreur chargement permissions:', error);
+      // Continue anyway with user data we have
+    }
+    
     onOpen();
   };
 

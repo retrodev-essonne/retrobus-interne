@@ -349,9 +349,42 @@ export const ROLE_PERMISSIONS = {
  * LOGIQUE SIMPLIFIÉE:
  * - PRESTATAIRE: uniquement retroplanning + retrosupport
  * - AUTRES: accès complet
+ * 
+ * customPermissions: array format: [{ resource, actions: ['READ', 'UPDATE', ...], expiresAt }]
  */
 export function hasPermission(role, resource, permissionType = 'access', customPermissions = null) {
-  // PRESTATAIRE: restrictions
+  // First check customPermissions (new UserPermission table format)
+  if (customPermissions && Array.isArray(customPermissions)) {
+    // Find matching permission for this resource
+    const perm = customPermissions.find(p => {
+      // Match either full resource key (e.g., 'vehicles:view') or resource enum (e.g., 'VEHICLES')
+      return p.resource === resource || p.resource === resource?.toUpperCase();
+    });
+    
+    if (perm) {
+      // Check if permission is not expired
+      if (!perm.expiresAt || new Date(perm.expiresAt) > new Date()) {
+        // Map permissionType to action
+        const actionMap = {
+          'access': 'READ',
+          'view': 'READ',
+          'read': 'READ',
+          'edit': 'UPDATE',
+          'update': 'UPDATE',
+          'delete': 'DELETE',
+          'create': 'CREATE'
+        };
+        const action = actionMap[permissionType] || 'READ';
+        
+        // Check if action is in the permission's actions array
+        if (perm.actions && perm.actions.includes(action)) {
+          return true;
+        }
+      }
+    }
+  }
+  
+  // PRESTATAIRE: restrictions (unless overridden by customPermissions above)
   if (role === 'PRESTATAIRE') {
     // Vérifier si la ressource commence par 'retroplanning' ou 'retrosupport'
     return resource?.startsWith('retroplanning') || resource?.startsWith('retrosupport');

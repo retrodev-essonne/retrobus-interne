@@ -162,14 +162,14 @@ export function UserProvider({ children }) {
       const candidates = apiCandidates();
       for (const base of candidates) {
         try {
-          const res = await fetch(`${base}/api/member-permissions/${user.id}`, {
+          const res = await fetch(`${base}/api/admin/users/${user.id}/permissions`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
             const data = await res.json();
-            // Only set customPermissions if there's actual data (not empty object)
-            const perms = data.customPermissions && Object.keys(data.customPermissions).length > 0 
-              ? data.customPermissions 
+            // New API returns { permissions: [...] } array format
+            const perms = (data.permissions && Array.isArray(data.permissions) && data.permissions.length > 0) 
+              ? data.permissions 
               : null;
             setCustomPermissions(perms);
             return perms;
