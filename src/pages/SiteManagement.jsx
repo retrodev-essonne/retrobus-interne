@@ -1570,7 +1570,7 @@ export default function SiteManagement() {
             <Tab>🔐 Accès aux Sites</Tab>
             <Tab>⚙️ Configuration</Tab>
             <Tab>📄 Modèles de Documents</Tab>
-            {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+            {(user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'OPERATOR') && (
               <Tab>🛡️ Permissions des Utilisateurs</Tab>
             )}
           </TabList>
@@ -1730,7 +1730,7 @@ export default function SiteManagement() {
               </VStack>
             </TabPanel>
 
-            {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+            {(user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'OPERATOR') && (
               <TabPanel>
                 <VStack spacing={6} align="stretch">
                   <Box>
