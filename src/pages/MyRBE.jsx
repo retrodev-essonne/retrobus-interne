@@ -22,6 +22,13 @@ import RetroRequestCard from '../components/RetroRequestCard';
 
 const cards = [
   {
+    title: "RétroDemandes",
+    description: "Créez vos demandes et consultez vos devis",
+    to: "/dashboard/retro-requests",
+    icon: FiSettings,  // À changer avec une meilleure icône si dispo
+    color: "blue"
+  },
+  {
     title: "RétroBus",
     description: "Mécanique, véhicules et maintenance",
     to: "/dashboard/retrobus",

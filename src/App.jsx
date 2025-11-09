@@ -39,6 +39,7 @@ import RetroMerch from "./pages/RetroMerch";
 import RetroPlanning from "./pages/RetroPlanning";
 import AttendancePage from "./pages/AttendancePage";
 import AttendanceManager from "./pages/AttendanceManager";
+import RetroRequests from "./pages/RetroRequests";
 
 export default function App() {
   const { isAuthenticated } = useUser();
@@ -60,6 +61,9 @@ export default function App() {
         <Route path="/dashboard/home" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
   <Route path="/dashboard/myrbe" element={<ProtectedRoute><MyRBE /></ProtectedRoute>} />
   <Route path="/dashboard/myrbe/:parc" element={<ProtectedRoute><MyRBEActions /></ProtectedRoute>} />
+        
+        {/* 📋 RétroDemandes - Devis et demandes */}
+        <Route path="/dashboard/retro-requests" element={<ProtectedRoute><RetroRequests /></ProtectedRoute>} />
         
         {/* 💰 Route gestion financière */}
         <Route path="/admin/finance" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><AdminFinance /></RoleProtectedRoute>} />
