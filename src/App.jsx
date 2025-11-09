@@ -40,6 +40,7 @@ import RetroPlanning from "./pages/RetroPlanning";
 import AttendancePage from "./pages/AttendancePage";
 import AttendanceManager from "./pages/AttendanceManager";
 import RetroRequests from "./pages/RetroRequests";
+import PresidentDashboard from "./pages/PresidentDashboard";
 
 export default function App() {
   const { isAuthenticated } = useUser();
@@ -64,6 +65,7 @@ export default function App() {
         
         {/* 📋 RétroDemandes - Devis et demandes */}
         <Route path="/dashboard/retro-requests" element={<ProtectedRoute><RetroRequests /></ProtectedRoute>} />
+        <Route path="/dashboard/president/retro-requests" element={<RoleProtectedRoute allowedRoles={['PRESIDENT', 'ADMIN']}><PresidentDashboard /></RoleProtectedRoute>} />
         
         {/* 💰 Route gestion financière */}
         <Route path="/admin/finance" element={<RoleProtectedRoute deniedRoles={['CLIENT', 'GUEST']}><AdminFinance /></RoleProtectedRoute>} />

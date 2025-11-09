@@ -28,6 +28,14 @@ const cards = [
     color: "blue"
   },
   {
+    title: "Récapitulatif Demandes",
+    description: "Vue d'ensemble de toutes les RétroDemandes",
+    to: "/dashboard/president/retro-requests",
+    icon: FiPlus,
+    color: "cyan",
+    requiredRole: ['PRESIDENT', 'ADMIN']
+  },
+  {
     title: "RétroBus",
     description: "Mécanique, véhicules et maintenance",
     to: "/dashboard/retrobus",
@@ -116,6 +124,11 @@ export default function MyRBE() {
   } else {
     // Pour les autres rôles, appliquer les permissions granulaires
     visibleCards = cards.filter(card => {
+      // Vérifier les rôles requis
+      if (card.requiredRole && !card.requiredRole.includes(userRole)) {
+        return false;
+      }
+      
       // Vérifier les permissions pour chaque carte
       const cardPermissionMap = {
         'RétroBus': RESOURCES.VEHICLES,
