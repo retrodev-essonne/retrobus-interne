@@ -92,10 +92,39 @@ export default function PermissionsManager() {
         setRoles(res.roleDefaults || {});
       }
 
-      // Charger les utilisateurs
-      const usersRes = await apiClient.get('/api/admin/users');
-      if (usersRes && usersRes.users) {
-        setUsers(usersRes.users);
+      // Charger les utilisateurs (préférence: /api/admin/users). Si échec, fallback vers site-users + members
+      try {
+        const usersRes = await apiClient.get('/api/admin/users');
+        if (usersRes && usersRes.users) {
+          setUsers(usersRes.users);
+        } else {
+          throw new Error('No users in admin response');
+        }
+      } catch (err) {
+        console.warn('Fallback: /api/admin/users failed, trying /api/site-users + /api/members', err.message);
+        // Récupérer site-users
+        const siteUsersRes = await apiClient.get('/api/site-users').catch(() => null);
+        const membersRes = await apiClient.get('/api/members').catch(() => null);
+
+        const siteUsers = (siteUsersRes && siteUsersRes.users) ? siteUsersRes.users : (siteUsersRes || []);
+        const members = (membersRes && membersRes.members) ? membersRes.members : (membersRes || []);
+
+        // Formater members pour ressembler aux siteUsers
+        const formattedMembers = (members || []).map(m => ({
+          id: m.id,
+          username: m.memberNumber || m.email,
+          email: m.email,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          role: m.linkedSiteUser?.role || 'MEMBER',
+          isActive: true,
+          createdAt: m.createdAt,
+          permissions: m.linkedSiteUser?.permissions || [],
+          isMember: true
+        }));
+
+        const all = [...(siteUsers || []), ...formattedMembers];
+        setUsers(all);
       }
     } catch (error) {
       console.error('Erreur chargement:', error);

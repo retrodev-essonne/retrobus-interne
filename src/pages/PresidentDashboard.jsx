@@ -218,7 +218,29 @@ export default function PresidentDashboard() {
                 <Heading size="md">
                   Demandes ({filteredRequests.length})
                 </Heading>
-                <Button size="sm" leftIcon={<DownloadIcon />} colorScheme="blue">
+                <Button size="sm" leftIcon={<DownloadIcon />} colorScheme="blue" onClick={() => {
+                  // Exporter en CSV
+                  const headers = ['id','number','status','createdAt','userId','title','totalQuotes'];
+                  const rows = filteredRequests.map(r => ([
+                    r.id,
+                    r.number || '',
+                    r.status || '',
+                    r.createdAt ? new Date(r.createdAt).toISOString() : '',
+                    r.userId || '',
+                    (r.title || '').replace(/\r?\n/g,' '),
+                    r.quotes ? r.quotes.length : 0
+                  ]));
+                  const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','))].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `retro_requests_${new Date().toISOString().slice(0,10)}.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                }}>
                   Exporter
                 </Button>
               </Flex>
