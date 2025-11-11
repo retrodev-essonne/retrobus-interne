@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiSave } from 'react-icons/fi';
 import GalleryManager from '../components/vehicle/GalleryManager.jsx';
 import CaracteristiquesEditor from '../components/vehicle/CaracteristiquesEditor.jsx';
+import VehicleTechnicalInfoEditor from '../components/vehicle/VehicleTechnicalInfoEditor.jsx';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -224,6 +225,19 @@ export default function VehiculeCreate() {
           <CardBody>
             <VStack align="stretch" spacing={4}>
               <Heading size="md">⚙️ Caractéristiques techniques</Heading>
+              <VehicleTechnicalInfoEditor 
+                data={data}
+                onUpdate={updateField}
+              />
+            </VStack>
+          </CardBody>
+        </Card>
+
+        {/* Bloc Caractéristiques additionnelles */}
+        <Card>
+          <CardBody>
+            <VStack align="stretch" spacing={4}>
+              <Heading size="md">📋 Caractéristiques additionnelles</Heading>
               <CaracteristiquesEditor 
                 value={data.caracteristiques}
                 onChange={v => updateField('caracteristiques', v)}

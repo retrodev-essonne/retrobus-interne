@@ -1,120 +1,263 @@
-﻿/* Simplified VehiculeAdd using shared components */
+﻿/* Édition d'un véhicule existant */
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Heading, VStack, Input, Textarea, Button, SimpleGrid, Text, useToast
+  Box, Heading, VStack, Input, Textarea, Button, SimpleGrid, Text, useToast, 
+  HStack, Card, CardBody, Spinner, Center, FormControl, FormLabel
 } from '@chakra-ui/react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { FiArrowLeft, FiSave } from 'react-icons/fi';
 import GalleryManager from '../components/vehicle/GalleryManager.jsx';
 import CaracteristiquesEditor from '../components/vehicle/CaracteristiquesEditor.jsx';
+import VehicleTechnicalInfoEditor from '../components/vehicle/VehicleTechnicalInfoEditor.jsx';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function VehiculeAdd() {
   const { parc } = useParams();
+  const navigate = useNavigate();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetch(`${API_BASE}/vehicles/${parc}`, {
-      headers: { Authorization: 'Bearer creator123' }
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     })
-      .then(r => r.ok ? r.json() : null)
-      .then(setData)
-      .catch(()=> toast({ status:'error', title:'Véhicule introuvable'}));
-  }, [parc]);
-
-  const updateField = (f, v) => setData(d => ({ ...d, [f]: v }));
-
-  const save = () => {
-    setSaving(true);
-    fetch(`${API_BASE}/vehicles/${parc}`, {
-      method:'PUT',
-      headers:{
-        'Content-Type':'application/json',
-        Authorization: 'Bearer ' + localStorage.getItem('token')
-      },
-      body: JSON.stringify({
-        modele: data.modele,
-        marque: data.marque,
-        subtitle: data.subtitle,
-        etat: data.etat,
-        immat: data.immat,
-        energie: data.energie,
-        miseEnCirculation: data.miseEnCirculation,
-        description: data.description,
-        history: data.history,
-        caracteristiques: data.caracteristiques,
-        gallery: data.gallery,
-        isPublic: data.isPublic || false
+      .then(r => {
+        if (!r.ok) throw new Error('Véhicule introuvable');
+        return r.json();
       })
-    })
-      .then(r=> r.ok ? r.json() : Promise.reject())
-      .then(()=> toast({ status:'success', title:'Enregistré'}))
-      .catch(()=> toast({ status:'error', title:'Erreur sauvegarde'}))
-      .finally(()=> setSaving(false));
+      .then(vehicle => {
+        setData(vehicle);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Erreur chargement:', error);
+        toast({ status: 'error', title: 'Véhicule introuvable' });
+        setLoading(false);
+      });
+  }, [parc, toast]);
+
+  const updateField = (f, v) => {
+    setData(d => d ? { ...d, [f]: v } : null);
   };
 
-  if (!data) return <Box p={8}><Heading>Chargement...</Heading></Box>;
+  const save = async () => {
+    if (!data) return;
+    
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_BASE}/vehicles/${parc}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          modele: data.modele,
+          marque: data.marque,
+          subtitle: data.subtitle,
+          etat: data.etat,
+          immat: data.immat,
+          energie: data.energie,
+          miseEnCirculation: data.miseEnCirculation,
+          description: data.description,
+          history: data.history,
+          caracteristiques: data.caracteristiques,
+          gallery: data.gallery,
+          isPublic: data.isPublic || false
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Erreur sauvegarde');
+      }
+
+      toast({ status: 'success', title: 'Modifications enregistrées' });
+    } catch (error) {
+      console.error('Erreur sauvegarde:', error);
+      toast({ status: 'error', title: 'Erreur sauvegarde', description: error.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Center p={8}>
+        <VStack spacing={4}>
+          <Spinner size="lg" />
+          <Text>Chargement du véhicule...</Text>
+        </VStack>
+      </Center>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Box p={8}>
+        <VStack spacing={4}>
+          <Heading color="red.600">Erreur</Heading>
+          <Text>Impossible de charger le véhicule {parc}</Text>
+          <Button onClick={() => navigate('/dashboard/vehicules')}>
+            Retour à la liste
+          </Button>
+        </VStack>
+      </Box>
+    );
+  }
 
   return (
     <Box p={8}>
-      <Heading mb={6}>Édition véhicule {parc}</Heading>
+      <HStack mb={6}>
+        <Button
+          leftIcon={<FiArrowLeft />}
+          variant="outline"
+          onClick={() => navigate('/dashboard/vehicules')}
+        >
+          Retour
+        </Button>
+        <Heading>✏️ Édition - Véhicule {parc}</Heading>
+      </HStack>
+
       <VStack align="stretch" spacing={6}>
-        <SimpleGrid columns={{ base:1, md:2 }} spacing={4}>
-          <Box>
-            <Text fontWeight="bold">Marque</Text>
-            <Input value={data.marque || ''} onChange={e=>updateField('marque', e.target.value)} />
-          </Box>
-            <Box>
-            <Text fontWeight="bold">Modèle</Text>
-            <Input value={data.modele || ''} onChange={e=>updateField('modele', e.target.value)} />
-          </Box>
-          <Box>
-            <Text fontWeight="bold">Sous-titre</Text>
-            <Input value={data.subtitle || ''} onChange={e=>updateField('subtitle', e.target.value)} />
-          </Box>
-          <Box>
-            <Text fontWeight="bold">État</Text>
-            <Input value={data.etat || ''} onChange={e=>updateField('etat', e.target.value)} />
-          </Box>
-          <Box>
-            <Text fontWeight="bold">Immat</Text>
-            <Input value={data.immat || ''} onChange={e=>updateField('immat', e.target.value)} />
-          </Box>
-          <Box>
-            <Text fontWeight="bold">Énergie</Text>
-            <Input value={data.energie || ''} onChange={e=>updateField('energie', e.target.value)} />
-          </Box>
-          <Box>
-            <Text fontWeight="bold">Mise en circulation (YYYY-MM-DD)</Text>
-            <Input value={data.miseEnCirculation || ''} onChange={e=>updateField('miseEnCirculation', e.target.value)} />
-          </Box>
-        </SimpleGrid>
+        {/* Bloc identité */}
+        <Card>
+          <CardBody>
+            <VStack align="stretch" spacing={4}>
+              <Heading size="md">📋 Identité du véhicule</Heading>
+              
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl>
+                  <FormLabel fontWeight="600">Marque</FormLabel>
+                  <Input 
+                    value={data.marque || ''} 
+                    onChange={e => updateField('marque', e.target.value)}
+                    placeholder="ex: Mercedes-Benz"
+                  />
+                </FormControl>
 
-        <Box>
-          <Text fontWeight="bold" mb={2}>Description</Text>
-          <Textarea rows={4} value={data.description || ''} onChange={e=>updateField('description', e.target.value)} />
-        </Box>
-        <Box>
-          <Text fontWeight="bold" mb={2}>Histoire</Text>
-          <Textarea rows={5} value={data.history || ''} onChange={e=>updateField('history', e.target.value)} />
-        </Box>
+                <FormControl>
+                  <FormLabel fontWeight="600">Modèle</FormLabel>
+                  <Input 
+                    value={data.modele || ''} 
+                    onChange={e => updateField('modele', e.target.value)}
+                    placeholder="ex: Citaro"
+                  />
+                </FormControl>
 
-        <CaracteristiquesEditor
-          value={data.caracteristiques || []}
-          onChange={list => updateField('caracteristiques', list)}
-        />
+                <FormControl>
+                  <FormLabel fontWeight="600">Sous-titre</FormLabel>
+                  <Input 
+                    value={data.subtitle || ''} 
+                    onChange={e => updateField('subtitle', e.target.value)}
+                    placeholder="ex: Un grand classique"
+                  />
+                </FormControl>
 
-        <GalleryManager
-          value={data.gallery || []}
-          onChange={gal => updateField('gallery', gal)}
-          uploadEndpoint={`${API_BASE}/vehicles/${parc}/gallery`}
-          deleteEndpoint={`${API_BASE}/vehicles/${parc}/gallery`}
-          authHeader={'Bearer creator123'}
-        />
+                <FormControl>
+                  <FormLabel fontWeight="600">Immatriculation</FormLabel>
+                  <Input 
+                    value={data.immat || ''} 
+                    onChange={e => updateField('immat', e.target.value)}
+                    placeholder="ex: FG-920-RE"
+                  />
+                </FormControl>
+              </SimpleGrid>
+            </VStack>
+          </CardBody>
+        </Card>
 
-        <Button colorScheme="blue" onClick={save} isLoading={saving}>Enregistrer</Button>
+        {/* Bloc informations techniques */}
+        <Card>
+          <CardBody>
+            <VehicleTechnicalInfoEditor 
+              data={data}
+              onUpdate={updateField}
+            />
+          </CardBody>
+        </Card>
+
+        {/* Bloc descriptions */}
+        <Card>
+          <CardBody>
+            <VStack align="stretch" spacing={4}>
+              <Heading size="md">📝 Descriptions</Heading>
+              
+              <FormControl>
+                <FormLabel fontWeight="600">Description générale</FormLabel>
+                <Textarea 
+                  rows={4}
+                  value={data.description || ''} 
+                  onChange={e => updateField('description', e.target.value)}
+                  placeholder="Description générale du véhicule..."
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontWeight="600">Historique</FormLabel>
+                <Textarea 
+                  rows={5}
+                  value={data.history || ''} 
+                  onChange={e => updateField('history', e.target.value)}
+                  placeholder="Historique, anecdotes, restaurations..."
+                />
+              </FormControl>
+            </VStack>
+          </CardBody>
+        </Card>
+
+        {/* Bloc caractéristiques */}
+        <Card>
+          <CardBody>
+            <VStack align="stretch" spacing={4}>
+              <Heading size="md">📋 Caractéristiques additionnelles</Heading>
+              <CaracteristiquesEditor
+                value={data.caracteristiques || []}
+                onChange={list => updateField('caracteristiques', list)}
+              />
+            </VStack>
+          </CardBody>
+        </Card>
+
+        {/* Bloc galerie */}
+        <Card>
+          <CardBody>
+            <VStack align="stretch" spacing={4}>
+              <Heading size="md">🖼️ Galerie photos</Heading>
+              <GalleryManager
+                value={data.gallery || []}
+                onChange={gal => updateField('gallery', gal)}
+                uploadEndpoint={`${API_BASE}/vehicles/${parc}/gallery`}
+                deleteEndpoint={`${API_BASE}/vehicles/${parc}/gallery`}
+                authHeader={`Bearer ${localStorage.getItem('token')}`}
+              />
+            </VStack>
+          </CardBody>
+        </Card>
+
+        {/* Boutons d'action */}
+        <HStack spacing={4} justify="flex-end">
+          <Button 
+            variant="outline"
+            onClick={() => navigate('/dashboard/vehicules')}
+          >
+            Annuler
+          </Button>
+          <Button
+            colorScheme="blue"
+            leftIcon={<FiSave />}
+            isLoading={saving}
+            loadingText="Enregistrement..."
+            onClick={save}
+            size="lg"
+          >
+            Enregistrer les modifications
+          </Button>
+        </HStack>
       </VStack>
     </Box>
   );
