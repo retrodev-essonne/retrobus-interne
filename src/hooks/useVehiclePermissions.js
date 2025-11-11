@@ -1,30 +1,77 @@
 /**
  * Hook pour vérifier les permissions de gestion des véhicules
  * Centralise la logique d'autorisation pour les opérations sur les véhicules
+ * 
+ * ✅ Gère les variations de casse et format des rôles
+ * ✅ Fallback robuste si le rôle n'existe pas
  */
 
 import { useUser } from '../context/UserContext';
 import { RESOURCES, ROLE_PERMISSIONS, PERMISSION_TYPES } from '../lib/permissions';
 
+/**
+ * Normalise un rôle pour correspondre aux clés de ROLE_PERMISSIONS
+ * @param {string} role - Le rôle à normaliser
+ * @returns {string} Le rôle normalisé
+ */
+function normalizeRoleKey(role) {
+  if (!role) return null;
+  
+  const normalized = String(role).trim().toUpperCase();
+  
+  // Si la clé existe directement, la retourner
+  if (ROLE_PERMISSIONS[normalized]) {
+    return normalized;
+  }
+  
+  // Sinon, chercher une correspondance
+  const roleMap = {
+    'ADMINISTRATEUR': 'ADMIN',
+    'ADMINISTRATEURS': 'ADMIN',
+  };
+  
+  if (roleMap[normalized]) {
+    return roleMap[normalized];
+  }
+  
+  return normalized;
+}
+
+/**
+ * Vérifie si un rôle a une permission spécifique
+ * @param {string} role - Le rôle à vérifier
+ * @param {string} resource - La ressource (ex: RESOURCES.VEHICLE_CREATE)
+ * @returns {boolean}
+ */
+function hasPermission(role, resource) {
+  const normalizedRole = normalizeRoleKey(role);
+  const roleConfig = ROLE_PERMISSIONS[normalizedRole];
+  
+  if (!roleConfig) {
+    console.warn(`⚠️ Rôle inconnu: "${role}" (normalisé: "${normalizedRole}")`);
+    return false;
+  }
+  
+  const permissions = roleConfig.permissions[resource] || [];
+  return permissions.includes(PERMISSION_TYPES.EDIT) || permissions.includes('edit');
+}
+
 export function useVehiclePermissions() {
   const { matricule, roles = [] } = useUser();
 
   // Récupérer le premier rôle (rôle principal)
-  const userRole = roles?.[0] || null;
+  const rawRole = roles?.[0] || null;
+  const userRole = normalizeRoleKey(rawRole);
 
   /**
    * Vérifie si l'utilisateur peut créer un véhicule
    * @returns {boolean}
    */
   const canCreateVehicle = () => {
-    if (!userRole || !matricule) return false;
-    
-    const rolePermissions = ROLE_PERMISSIONS[userRole]?.permissions;
-    if (!rolePermissions) return false;
-
-    const permissions = rolePermissions[RESOURCES.VEHICLE_CREATE] || [];
-    return permissions.includes(PERMISSION_TYPES.EDIT) || 
-           permissions.includes('edit');
+    if (!userRole || !matricule) {
+      return false;
+    }
+    return hasPermission(userRole, RESOURCES.VEHICLE_CREATE);
   };
 
   /**
@@ -32,12 +79,14 @@ export function useVehiclePermissions() {
    * @returns {boolean}
    */
   const canViewVehicles = () => {
-    if (!userRole || !matricule) return false;
+    if (!userRole || !matricule) {
+      return false;
+    }
     
-    const rolePermissions = ROLE_PERMISSIONS[userRole]?.permissions;
-    if (!rolePermissions) return false;
+    const roleConfig = ROLE_PERMISSIONS[userRole];
+    if (!roleConfig) return false;
 
-    const permissions = rolePermissions[RESOURCES.VEHICLES] || [];
+    const permissions = roleConfig.permissions[RESOURCES.VEHICLES] || [];
     return permissions.includes(PERMISSION_TYPES.VIEW) || 
            permissions.includes('view') ||
            permissions.includes(PERMISSION_TYPES.EDIT) ||
@@ -49,14 +98,10 @@ export function useVehiclePermissions() {
    * @returns {boolean}
    */
   const canEditVehicle = () => {
-    if (!userRole || !matricule) return false;
-    
-    const rolePermissions = ROLE_PERMISSIONS[userRole]?.permissions;
-    if (!rolePermissions) return false;
-
-    const permissions = rolePermissions[RESOURCES.VEHICLE_EDIT] || [];
-    return permissions.includes(PERMISSION_TYPES.EDIT) || 
-           permissions.includes('edit');
+    if (!userRole || !matricule) {
+      return false;
+    }
+    return hasPermission(userRole, RESOURCES.VEHICLE_EDIT);
   };
 
   /**
@@ -64,14 +109,10 @@ export function useVehiclePermissions() {
    * @returns {boolean}
    */
   const canDeleteVehicle = () => {
-    if (!userRole || !matricule) return false;
-    
-    const rolePermissions = ROLE_PERMISSIONS[userRole]?.permissions;
-    if (!rolePermissions) return false;
-
-    const permissions = rolePermissions[RESOURCES.VEHICLE_DELETE] || [];
-    return permissions.includes(PERMISSION_TYPES.EDIT) || 
-           permissions.includes('edit');
+    if (!userRole || !matricule) {
+      return false;
+    }
+    return hasPermission(userRole, RESOURCES.VEHICLE_DELETE);
   };
 
   /**
@@ -80,14 +121,28 @@ export function useVehiclePermissions() {
    * @returns {string}
    */
   const getAccessDeniedMessage = (action = 'create') => {
+    const displayRole = rawRole || 'inconnu';
+    const rolesAllowed = ['Administrateur', 'Président', 'Vice-Président', 'Bénévole'];
+    
     const messages = {
-      create: `Vous n'êtes pas autorisé à ajouter des véhicules. Rôle: ${userRole || 'inconnu'}`,
-      view: `Vous n'êtes pas autorisé à consulter les véhicules. Rôle: ${userRole || 'inconnu'}`,
-      edit: `Vous n'êtes pas autorisé à modifier les véhicules. Rôle: ${userRole || 'inconnu'}`,
-      delete: `Vous n'êtes pas autorisé à supprimer les véhicules. Rôle: ${userRole || 'inconnu'}`
+      create: `Vous n'êtes pas autorisé à ajouter des véhicules.\n\nRôle actuel: ${displayRole}\nRôles autorisés: ${rolesAllowed.join(', ')}`,
+      view: `Vous n'êtes pas autorisé à consulter les véhicules. Rôle: ${displayRole}`,
+      edit: `Vous n'êtes pas autorisé à modifier les véhicules. Rôle: ${displayRole}`,
+      delete: `Vous n'êtes pas autorisé à supprimer les véhicules. Rôle: ${displayRole}`
     };
     return messages[action] || messages.create;
   };
+
+  /**
+   * Debug: Retourne les infos actuelles pour dépannage
+   */
+  const debugInfo = () => ({
+    rawRole,
+    normalizedRole: userRole,
+    matricule,
+    canCreate: canCreateVehicle(),
+    roleConfig: ROLE_PERMISSIONS[userRole]
+  });
 
   return {
     canCreateVehicle,
@@ -96,6 +151,8 @@ export function useVehiclePermissions() {
     canDeleteVehicle,
     getAccessDeniedMessage,
     currentRole: userRole,
-    currentMatricule: matricule
+    currentMatricule: matricule,
+    rawRole,
+    debugInfo
   };
 }
