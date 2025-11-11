@@ -277,8 +277,8 @@ export const ROLE_PERMISSIONS = {
     permissions: {
       [RESOURCES.VEHICLES]: ['access', 'view'],
       [RESOURCES.VEHICLE_VIEW]: ['access', 'view'],
-      [RESOURCES.VEHICLE_CREATE]: ['access', 'view'],
-      [RESOURCES.VEHICLE_EDIT]: ['access', 'view'],
+      [RESOURCES.VEHICLE_CREATE]: ['access', 'view', 'edit'],
+      [RESOURCES.VEHICLE_EDIT]: ['access', 'view', 'edit'],
       
       [RESOURCES.EVENTS]: ['access', 'view'],
       [RESOURCES.EVENT_VIEW]: ['access', 'view'],
