@@ -11,6 +11,7 @@ import { FiArrowLeft, FiExternalLink, FiSave, FiUpload, FiTarget, FiChevronDown,
 import { apiClient } from '../api/config';
 import GalleryManager from '../components/vehicle/GalleryManager.jsx';
 import CaracteristiquesEditor from '../components/vehicle/CaracteristiquesEditor.jsx';
+import VehicleDeleteButton from '../components/vehicle/VehicleDeleteButton.jsx';
 
 const PUBLIC_BASE = import.meta.env.VITE_PUBLIC_BASE || window.location.origin;
 const API_BASE = import.meta.env.VITE_API_URL || apiClient.baseURL || '';
@@ -894,16 +895,24 @@ export default function VehiculeShow() {
 
         {/* Bouton de sauvegarde principal */}
         <Box textAlign="center" py={4}>
-          <Button
-            leftIcon={<FiSave />}
-            colorScheme="blue"
-            size="lg"
-            onClick={save}
-            isLoading={saving}
-            loadingText="Sauvegarde en cours..."
-          >
-            💾 Sauvegarder toutes les modifications
-          </Button>
+          <HStack spacing={4} justify="center">
+            <Button
+              leftIcon={<FiSave />}
+              colorScheme="blue"
+              size="lg"
+              onClick={save}
+              isLoading={saving}
+              loadingText="Sauvegarde en cours..."
+            >
+              💾 Sauvegarder les modifications
+            </Button>
+            <VehicleDeleteButton 
+              parc={parc}
+              marque={basicInfo.marque}
+              modele={basicInfo.modele}
+              onSuccess={() => navigate('/dashboard/vehicules')}
+            />
+          </HStack>
           <Text fontSize="sm" color="gray.600" mt={2}>
             Les modifications seront visibles immédiatement sur la page publique
           </Text>
