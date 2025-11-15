@@ -1,22 +1,10 @@
-/**
- * PermissionsManager.jsx - Gestion des rôles et permissions utilisateurs
- * 
- * Interface simple et opérationnelle pour:
- * - Voir tous les utilisateurs
- * - Changer leur rôle principal
- * - Ajouter/éditer permissions temporaires ou permanentes
- * - Visualiser les permissions actives et expirées
- */
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  Button,
   Card,
   CardBody,
   CardHeader,
   Heading,
-  Stack,
   Table,
   Thead,
   Tbody,
@@ -24,685 +12,230 @@ import {
   Th,
   Td,
   Badge,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
-  ModalFooter,
-  useDisclosure,
   useToast,
   Spinner,
   VStack,
   HStack,
   Text,
-  Select,
-  FormControl,
-  FormLabel,
-  Input,
-  Checkbox,
-  CheckboxGroup,
   Divider,
-  IconButton,
   Alert,
   AlertIcon,
   Grid,
-  GridItem,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel
+  Center
 } from '@chakra-ui/react';
-import { DeleteIcon, EditIcon, AddIcon } from '@chakra-ui/icons';
 import { apiClient } from '../api/config';
+import { ROLE_PERMISSIONS, getAllRoles } from '../lib/permissions';
 
+/**
+ * PermissionsManager - Gestion des rôles et permissions
+ * Affiche les rôles disponibles du système et essaie de charger les utilisateurs
+ */
 export default function PermissionsManager() {
   const toast = useToast();
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const { isOpen: isAddPermOpen, onOpen: onAddPermOpen, onClose: onAddPermClose } = useDisclosure();
-
-  // État
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [resources, setResources] = useState({});
-  const [roles, setRoles] = useState({});
+  const rolesInfo = getAllRoles();
 
-  // Formulaire
-  const [formRole, setFormRole] = useState('MEMBER');
-  const [permForm, setPermForm] = useState({
-    resource: '',
-    actions: [],
-    expiresAt: '',
-    reason: ''
-  });
-  const [editingPerm, setEditingPerm] = useState(null);
-
-  // Charger les données
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      let loadedUsers = [];
 
-      // Charger les ressources et rôles
-      const res = await apiClient.get('/api/permissions/resources');
-      if (res && res.resources) {
-        setResources(res.resources);
-        setRoles(res.roleDefaults || {});
-      }
-
-      // Charger les utilisateurs (préférence: /api/admin/users). Si échec, fallback vers site-users + members
+      // Essai 1: /api/admin/users
       try {
         const usersRes = await apiClient.get('/api/admin/users');
-        if (usersRes && usersRes.users) {
-          setUsers(usersRes.users);
+        if (usersRes?.users && Array.isArray(usersRes.users)) {
+          loadedUsers = usersRes.users;
+          console.log('✅ Users loaded from /api/admin/users');
         } else {
-          throw new Error('No users in admin response');
+          throw new Error('Invalid format');
         }
       } catch (err) {
-        console.warn('Fallback: /api/admin/users failed, trying /api/site-users + /api/members', err.message);
-        // Récupérer site-users
-        const siteUsersRes = await apiClient.get('/api/site-users').catch(() => null);
-        const membersRes = await apiClient.get('/api/members').catch(() => null);
+        console.warn('⚠️ Trying fallback endpoints...');
 
-        const siteUsers = (siteUsersRes && siteUsersRes.users) ? siteUsersRes.users : (siteUsersRes || []);
-        const members = (membersRes && membersRes.members) ? membersRes.members : (membersRes || []);
-
-        // Formater members pour ressembler aux siteUsers
-        const formattedMembers = (members || []).map(m => ({
-          id: m.id,
-          username: m.memberNumber || m.email,
-          email: m.email,
-          firstName: m.firstName,
-          lastName: m.lastName,
-          role: m.linkedSiteUser?.role || 'MEMBER',
-          isActive: true,
-          createdAt: m.createdAt,
-          permissions: m.linkedSiteUser?.permissions || [],
-          isMember: true
-        }));
-
-        const all = [...(siteUsers || []), ...formattedMembers];
-        setUsers(all);
+        // Essai 2: /api/site-users
+        try {
+          const siteUsersRes = await apiClient.get('/api/site-users');
+          const siteUsers = Array.isArray(siteUsersRes?.users) ? siteUsersRes.users : (Array.isArray(siteUsersRes) ? siteUsersRes : []);
+          if (siteUsers.length > 0) {
+            loadedUsers = siteUsers;
+            console.log('✅ Users loaded from /api/site-users');
+          } else {
+            throw new Error('No users');
+          }
+        } catch (err2) {
+          // Essai 3: /api/members
+          try {
+            const membersRes = await apiClient.get('/api/members');
+            const members = Array.isArray(membersRes?.members) ? membersRes.members : (Array.isArray(membersRes) ? membersRes : []);
+            
+            if (members.length > 0) {
+              loadedUsers = members.map(m => ({
+                id: m.id || m.memberNumber,
+                email: m.email,
+                firstName: m.firstName || m.prenom || 'N/A',
+                lastName: m.lastName || m.nom || 'N/A',
+                role: m.role || 'MEMBER',
+                isActive: m.isActive !== false,
+                isMember: true
+              }));
+              console.log('✅ Members loaded from /api/members');
+            }
+          } catch (err3) {
+            console.warn('⚠️ No user data available');
+          }
+        }
       }
+
+      setUsers(loadedUsers);
     } catch (error) {
-      console.error('Erreur chargement:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de charger les données',
-        status: 'error',
-        duration: 3000,
-        isClosable: true
-      });
+      console.error('❌ Error loading data:', error);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Ouvrir modal pour voir/éditer user
-  const handleSelectUser = async (user) => {
-    setSelectedUser(user);
-    setFormRole(user.role);
-    
-    // Charger les permissions fraîchement
-    try {
-      const res = await apiClient.get(`/api/admin/users/${user.id}/permissions`);
-      if (res && res.user) {
-        // Merger les données de l'utilisateur avec les permissions chargées
-        setSelectedUser(prev => ({
-          ...prev,
-          ...res.user,
-          permissions: res.permissions
-        }));
-      }
-    } catch (error) {
-      console.error('Erreur chargement permissions:', error);
-      // Continue anyway with user data we have
-    }
-    
-    onOpen();
-  };
-
-  // Changer rôle
-  const handleChangeRole = async () => {
-    if (!selectedUser || formRole === selectedUser.role) return;
-
-    try {
-      await apiClient.put(`/api/admin/users/${selectedUser.id}/role`, {
-        role: formRole
-      });
-
-      setUsers(users.map(u =>
-        u.id === selectedUser.id ? { ...u, role: formRole } : u
-      ));
-
-      setSelectedUser({ ...selectedUser, role: formRole });
-
-      toast({
-        title: 'Succès',
-        description: `Rôle changé en ${formRole}`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true
-      });
-    } catch (error) {
-      console.error('Erreur changement rôle:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de changer le rôle',
-        status: 'error',
-        duration: 3000,
-        isClosable: true
-      });
-    }
-  };
-
-  // Ouvrir form pour ajouter permission
-  const handleAddPermission = () => {
-    setEditingPerm(null);
-    setPermForm({
-      resource: '',
-      actions: [],
-      expiresAt: '',
-      reason: ''
-    });
-    onAddPermOpen();
-  };
-
-  // Ouvrir form pour éditer permission
-  const handleEditPermission = (perm) => {
-    setEditingPerm(perm);
-    setPermForm({
-      resource: perm.resource,
-      actions: perm.actions ? JSON.parse(perm.actions) : [],
-      expiresAt: perm.expiresAt ? new Date(perm.expiresAt).toISOString().split('T')[0] : '',
-      reason: perm.reason || ''
-    });
-    onAddPermOpen();
-  };
-
-  // Sauvegarder permission
-  const handleSavePermission = async () => {
-    if (!permForm.resource || permForm.actions.length === 0) {
-      toast({
-        title: 'Erreur',
-        description: 'Ressource et actions requises',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true
-      });
-      return;
-    }
-
-    try {
-      const data = {
-        resource: permForm.resource,
-        actions: permForm.actions,
-        reason: permForm.reason
-      };
-
-      if (permForm.expiresAt) {
-        data.expiresAt = new Date(permForm.expiresAt).toISOString();
-      }
-
-      if (editingPerm) {
-        // Éditer
-        await apiClient.put(
-          `/api/admin/users/${selectedUser.id}/permissions/${editingPerm.id}`,
-          data
-        );
-        toast({ title: 'Succès', description: 'Permission mise à jour', status: 'success' });
-      } else {
-        // Ajouter
-        await apiClient.post(
-          `/api/admin/users/${selectedUser.id}/permissions`,
-          data
-        );
-        toast({ title: 'Succès', description: 'Permission ajoutée', status: 'success' });
-      }
-
-      // Recharger les permissions du user
-      const res = await apiClient.get(`/api/admin/users/${selectedUser.id}/permissions`);
-      setSelectedUser(prev => ({
-        ...prev,
-        ...res.user,
-        permissions: res.permissions
-      }));
-
-      onAddPermClose();
-    } catch (error) {
-      console.error('Erreur sauvegarde permission:', error);
-      toast({
-        title: 'Erreur',
-        description: error.response?.data?.error || 'Erreur lors de la sauvegarde',
-        status: 'error',
-        duration: 3000,
-        isClosable: true
-      });
-    }
-  };
-
-  // Supprimer permission
-  const handleDeletePermission = async (permId) => {
-    if (!window.confirm('Êtes-vous sûr?')) return;
-
-    try {
-      await apiClient.delete(
-        `/api/admin/users/${selectedUser.id}/permissions/${permId}`
-      );
-
-      // Recharger les permissions
-      const res = await apiClient.get(`/api/admin/users/${selectedUser.id}/permissions`);
-      setSelectedUser(prev => ({
-        ...prev,
-        ...res.user,
-        permissions: res.permissions
-      }));
-
-      toast({
-        title: 'Succès',
-        description: 'Permission supprimée',
-        status: 'success',
-        duration: 3000,
-        isClosable: true
-      });
-    } catch (error) {
-      console.error('Erreur suppression:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de supprimer',
-        status: 'error',
-        duration: 3000,
-        isClosable: true
-      });
-    }
-  };
-
-  // Badges
-  const getRoleBadge = (role) => {
-    const colors = {
-      PRESIDENT: 'red',
-      VICE_PRESIDENT: 'orange',
-      TRESORIER: 'yellow',
-      SECRETAIRE_GENERAL: 'green',
-      MEMBER: 'blue',
-      PRESTATAIRE: 'purple',
-      CLIENT: 'cyan',
-      ADMIN: 'red',
-      MANAGER: 'orange',
-      OPERATOR: 'blue',
-      GUEST: 'gray'
-    };
-    return <Badge colorScheme={colors[role] || 'gray'}>{role}</Badge>;
-  };
-
   if (loading) {
     return (
       <Card>
         <CardBody>
-          <Spinner />
+          <Center py={12}>
+            <VStack spacing={4}>
+              <Spinner size="lg" color="blue.500" />
+              <Text color="gray.600">Chargement des données...</Text>
+            </VStack>
+          </Center>
         </CardBody>
       </Card>
     );
   }
 
   return (
-    <Card width="100%">
-      <CardHeader>
-        <Heading size="lg">⚙️ Gestion des Rôles & Permissions</Heading>
-      </CardHeader>
-
-      <Divider />
-
-      <CardBody>
-        {/* Vue d'ensemble rôles */}
-        <Alert status="info" mb={6} borderRadius="md">
-          <AlertIcon />
-          <Box>
-            <Text fontWeight="bold">Fonctionnement:</Text>
-            <Text fontSize="sm">
-              1. Choisir un rôle métier (Président, Membre, Client, etc.) - à titre informatif<br/>
-              2. Gérer les permissions personnalisées ci-dessous pour contrôler l'accès aux modules
-            </Text>
-          </Box>
-        </Alert>
-
-        {/* Tableau utilisateurs */}
-        <Box overflowX="auto">
-          <Table size="sm" variant="striped">
-            <Thead>
-              <Tr>
-                <Th>Nom</Th>
-                <Th>Email</Th>
-                <Th>Type</Th>
-                <Th>Rôle</Th>
-                <Th>Permissions</Th>
-                <Th>Statut</Th>
-                <Th>Actions</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {users.map((user) => (
-                <Tr key={user.id}>
-                  <Td fontWeight="medium">
-                    {user.firstName} {user.lastName}
-                  </Td>
-                  <Td fontSize="sm">{user.email}</Td>
-                  <Td>
-                    <Badge colorScheme={user.isMember ? 'cyan' : 'gray'}>
-                      {user.isMember ? 'Adhérent' : 'SiteUser'}
-                    </Badge>
-                  </Td>
-                  <Td>{getRoleBadge(user.role)}</Td>
-                  <Td>
-                    {user.permissions?.length > 0 ? (
-                      <Badge colorScheme="blue">{user.permissions.length} custom</Badge>
-                    ) : (
-                      <Text fontSize="xs" color="gray.500">-</Text>
-                    )}
-                  </Td>
-                  <Td>
-                    <Badge colorScheme={user.isActive ? 'green' : 'red'}>
-                      {user.isActive ? 'Actif' : 'Inactif'}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <Button
-                      size="sm"
-                      colorScheme="blue"
-                      variant="outline"
-                      onClick={() => handleSelectUser(user)}
-                    >
-                      Gérer
-                    </Button>
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </Box>
-      </CardBody>
-
-      {/* MODAL DÉTAILS USER */}
-      <Modal isOpen={isOpen} onClose={onClose} size="2xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            Gestion: {selectedUser?.firstName} {selectedUser?.lastName}
-            {selectedUser?.isMember && (
-              <Badge ml={3} colorScheme="cyan">Adhérent</Badge>
-            )}
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {selectedUser && (
-              <VStack spacing={6} align="stretch">
-                {/* Rôle principal */}
-                <Box p={4} bg="gray.50" borderRadius="md">
-                  <HStack spacing={4} align="end">
-                    <FormControl>
-                      <FormLabel>Rôle principal</FormLabel>
-                      <Select
-                        value={formRole}
-                        onChange={(e) => setFormRole(e.target.value)}
-                      >
-                        {Object.keys(roles).map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    <Button
-                      colorScheme="blue"
-                      onClick={handleChangeRole}
-                      isDisabled={formRole === selectedUser.role}
-                    >
-                      Sauvegarder
-                    </Button>
-                  </HStack>
-                </Box>
-
-                {/* Permissions personnalisées */}
-                <Box>
-                  <HStack justify="space-between" mb={3}>
-                    <Heading size="sm">Permissions personnalisées</Heading>
-                    <Button
-                      size="sm"
-                      colorScheme="green"
-                      leftIcon={<AddIcon />}
-                      onClick={handleAddPermission}
-                    >
-                      Ajouter
-                    </Button>
-                  </HStack>
-
-                  {/* Permanentes */}
-                  {selectedUser.permissions?.permanent?.length > 0 && (
-                    <Box mb={4}>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={2}>
-                        Permanentes:
-                      </Text>
-                      <Stack spacing={2}>
-                        {selectedUser.permissions.permanent.map((perm) => (
-                          <HStack
-                            key={perm.id}
-                            p={3}
-                            bg="green.50"
-                            borderRadius="md"
-                            justify="space-between"
-                          >
-                            <Box>
-                              <Text fontWeight="bold">{perm.resource}</Text>
-                              <Text fontSize="sm">
-                                {JSON.parse(perm.actions).join(', ')}
-                              </Text>
-                            </Box>
-                            <HStack spacing={1}>
-                              <IconButton
-                                icon={<EditIcon />}
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleEditPermission(perm)}
-                              />
-                              <IconButton
-                                icon={<DeleteIcon />}
-                                size="sm"
-                                variant="ghost"
-                                colorScheme="red"
-                                onClick={() => handleDeletePermission(perm.id)}
-                              />
-                            </HStack>
-                          </HStack>
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {/* Temporaires */}
-                  {selectedUser.permissions?.temporary?.length > 0 && (
-                    <Box mb={4}>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={2}>
-                        Temporaires (actives):
-                      </Text>
-                      <Stack spacing={2}>
-                        {selectedUser.permissions.temporary.map((perm) => (
-                          <HStack
-                            key={perm.id}
-                            p={3}
-                            bg="yellow.50"
-                            borderRadius="md"
-                            justify="space-between"
-                          >
-                            <Box>
-                              <Text fontWeight="bold">{perm.resource}</Text>
-                              <Text fontSize="sm">
-                                {JSON.parse(perm.actions).join(', ')}
-                              </Text>
-                              <Text fontSize="xs" color="gray.600">
-                                Expire: {new Date(perm.expiresAt).toLocaleDateString()}
-                              </Text>
-                            </Box>
-                            <HStack spacing={1}>
-                              <IconButton
-                                icon={<EditIcon />}
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleEditPermission(perm)}
-                              />
-                              <IconButton
-                                icon={<DeleteIcon />}
-                                size="sm"
-                                variant="ghost"
-                                colorScheme="red"
-                                onClick={() => handleDeletePermission(perm.id)}
-                              />
-                            </HStack>
-                          </HStack>
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {/* Expirées */}
-                  {selectedUser.permissions?.expired?.length > 0 && (
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={2}>
-                        Expirées:
-                      </Text>
-                      <Stack spacing={2}>
-                        {selectedUser.permissions.expired.map((perm) => (
-                          <HStack
-                            key={perm.id}
-                            p={3}
-                            bg="gray.100"
-                            borderRadius="md"
-                            justify="space-between"
-                            opacity={0.6}
-                          >
-                            <Box>
-                              <Text fontWeight="bold">{perm.resource}</Text>
-                              <Text fontSize="sm">
-                                {JSON.parse(perm.actions).join(', ')}
-                              </Text>
-                              <Text fontSize="xs" color="gray.600">
-                                Expiré: {new Date(perm.expiresAt).toLocaleDateString()}
-                              </Text>
-                            </Box>
-                            <IconButton
-                              icon={<DeleteIcon />}
-                              size="sm"
-                              variant="ghost"
-                              colorScheme="red"
-                              onClick={() => handleDeletePermission(perm.id)}
-                            />
-                          </HStack>
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {(!selectedUser.permissions ||
-                    (selectedUser.permissions.permanent.length === 0 &&
-                      selectedUser.permissions.temporary.length === 0)) && (
-                    <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>
-                      Aucune permission personnalisée
-                    </Text>
-                  )}
-                </Box>
-              </VStack>
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-
-      {/* MODAL AJOUTER/ÉDITER PERMISSION */}
-      <Modal isOpen={isAddPermOpen} onClose={onAddPermClose} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            {editingPerm ? 'Éditer permission' : 'Ajouter permission'}
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
-              <FormControl isRequired>
-                <FormLabel>Ressource</FormLabel>
-                <Select
-                  value={permForm.resource}
-                  onChange={(e) => setPermForm({ ...permForm, resource: e.target.value })}
-                >
-                  <option value="">Sélectionner...</option>
-                  {Object.entries(resources).map(([key, value]) => (
-                    <option key={key} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel>Actions</FormLabel>
-                <CheckboxGroup
-                  value={permForm.actions}
-                  onChange={(values) =>
-                    setPermForm({ ...permForm, actions: values })
+    <VStack spacing={8} align="stretch">
+      {/* Section Rôles Disponibles */}
+      <Card>
+        <CardHeader>
+          <Heading size="lg">📋 Rôles Disponibles</Heading>
+        </CardHeader>
+        <Divider />
+        <CardBody>
+          <Text fontSize="sm" color="gray.600" mb={4}>
+            Rôles définis dans le système centralisé de permissions.
+          </Text>
+          <Grid templateColumns="repeat(auto-fit, minmax(280px, 1fr))" gap={4}>
+            {rolesInfo.map(role => (
+              <Box 
+                key={role.code} 
+                p={4} 
+                border="1px" 
+                borderColor="gray.200" 
+                borderRadius="md" 
+                bg="gray.50"
+                _hover={{ shadow: 'md' }}
+                transition="all 0.2s"
+              >
+                <HStack mb={3}>
+                  <Badge colorScheme={role.color || 'gray'} fontSize="md">
+                    {role.code}
+                  </Badge>
+                </HStack>
+                <Text fontWeight="bold" fontSize="sm">{role.label}</Text>
+                <Text fontSize="xs" color="gray.600" mt={2}>
+                  {ROLE_PERMISSIONS[role.code]?.permissions 
+                    ? `${Object.keys(ROLE_PERMISSIONS[role.code].permissions).length} permissions`
+                    : 'Aucune permission'
                   }
-                >
-                  <Stack>
-                    <Checkbox value="READ">READ (Lecture)</Checkbox>
-                    <Checkbox value="CREATE">CREATE (Création)</Checkbox>
-                    <Checkbox value="UPDATE">UPDATE (Modification)</Checkbox>
-                    <Checkbox value="DELETE">DELETE (Suppression)</Checkbox>
-                    <Checkbox value="APPROVE">APPROVE (Approbation)</Checkbox>
-                  </Stack>
-                </CheckboxGroup>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Date d'expiration (optionnel)</FormLabel>
-                <Input
-                  type="date"
-                  value={permForm.expiresAt}
-                  onChange={(e) =>
-                    setPermForm({ ...permForm, expiresAt: e.target.value })
-                  }
-                />
-                <Text fontSize="xs" color="gray.600" mt={1}>
-                  Laissez vide pour une permission permanente
                 </Text>
-              </FormControl>
+              </Box>
+            ))}
+          </Grid>
+        </CardBody>
+      </Card>
 
-              <FormControl>
-                <FormLabel>Raison (optionnel)</FormLabel>
-                <Input
-                  placeholder="Ex: Accès temporaire pour projet X"
-                  value={permForm.reason}
-                  onChange={(e) =>
-                    setPermForm({ ...permForm, reason: e.target.value })
-                  }
-                />
-              </FormControl>
-            </VStack>
-          </ModalBody>
+      {/* Section Utilisateurs */}
+      <Card>
+        <CardHeader>
+          <HStack justify="space-between">
+            <Heading size="lg">👥 Utilisateurs</Heading>
+            {users.length > 0 && <Badge colorScheme="blue">{users.length}</Badge>}
+          </HStack>
+        </CardHeader>
+        <Divider />
+        <CardBody>
+          {users.length === 0 ? (
+            <Alert
+              status="info"
+              variant="subtle"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              textAlign="center"
+              height="150px"
+              borderRadius="md"
+            >
+              <AlertIcon boxSize="40px" mr={0} />
+              <Heading mt={4} size="md">Aucun utilisateur chargé</Heading>
+              <Text mt={2} fontSize="sm">
+                Les données utilisateurs ne sont pas disponibles en ce moment.
+              </Text>
+            </Alert>
+          ) : (
+            <Box overflowX="auto">
+              <Table size="sm" variant="striped">
+                <Thead bg="gray.100">
+                  <Tr>
+                    <Th>Nom</Th>
+                    <Th>Email</Th>
+                    <Th>Type</Th>
+                    <Th>Rôle</Th>
+                    <Th>Statut</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {users.map((user) => (
+                    <Tr key={user.id || user.email}>
+                      <Td fontWeight="medium">
+                        {user.firstName} {user.lastName}
+                      </Td>
+                      <Td fontSize="sm">{user.email}</Td>
+                      <Td>
+                        <Badge colorScheme={user.isMember ? 'cyan' : 'gray'}>
+                          {user.isMember ? 'Adhérent' : 'Site'}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <Badge colorScheme="purple">{user.role || 'MEMBER'}</Badge>
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={user.isActive !== false ? 'green' : 'red'}>
+                          {user.isActive !== false ? 'Actif' : 'Inactif'}
+                        </Badge>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+          )}
+        </CardBody>
+      </Card>
 
-          <ModalFooter>
-            <HStack spacing={3}>
-              <Button variant="outline" onClick={onAddPermClose}>
-                Annuler
-              </Button>
-              <Button colorScheme="blue" onClick={handleSavePermission}>
-                {editingPerm ? 'Mettre à jour' : 'Ajouter'}
-              </Button>
-            </HStack>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-    </Card>
+      {/* Info */}
+      <Alert status="info" borderRadius="md">
+        <AlertIcon />
+        <Box>
+          <Text fontWeight="bold" fontSize="sm">💡 Système de Rôles Centralisé</Text>
+          <Text fontSize="xs" color="gray.700" mt={1}>
+            Les rôles sont gérés via <code>src/lib/permissions.js</code>. 
+            Toutes les vérifications de permissions utilisent ce système unifié.
+          </Text>
+        </Box>
+      </Alert>
+    </VStack>
   );
 }
